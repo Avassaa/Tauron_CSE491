@@ -65,6 +65,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Backend API will be available at `http://localhost:8000`
+
 - API Documentation: `http://localhost:8000/docs`
 - Health Check: `http://localhost:8000/health`
 
@@ -79,6 +80,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 AI Engine will be available at `http://localhost:8001`
+
 - API Documentation: `http://localhost:8001/docs`
 - Health Check: `http://localhost:8001/health`
 
@@ -95,12 +97,14 @@ Frontend will be available at `http://localhost:4200`
 ## Technology Stack
 
 ### Frontend
+
 - **Framework**: Angular 17
 - **Language**: TypeScript
 - **Build Tool**: Angular CLI
 - **HTTP Client**: Angular HttpClient
 
 ### Backend
+
 - **Framework**: FastAPI
 - **Language**: Python 3.9+
 - **Authentication**: JWT (JSON Web Tokens)
@@ -108,6 +112,7 @@ Frontend will be available at `http://localhost:4200`
 - **API Documentation**: Swagger/OpenAPI
 
 ### AI Engine
+
 - **Framework**: FastAPI
 - **ML Libraries**: PyTorch, Transformers, scikit-learn
 - **Data Processing**: NumPy, Pandas
@@ -131,10 +136,12 @@ Each service has its own environment configuration:
 ## API Endpoints
 
 ### Backend API (Port 8000)
+
 - Base URL: `http://localhost:8000/api/v1`
 - Health: `GET /api/v1/health`
 
 ### AI Engine API (Port 8001)
+
 - Base URL: `http://localhost:8001/api/v1`
 - Inference: `POST /api/v1/inference/predict`
 - Training: `POST /api/v1/training/train`
@@ -143,12 +150,14 @@ Each service has its own environment configuration:
 ## Testing
 
 ### Backend Tests
+
 ```bash
 cd backend
 pytest
 ```
 
 ### Frontend Tests
+
 ```bash
 cd frontend
 ng test
@@ -157,18 +166,22 @@ ng test
 ## Building for Production
 
 ### Frontend
+
 ```bash
 cd frontend
 ng build --configuration production
 ```
 
 ### Backend
+
 The backend runs directly with uvicorn. For production, use:
+
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ### AI Engine
+
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8001 --workers 4
 ```
@@ -179,11 +192,3 @@ uvicorn main:app --host 0.0.0.0 --port 8001 --workers 4
 2. Make your changes
 3. Test thoroughly
 4. Submit a pull request
-
-## License
-
-[Add your license information here]
-
-## Contact
-
-[Add contact information here]
