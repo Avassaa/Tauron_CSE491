@@ -1,0 +1,14 @@
+model:
+  default_type: "neural_network"
+  save_path: "./models"
+  
+training:
+  batch_size: 32
+  epochs: 100
+  learning_rate: 0.001
+  validation_split: 0.2
+
+data:
+  raw_path: "./data/raw"
+  processed_path: "./data/processed"
+
