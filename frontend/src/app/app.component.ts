@@ -3,10 +3,9 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [CommonModule, RouterOutlet],
-  template: `
+    selector: 'app-root',
+    imports: [CommonModule, RouterOutlet],
+    template: `
     <div class="app-container">
       <header>
         <h1>Tauron</h1>
@@ -16,7 +15,7 @@ import { RouterOutlet } from '@angular/router';
       </main>
     </div>
   `,
-  styles: [`
+    styles: [`
     .app-container {
       min-height: 100vh;
       display: flex;
