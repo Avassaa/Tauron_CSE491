@@ -1,0 +1,112 @@
+<!-- write.component.html -->
+<div class="hero-section">
+    <div class="overlay">
+      <div class="container py-5">
+        <div class="row justify-content-center">
+          <div class="col-lg-10">
+            <h1 class="display-4 text-white text-center mb-5">Create News Article</h1>
+  
+            <div class="card bg-dark text-white shadow-lg border-0">
+              <div class="card-body p-4 p-md-5">
+                <!-- Success message -->
+                <div class="alert alert-success mb-4" *ngIf="submitSuccess">
+                  <i class="bi bi-check-circle-fill me-2"></i> News article successfully created!
+                  Redirecting to news page...
+                </div>
+  
+                <!-- Error message -->
+                <div class="alert alert-danger mb-4" *ngIf="submitError">
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ submitError }}
+                </div>
+  
+                <form [formGroup]="newsForm" (ngSubmit)="submitNews()">
+                  <div class="mb-4">
+                    <label for="title" class="form-label">Article Title <span class="text-danger">*</span></label>
+                    <input
+                      type="text"
+                      id="title"
+                      formControlName="title"
+                      class="form-control bg-dark text-white border-secondary"
+                      placeholder="Enter a compelling title"
+                    />
+                    <div class="text-danger mt-1" *ngIf="titleControl?.invalid && (titleControl?.touched || titleControl?.dirty)">
+                      <small *ngIf="titleControl?.errors?.['required']">Title is required</small>
+                      <small *ngIf="titleControl?.errors?.['minlength']">Title must be at least 5 characters long</small>
+                    </div>
+                  </div>
+  
+                  <div class="mb-4">
+                    <label for="content" class="form-label">Article Content <span class="text-danger">*</span></label>
+                    <textarea
+                      id="content"
+                      formControlName="content"
+                      class="form-control bg-dark text-white border-secondary"
+                      rows="8"
+                      placeholder="Write your article content here"
+                    ></textarea>
+                    <div class="text-danger mt-1" *ngIf="contentControl?.invalid && (contentControl?.touched || contentControl?.dirty)">
+                      <small *ngIf="contentControl?.errors?.['required']">Content is required</small>
+                      <small *ngIf="contentControl?.errors?.['minlength']">Content must be at least 20 characters long</small>
+                    </div>
+                  </div>
+  
+                  <div class="row">
+                    <div class="col-md-6 mb-4">
+                      <label for="author" class="form-label">Author <span class="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        id="author"
+                        formControlName="author"
+                        class="form-control bg-dark text-white border-secondary"
+                        placeholder="Enter author name"
+                      />
+                      <div class="text-danger mt-1" *ngIf="authorControl?.invalid && (authorControl?.touched || authorControl?.dirty)">
+                        <small *ngIf="authorControl?.errors?.['required']">Author is required</small>
+                      </div>
+                    </div>
+  
+                    <div class="col-md-6 mb-4">
+                      <label for="publishDate" class="form-label">Publication Date <span class="text-danger">*</span></label>
+                      <input
+                        type="datetime-local"
+                        id="publishDate"
+                        formControlName="publishDate"
+                        class="form-control bg-dark text-white border-secondary"
+                      />
+                    </div>
+                  </div>
+  
+                  <div class="mb-4">
+                    <label for="imageUrl" class="form-label">Image URL (Optional)</label>
+                    <input
+                      type="text"
+                      id="imageUrl"
+                      formControlName="imageUrl"
+                      class="form-control bg-dark text-white border-secondary"
+                      placeholder="Enter a URL for the article image"
+                    />
+                    <small class="text-muted">Leave blank to use a default image</small>
+                  </div>
+  
+                  <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <button type="button" class="btn btn-outline-light me-md-2" routerLink="/news">
+                      <i class="bi bi-arrow-left me-2"></i> Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      class="btn btn-primary"
+                      [disabled]="isSubmitting"
+                    >
+                      <span class="spinner-border spinner-border-sm me-2" *ngIf="isSubmitting"></span>
+                      <i class="bi bi-send-fill me-2" *ngIf="!isSubmitting"></i>
+                      Publish Article
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>

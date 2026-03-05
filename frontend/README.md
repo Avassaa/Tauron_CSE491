@@ -1,175 +1,59 @@
-# Tauron Frontend
+# TSNBank
 
-Angular 17 frontend application for the Tauron project.
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.1.7.
 
-## Overview
+## Development server
 
-This is the frontend application built with Angular 17, featuring a modern, responsive UI that communicates with the FastAPI backend service.
-
-## Features
-
-- Modern Angular 17 architecture with standalone components
-- TypeScript for type safety
-- HTTP client service for API communication
-- Environment-based configuration
-- Responsive design
-
-## Prerequisites
-
-- Node.js (v18 or higher)
-- npm (v9 or higher) or yarn
-
-## Installation
-
-```bash
-npm install
-```
-
-## Development
-
-Start the development server:
+To start a local development server, run:
 
 ```bash
 ng serve
-# or
-npm start
 ```
 
-The application will be available at `http://localhost:4200`.
+Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
-The app will automatically reload if you change any of the source files.
+## Code scaffolding
 
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── components/     # Reusable UI components
-│   ├── services/       # Angular services (API, auth, etc.)
-│   ├── models/         # TypeScript interfaces and models
-│   ├── guards/         # Route guards for authentication
-│   ├── interceptors/   # HTTP interceptors
-│   ├── utils/          # Utility functions
-│   └── app.component.ts
-├── assets/             # Static assets (images, styles)
-├── environments/       # Environment configurations
-│   ├── environment.ts           # Development
-│   └── environment.prod.ts      # Production
-├── index.html
-├── main.ts            # Application entry point
-└── styles.css         # Global styles
-```
-
-## Configuration
-
-### Environment Variables
-
-Update `src/environments/environment.ts` for development:
-
-```typescript
-export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:8000/api/v1'
-};
-```
-
-For production, update `src/environments/environment.prod.ts`:
-
-```typescript
-export const environment = {
-  production: true,
-  apiUrl: 'https://api.tauron.com/api/v1'
-};
-```
-
-## Building
-
-### Development Build
-
-```bash
-ng build
-```
-
-### Production Build
-
-```bash
-ng build --configuration production
-```
-
-The build artifacts will be stored in the `dist/` directory.
-
-## Running Unit Tests
-
-```bash
-ng test
-```
-
-Tests are executed via [Karma](https://karma-runner.github.io).
-
-## Code Generation
-
-Generate a new component:
+Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
 
 ```bash
 ng generate component component-name
 ```
 
-Generate a new service:
+For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
 ```bash
-ng generate service service-name
+ng generate --help
 ```
 
-## Key Services
+## Building
 
-### ApiService
-
-Located at `src/app/services/api.service.ts`, this service provides HTTP methods for communicating with the backend API:
-
-```typescript
-// GET request
-this.apiService.get<User>('/users/1').subscribe(user => {
-  console.log(user);
-});
-
-// POST request
-this.apiService.post<User>('/users', userData).subscribe(user => {
-  console.log(user);
-});
-```
-
-## API Integration
-
-The frontend communicates with the backend API running on `http://localhost:8000`. Ensure the backend service is running before starting the frontend.
-
-## Browser Support
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## Troubleshooting
-
-### Port Already in Use
-
-If port 4200 is already in use:
+To build the project run:
 
 ```bash
-ng serve --port 4201
+ng build
 ```
 
-### Module Not Found Errors
+This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
-Clear node_modules and reinstall:
+## Running unit tests
+
+To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
 
 ```bash
-rm -rf node_modules package-lock.json
-npm install
+ng test
 ```
+
+## Running end-to-end tests
+
+For end-to-end (e2e) testing, run:
+
+```bash
+ng e2e
+```
+
+Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
 
 ## Additional Resources
 
-- [Angular Documentation](https://angular.io/docs)
-- [Angular CLI Documentation](https://angular.io/cli)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

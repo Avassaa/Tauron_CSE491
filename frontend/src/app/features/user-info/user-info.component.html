@@ -1,0 +1,127 @@
+<!-- user-info.component.html -->
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Loading state -->
+            <div class="text-center my-5" *ngIf="isLoading">
+                <div class="spinner-border text-light" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+
+            <!-- Error message -->
+            <div class="alert alert-danger" *ngIf="error">
+                {{ error }}
+            </div>
+
+            <div class="card bg-dark text-white border border-secondary" *ngIf="!isLoading && !error">
+                <div class="card-header bg-dark border-secondary d-flex align-items-center">
+                    <div class="profile-icon bg-primary text-white me-3">
+                        <i class="bi bi-person-fill display-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="mb-0">{{ user.firstName }} {{ user.lastName }}</h3>
+                        <small class="text-muted">Member since: {{ user.memberSince }}</small>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="text-secondary">First Name</label>
+                                <p class="info-value">{{ user.firstName }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-group">
+                                <label class="text-secondary">Last Name</label>
+                                <p class="info-value">{{ user.lastName }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-group mb-4">
+                        <label class="text-secondary">Username</label>
+                        <p class="info-value">{{ user.userName }}</p>
+                    </div>
+
+                    <div class="info-group mb-4">
+                        <label class="text-secondary">Email Address</label>
+                        <div class="d-flex align-items-center">
+                            <p class="info-value mb-0">{{ user.email }}</p>
+                            <span *ngIf="user.isVerified" class="ms-2 badge bg-success">Verified</span>
+                            <span *ngIf="!user.isVerified" class="ms-2 badge bg-warning">Not Verified</span>
+                        </div>
+                    </div>
+
+                    <div class="info-group mb-4">
+                        <label class="text-secondary">Account Type</label>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-primary me-2">{{ user.subscriptionType }}</span>
+                            <!-- If you have a subscription page, uncomment this -->
+                            <!-- <a routerLink="/subscription" class="btn btn-sm btn-outline-info">Change Plan</a> -->
+                        </div>
+                    </div>
+
+                    <div class="info-group">
+                        <label class="text-secondary">Last Login</label>
+                        <p class="info-value">{{ user.lastLogin }}</p>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-dark border-secondary">
+                    <div class="d-flex justify-content-between">
+                        <button routerLink="/edit-profile" class="btn btn-outline-light">
+                            <i class="bi bi-pencil-square me-2"></i>Edit Profile
+                        </button>
+                        <button class="btn btn-outline-danger" (click)="openDeleteConfirmation()">
+                            <i class="bi bi-trash me-2"></i>Delete Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal" [class.d-block]="showDeleteConfirmation" [class.d-none]="!showDeleteConfirmation" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border border-danger">
+            <div class="modal-header border-bottom border-danger">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Account
+                </h5>
+                <button type="button" class="btn-close btn-close-white" (click)="cancelDelete()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Are you sure you want to delete your account? This action cannot be undone.</p>
+                <p class="mb-2">All your personal information will be permanently removed from our system.</p>
+                
+                <div class="alert alert-danger mt-3" *ngIf="deleteError">
+                    {{ deleteError }}
+                </div>
+                
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="confirmCheck" 
+                           [checked]="confirmCheckboxChecked"
+                           (change)="confirmCheckboxChecked = !confirmCheckboxChecked">
+                    <label class="form-check-label" for="confirmCheck">
+                        I understand this action is permanent
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-danger">
+                <button type="button" class="btn btn-secondary" (click)="cancelDelete()">Cancel</button>
+                <button type="button" class="btn btn-danger" 
+                        [disabled]="!confirmCheckboxChecked || deleteInProgress"
+                        (click)="confirmDeleteAccount()">
+                    <span class="spinner-border spinner-border-sm me-2" *ngIf="deleteInProgress"></span>
+                    Delete My Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal backdrop -->
+<div class="modal-backdrop fade show" *ngIf="showDeleteConfirmation"></div>

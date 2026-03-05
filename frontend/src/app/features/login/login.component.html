@@ -1,0 +1,106 @@
+<div class="container-fluid text-white py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card bg-dark text-white">
+                <div class="card-header bg-dark text-center border-secondary">
+                    <h2 class="my-3">Tauron Login</h2>
+                </div>
+                <div class="card-body">
+                    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+                        <!-- Email Field -->
+                        <div class="mb-4">
+                            <label for="email" class="form-label">Email Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-secondary border-secondary">
+                                    <i class="bi bi-envelope"></i>
+                                </span>
+                                <input
+                                    type="email"
+                                    class="form-control bg-dark text-white border-secondary"
+                                    id="email"
+                                    placeholder="Enter your email"
+                                    formControlName="email"
+                                    required
+                                    [class.is-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
+                                />
+                            </div>
+                            <!-- Email validation errors -->
+                            <div class="text-danger mt-1" *ngIf="loginForm.get('email')?.invalid && loginForm.get('email')?.touched">
+                                <small *ngIf="loginForm.get('email')?.errors?.['required']">Email is required.</small>
+                                <small *ngIf="loginForm.get('email')?.errors?.['email']">Invalid email format.</small>
+                            </div>
+                        </div>
+                    
+                        <!-- Password Field -->
+                        <div class="mb-4">
+                            <label for="password" class="form-label">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-secondary border-secondary">
+                                    <i class="bi bi-lock"></i>
+                                </span>
+                                <input
+                                    type="password"
+                                    class="form-control bg-dark text-white border-secondary"
+                                    id="password"
+                                    placeholder="Enter your password"
+                                    formControlName="password"
+                                    required
+                                    [class.is-invalid]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+                                />
+                            </div>
+                            <!-- Password validation errors -->
+                            <div class="text-danger mt-1" *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched">
+                                <small *ngIf="loginForm.get('password')?.errors?.['required']">Password is required.</small>
+                            </div>
+                        </div>
+                
+                    
+                        <!-- Error Message -->
+                        <div *ngIf="errorMessage" class="alert alert-danger mb-3">
+                            {{ errorMessage }}
+                        </div>
+                    
+                        <!-- Submit Button -->
+                        <div class="d-grid">
+                            <button 
+                                type="submit" 
+                                class="btn btn-primary"
+                                [disabled]="loginForm.invalid || isLoading">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>
+                                {{ isLoading ? 'Logging in...' : 'Login' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer bg-dark border-secondary">
+                    <div class="d-flex justify-content-between">
+                        <a routerLink="/register" class="text-info text-decoration-none"
+                            >Forgot Password?</a
+                        >
+                        <a
+                            routerLink="/register"
+                            class="text-info text-decoration-none"
+                            >Create Account</a
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Options -->
+            <div class="text-center mt-4">
+                <p>Or login with</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn btn-outline-light">
+                        <i class="bi bi-google"></i>
+                    </button>
+                    <button class="btn btn-outline-light">
+                        <i class="bi bi-facebook"></i>
+                    </button>
+                    <button class="btn btn-outline-light">
+                        <i class="bi bi-apple"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
