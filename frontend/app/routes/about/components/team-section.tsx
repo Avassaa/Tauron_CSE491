@@ -4,26 +4,26 @@ const team = [
   {
     name: "İrem KARAKAPLAN",
     role: "Project Manager & AI Researcher",
-    image: "/assets/images/ceo.jpg",
-    links: { github: "https://github.com/iremkrkaplan", linkedin: "#" },
+    image: "https://github.com/iremkrkaplan.png?size=400",
+    links: { github: "https://github.com/iremkrkaplan", linkedin: "https://www.linkedin.com/in/irem-karakaplan/" },
   },
   {
     name: "Baha TÜTÜNCÜOĞLU",
     role: "Software Architect & Data Engineer",
-    image: "/assets/images/cfo.jpg",
-    links: { github: "https://github.com/Avassaa", linkedin: "#" },
+    image: "https://github.com/Avassaa.png?size=400",
+    links: { github: "https://github.com/Avassaa", linkedin: "https://www.linkedin.com/in/baha-tutuncuoglu/" },
   },
   {
     name: "Veysel Reşit ÇAÇAN",
     role: "NLP Specialist & Backend Developer",
-    image: "/assets/images/cto.jpg",
-    links: { github: "https://github.com/Chillyfeely", linkedin: "#" },
+    image: "https://github.com/Chillyfeely.png?size=400",
+    links: { github: "https://github.com/Chillyfeely", linkedin: "https://www.linkedin.com/in/veysel-re%C5%9Fit-%C3%A7a%C3%A7an/" },
   },
   {
     name: "Sude AKINCI",
     role: "UI/UX Designer & Frontend Developer",
-    image: "/assets/images/coo.jpg",
-    links: { github: "https://github.com/sudeakinci", linkedin: "#" },
+    image: "https://github.com/sudeakinci.png?size=400",
+    links: { github: "https://github.com/sudeakinci", linkedin: "https://www.linkedin.com/in/sudeakinci/" },
   },
 ];
 

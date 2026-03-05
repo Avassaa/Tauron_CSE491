@@ -35,7 +35,7 @@ export default function AboutPage() {
               <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-neutral-900 shadow-2xl">
                 <img
                   src="/public/assets/images/about.png"
-                  alt="Tauron Research Lab"
+                  alt="stock image"
                   className="object-cover w-full h-full opacity-80 group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/60 to-transparent" />

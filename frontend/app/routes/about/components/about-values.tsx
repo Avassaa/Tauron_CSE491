@@ -12,7 +12,7 @@ const values = [
   {
     title: "Autonomous Content",
     description:
-      "Utilizing web scraping and rephrasing techniques, we synthesize complex financial data from over 10 global sources into original, easy-to-understand news content.",
+      "Utilizing web scraping and rephrasing techniques, we synthesize complex financial data from various global sources into original, easy-to-understand news content.",
     icon: <Newspaper className="w-6 h-6 text-emerald-400" />,
     index: 2,
     tag: "Web Scraping"

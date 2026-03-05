@@ -19,7 +19,7 @@ export function Header() {
   const links = [
     { label: 'Features', href: '#' },
     { label: 'Pricing', href: '#' },
-    { label: 'About', href: '#' },
+    { label: 'About', href: '/about' },
   ];
 
   React.useEffect(() => {
