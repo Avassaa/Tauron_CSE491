@@ -1,0 +1,136 @@
+import { useState, useRef, useEffect } from "react";
+import { Mail, ChevronUp } from "lucide-react";
+
+export function AboutCTA() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [showTriggerButton, setShowTriggerButton] = useState(true);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    if (isOpen) {
+      setShowTriggerButton(false);
+    } else {
+      timeoutId = setTimeout(() => {
+        setShowTriggerButton(true);
+      }, 700);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isOpen]);
+
+  return (
+    <section className="p-8 lg:p-12 rounded-[2.5rem] bg-gradient-to-b from-white/[0.05] to-transparent border border-white/10 backdrop-blur-md overflow-hidden relative transition-all duration-700 ease-in-out">
+      {/* Background Glow */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-indigo-500/5 blur-[120px]" />
+
+      <div className="relative z-10 max-w-5xl mx-auto">
+        {/* Header Section */}
+        <div className={`text-center transition-all duration-500 ${isOpen ? "mb-10" : "mb-4"}`}>
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-2 tracking-tight">
+            Ready to <span className="text-white/70">Navigate</span> the Future?
+          </h2>
+          <p className="text-white/60 max-w-lg mx-auto text-base md:text-lg leading-relaxed">
+            Whether you are a researcher, developer, or investor, Tauron simplifies your
+            interaction with financial markets.
+          </p>
+
+          {!isOpen && showTriggerButton && (
+            <button
+              onClick={() => setIsOpen(true)}
+              className="mt-8 px-8 py-2.5 rounded-full bg-indigo-600 text-white font-medium hover:bg-indigo-500 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] transition-all active:scale-[0.98] text-sm"
+            >
+              Get in Touch
+            </button>
+          )}
+        </div>
+
+        {/* Expandable Section */}
+        <div
+          ref={formRef}
+          className={`grid transition-all duration-700 ease-in-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            }`}
+        >
+          <div className="overflow-hidden">
+            <div className="relative pt-8 border-t border-white/5 mt-4">
+              {/* Modern Minimize button */}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="absolute top-4 right-0 flex items-center gap-1.5 text-white/30 hover:text-white transition-all text-[10px] uppercase tracking-widest font-bold"
+                aria-label="Minimize form"
+              >
+                Minimize <ChevronUp size={14} />
+              </button>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr,2fr] gap-8">
+                {/* Left Side: Info */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-1">Contact Information</h3>
+                    <p className="text-white/50 text-sm leading-relaxed italic">
+                      Expert support within 24 hours.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-4 items-center group cursor-pointer">
+                    <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-white/5 border border-white/10 group-hover:border-indigo-500/50 transition-colors">
+                      <Mail className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-white text-xs font-semibold">Get in Touch</h4>
+                      <p className="text-indigo-300 text-sm font-medium">hello@tauron.ai</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side: Form */}
+                <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Name</label>
+                      <input
+                        type="text"
+                        placeholder="Your Name"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all placeholder:text-white/10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Email</label>
+                      <input
+                        type="email"
+                        placeholder="Email Address"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all placeholder:text-white/10"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Message</label>
+                    <textarea
+                      placeholder="How can we help?"
+                      rows={4}
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all resize-none placeholder:text-white/10"
+                    />
+                  </div>
+                  <button className="w-full py-4 rounded-full bg-white text-black text-sm font-bold hover:bg-neutral-200 hover:shadow-[0_20px_50px_rgba(255,255,255,0.1)] transition-all duration-150 cursor-pointer flex items-center justify-center">
+                    Send Message
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
