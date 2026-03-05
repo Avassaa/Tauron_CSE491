@@ -1,10 +1,21 @@
-import { useRef } from "react";
 import type { Route } from "./+types/about";
+import { useRef } from "react";
 import { BeamsBackground } from "@/components/beams-background";
 import { AboutValues } from "../components/about-values";
 import { TeamSection } from "../components/team-section";
 import { AboutCTA } from "../components/cta";
 import { AboutWorkflow } from "../components/about-workflow";
+
+export function meta({}: Route.MetaArgs) {
+  return [
+    { title: "About" },
+    {
+      name: "description",
+      content:
+        "Learn about Tauron's mission, methodology, and team behind financial intelligence.",
+    },
+  ];
+}
 
 export default function AboutPage() {
   const methodologyRef = useRef<HTMLDivElement>(null);

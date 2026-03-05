@@ -1,15 +1,78 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type FormEvent } from "react";
 import { Mail, ChevronUp } from "lucide-react";
 
 export function AboutCTA() {
   const [isOpen, setIsOpen] = useState(false);
   const [showTriggerButton, setShowTriggerButton] = useState(true);
   const formRef = useRef<HTMLDivElement>(null);
+  const contactFormRef = useRef<HTMLFormElement>(null);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const name = formData.get("name")?.toString().trim() ?? "";
+    const email = formData.get("email")?.toString().trim() ?? "";
+    const message = formData.get("message")?.toString().trim() ?? "";
+
+    const subject = `New Contact Message from ${name || "Website Visitor"}`;
+    const body = [
+      `Name: ${name || "-"}`,
+      `Email: ${email || "-"}`,
+      "",
+      "Message:",
+      message || "-",
+    ].join("\n");
+
+    window.location.href = `mailto:hello@tauron.ai?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
 
   useEffect(() => {
-    if (isOpen && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!isOpen) {
+      return;
     }
+
+    if (!contactFormRef.current) {
+      return;
+    }
+
+    const duration = 700;
+    const offset = 96;
+    const startTime = performance.now();
+    const startScrollY = window.scrollY;
+    let animationFrameId = 0;
+
+    const easeInOutCubic = (value: number) => {
+      return value < 0.5
+        ? 4 * value * value * value
+        : 1 - Math.pow(-2 * value + 2, 3) / 2;
+    };
+
+    const animateScroll = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const easedProgress = easeInOutCubic(progress);
+      const targetElement = contactFormRef.current;
+
+      if (!targetElement) {
+        return;
+      }
+
+      // Follow the expanding panel's position while keeping it below the sticky header.
+      const dynamicTargetTop = window.scrollY + targetElement.getBoundingClientRect().top - offset;
+      const nextScrollTop = startScrollY + (dynamicTargetTop - startScrollY) * easedProgress;
+
+      window.scrollTo({ top: Math.max(0, nextScrollTop), behavior: "auto" });
+
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(animateScroll);
+      }
+    };
+
+    animationFrameId = window.requestAnimationFrame(animateScroll);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -95,21 +158,25 @@ export function AboutCTA() {
                 </div>
 
                 {/* Right Side: Form */}
-                <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                <form ref={contactFormRef} className="space-y-5" onSubmit={handleSubmit}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Name</label>
                       <input
+                        name="name"
                         type="text"
                         placeholder="Your Name"
+                        required
                         className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all placeholder:text-white/10"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Email</label>
                       <input
+                        name="email"
                         type="email"
                         placeholder="Email Address"
+                        required
                         className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all placeholder:text-white/10"
                       />
                     </div>
@@ -117,12 +184,14 @@ export function AboutCTA() {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-medium text-white/40 pl-1 uppercase tracking-widest">Message</label>
                     <textarea
+                      name="message"
                       placeholder="How can we help?"
                       rows={4}
+                      required
                       className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/40 transition-all resize-none placeholder:text-white/10"
                     />
                   </div>
-                  <button className="w-full py-4 rounded-full bg-white text-black text-sm font-bold hover:bg-neutral-200 hover:shadow-[0_20px_50px_rgba(255,255,255,0.1)] transition-all duration-150 cursor-pointer flex items-center justify-center">
+                  <button type="submit" className="w-full py-4 rounded-full bg-white text-black text-sm font-bold hover:bg-neutral-200 hover:shadow-[0_20px_50px_rgba(255,255,255,0.1)] transition-all duration-150 cursor-pointer flex items-center justify-center">
                     Send Message
                   </button>
                 </form>
