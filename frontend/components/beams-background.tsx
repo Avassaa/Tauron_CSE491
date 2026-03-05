@@ -8,6 +8,8 @@ interface AnimatedGradientBackgroundProps {
   className?: string;
   children?: React.ReactNode;
   intensity?: "subtle" | "medium" | "strong";
+  /** When true, canvas is position fixed so beams stay visible when scrolling (e.g. full-page layout). */
+  fixed?: boolean;
 }
 
 interface Beam {
@@ -43,6 +45,7 @@ export function BeamsBackground({
   className,
   children,
   intensity = "strong",
+  fixed = false,
 }: AnimatedGradientBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const beamsRef = useRef<Beam[]>([]);
@@ -175,12 +178,15 @@ export function BeamsBackground({
     return (
       <div
         className={cn(
-          "relative min-h-screen w-full overflow-hidden bg-neutral-950",
+          "relative w-full overflow-hidden bg-neutral-950",
+          fixed ? "min-h-0" : "min-h-screen",
           className
         )}
       >
         {children ? (
-          <div className="relative z-10 min-h-screen w-full">{children}</div>
+          <div className={cn("relative z-10 w-full", !fixed && "min-h-screen")}>
+            {children}
+          </div>
         ) : null}
       </div>
     );
@@ -189,13 +195,14 @@ export function BeamsBackground({
   return (
     <div
       className={cn(
-        "relative min-h-screen w-full overflow-hidden bg-neutral-950",
+        "relative w-full overflow-hidden bg-neutral-950",
+        fixed ? "min-h-0" : "min-h-screen",
         className
       )}
     >
       <canvas
         ref={canvasRef}
-        className="absolute inset-0"
+        className={fixed ? "fixed inset-0 z-0" : "absolute inset-0"}
         style={{ filter: "blur(15px)" }}
       />
 
@@ -215,7 +222,14 @@ export function BeamsBackground({
       />
 
       {children ? (
-        <div className="relative z-10 min-h-screen w-full">{children}</div>
+        <div
+          className={cn(
+            "relative z-10 w-full",
+            !fixed && "min-h-screen"
+          )}
+        >
+          {children}
+        </div>
       ) : (
         <div className="relative z-10 flex h-screen w-full items-center justify-center">
           <div className="flex flex-col items-center justify-center gap-6 px-4 text-center">

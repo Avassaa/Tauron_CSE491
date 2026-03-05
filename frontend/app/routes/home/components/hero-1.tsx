@@ -21,6 +21,8 @@ interface HeroLandingProps {
   callToActions?: CallToAction[]
   titleSize?: 'small' | 'medium' | 'large'
   className?: string
+  /** When true, do not wrap in BeamsBackground (parent provides it for continuous background). */
+  embedInBackground?: boolean
 }
 
 const defaultProps: Partial<HeroLandingProps> = {
@@ -38,7 +40,8 @@ export function HeroLanding(props: HeroLandingProps) {
     announcementBanner,
     callToActions,
     titleSize,
-    className
+    className,
+    embedInBackground = false,
   } = { ...defaultProps, ...props }
 
   const getTitleSizeClasses = () => {
@@ -77,9 +80,8 @@ export function HeroLanding(props: HeroLandingProps) {
     }
   }
 
-  return (
-    <BeamsBackground intensity="medium" className={className}>
-      <div className="relative min-h-screen w-screen overflow-x-hidden text-white [&_a]:text-white/90 [&_a:hover]:text-white [&_a.rounded-lg.bg-primary]:bg-white [&_a.rounded-lg.bg-primary]:text-neutral-950 [&_a.rounded-lg.bg-primary:hover]:bg-white/90">
+  const inner = (
+    <div className="relative min-h-screen w-screen overflow-x-hidden text-white [&_a]:text-white/90 [&_a:hover]:text-white [&_a.rounded-lg.bg-primary]:bg-white [&_a.rounded-lg.bg-primary]:text-neutral-950 [&_a.rounded-lg.bg-primary:hover]:bg-white/90">
       <div className="relative isolate flex min-h-screen flex-col justify-center overflow-hidden px-6 pt-0">
         <div className="mx-auto max-w-4xl pt-10 sm:pt-12">
           {announcementBanner && (
@@ -110,9 +112,18 @@ export function HeroLanding(props: HeroLandingProps) {
           </div>
         </div>
       </div>
-      </div>
+    </div>
+  );
+
+  if (embedInBackground) {
+    return inner;
+  }
+
+  return (
+    <BeamsBackground intensity="medium" className={className}>
+      {inner}
     </BeamsBackground>
-  )
+  );
 }
 
 export type { HeroLandingProps, AnnouncementBanner, CallToAction }
