@@ -2,5 +2,3 @@
 .env
 build/
 node_modules/
-build/*
-build
