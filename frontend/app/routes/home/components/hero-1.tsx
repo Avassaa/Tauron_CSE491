@@ -1,6 +1,6 @@
 'use client'
 
-import { BeamsBackground } from '@/components/beams-background'
+import { BeamsBackground } from "~/components/landing/beams-background"
 
 interface AnnouncementBanner {
   text: string

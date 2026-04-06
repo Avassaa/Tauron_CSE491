@@ -9,7 +9,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import { Header } from "@/components/header";
+import { Header } from "~/components/landing/header";
 import { AppProviders } from "./providers";
 import "./app.css";
 

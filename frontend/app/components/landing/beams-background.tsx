@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 
 import { useAppTheme } from "~/theme-context";
-import { cn } from "@/lib/utils";
+import { cn } from "~/lib/utils";
 
 interface AnimatedGradientBackgroundProps {
   className?: string;

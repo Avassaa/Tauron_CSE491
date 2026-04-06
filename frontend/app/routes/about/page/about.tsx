@@ -1,6 +1,6 @@
 import type { Route } from "./+types/about";
 import { useRef } from "react";
-import { BeamsBackground } from "@/components/beams-background";
+import { BeamsBackground } from "~/components/landing/beams-background";
 import { AboutValues } from "../components/about-values";
 import { TeamSection } from "../components/team-section";
 import { AboutCTA } from "../components/cta";

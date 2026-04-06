@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { Link } from 'react-router';
-import { Button } from '@/components/button';
+import { Button } from "~/components/landing/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/tooltip';
-import { cn } from '@/lib/utils';
+} from "~/components/landing/tooltip";
+import { cn } from "~/lib/utils";
 import { CheckCircleIcon, StarIcon } from 'lucide-react';
 import { motion, type Transition } from 'motion/react';
 

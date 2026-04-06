@@ -3,10 +3,10 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useAppTheme } from '~/theme-context';
-import { Button, buttonVariants } from '@/components/button';
-import { cn } from '@/lib/utils';
-import { MenuToggleIcon } from '@/components/menu-toggle-icon';
-import { useScroll } from '@/hooks/use-scroll';
+import { Button, buttonVariants } from "~/components/landing/button";
+import { cn } from "~/lib/utils";
+import { MenuToggleIcon } from "~/components/landing/menu-toggle-icon";
+import { useScroll } from "~/hooks/use-scroll";
 import { AnimatedThemeToggler } from '~/components/ui/animated-theme-toggler';
 
 export const WordmarkIcon = (props: React.ComponentProps<'svg'>) => (

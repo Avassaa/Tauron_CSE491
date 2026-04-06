@@ -1,6 +1,9 @@
 'use client';
 
-import { PricingSection, DEFAULT_PRICING_PLANS } from '@/components/pricing-section';
+import {
+  PricingSection,
+  DEFAULT_PRICING_PLANS,
+} from "~/components/landing/pricing-section";
 
 export default function PricingPage() {
   return (

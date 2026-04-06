@@ -8,8 +8,8 @@ import {
   Grid,
   XAxis,
 } from "~/routes/home/components/area-chart";
-import { BeamsBackground } from "@/components/beams-background";
-import { BentoCard, BentoGrid } from "@/components/bento-grid";
+import { BeamsBackground } from "~/components/landing/beams-background";
+import { BentoCard, BentoGrid } from "~/components/landing/bento-grid";
 import { HeroLanding } from "~/routes/home/components/hero-1";
 import type { HeroLandingProps } from "~/routes/home/components/hero-1";
 import AnimatedBeamMultipleOutputDemo from "~/routes/home/components/animated-beam-multiple-outputs";

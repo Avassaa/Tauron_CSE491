@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from "~/lib/utils";
 
 type MenuToggleProps = React.ComponentProps<'svg'> & {
   open: boolean;
