@@ -81,14 +81,14 @@ export function HeroLanding(props: HeroLandingProps) {
   }
 
   const inner = (
-    <div className="relative min-h-screen w-screen overflow-x-hidden text-white [&_a]:text-white/90 [&_a:hover]:text-white [&_a.rounded-lg.bg-primary]:bg-white [&_a.rounded-lg.bg-primary]:text-neutral-950 [&_a.rounded-lg.bg-primary:hover]:bg-white/90">
+    <div className="relative min-h-screen w-screen overflow-x-hidden text-foreground dark:text-white [&_a]:text-foreground/90 dark:[&_a]:text-white/90 [&_a:hover]:text-foreground dark:[&_a:hover]:text-white [&_a.rounded-lg.bg-primary]:bg-primary [&_a.rounded-lg.bg-primary]:text-primary-foreground [&_a.rounded-lg.bg-primary:hover]:bg-primary/90">
       <div className="relative isolate flex min-h-screen flex-col justify-center overflow-hidden px-6 pt-0">
         <div className="mx-auto max-w-4xl pt-10 sm:pt-12">
           {announcementBanner && (
             <div className="hidden sm:mb-2 sm:flex sm:justify-center">
-              <div className="relative rounded-full px-2 py-1 text-xs text-white/70 ring-1 ring-white/20 transition-all hover:ring-white/40 sm:px-3 sm:text-sm/6">
+              <div className="relative rounded-full px-2 py-1 text-xs text-muted-foreground ring-1 ring-border transition-all hover:ring-border/80 dark:text-white/70 dark:ring-white/20 dark:hover:ring-white/40 sm:px-3 sm:text-sm/6">
                 {announcementBanner.text}{' '}
-                <a href={announcementBanner.linkHref} className="font-semibold text-white transition-colors hover:text-white/80">
+                <a href={announcementBanner.linkHref} className="font-semibold text-foreground transition-colors hover:text-foreground/80 dark:text-white dark:hover:text-white/80">
                   <span aria-hidden="true" className="absolute inset-0" />
                   {announcementBanner.linkText} <span aria-hidden="true">&rarr;</span>
                 </a>
@@ -97,10 +97,10 @@ export function HeroLanding(props: HeroLandingProps) {
           )}
 
           <div className="text-center">
-            <h1 className={`${getTitleSizeClasses()} font-semibold tracking-tight text-balance text-white`}>
+            <h1 className={`${getTitleSizeClasses()} font-semibold tracking-tight text-balance text-foreground dark:text-white`}>
               {title}
             </h1>
-            <p className="mt-6 text-base font-medium text-pretty text-white/80 sm:mt-8 sm:text-lg sm:text-xl/8">
+            <p className="mt-6 text-base font-medium text-pretty text-muted-foreground sm:mt-8 sm:text-lg sm:text-xl/8 dark:text-white/80">
               {description}
             </p>
 

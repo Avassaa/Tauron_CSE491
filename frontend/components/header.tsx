@@ -1,10 +1,13 @@
 'use client';
 
 import React from 'react';
+import { Link } from 'react-router';
+import { useAppTheme } from '~/theme-context';
 import { Button, buttonVariants } from '@/components/button';
 import { cn } from '@/lib/utils';
 import { MenuToggleIcon } from '@/components/menu-toggle-icon';
 import { useScroll } from '@/hooks/use-scroll';
+import { AnimatedThemeToggler } from '~/components/ui/animated-theme-toggler';
 
 export const WordmarkIcon = (props: React.ComponentProps<'svg'>) => (
   <svg viewBox="0 0 84 24" fill="currentColor" {...props}>
@@ -15,6 +18,8 @@ export const WordmarkIcon = (props: React.ComponentProps<'svg'>) => (
 export function Header() {
   const [open, setOpen] = React.useState(false);
   const scrolled = useScroll(10);
+  const { theme } = useAppTheme();
+  const isLight = theme === 'light';
 
   const links = [
     { label: 'Features', href: '#' },
@@ -36,41 +41,102 @@ export function Header() {
   return (
     <header
       className={cn(
-        'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b border-transparent md:rounded-xl md:border md:transition-all md:ease-out',
-        !scrolled && !open && 'bg-transparent',
-        (scrolled || open) && 'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
-        {
-          'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
-          'bg-black/30': open,
-        },
+        'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b md:rounded-xl md:border md:transition-all md:ease-out',
+        isLight
+          ? cn(
+              'border-border/80 bg-background/90 text-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/75',
+              scrolled && !open && 'md:top-4 md:max-w-4xl md:shadow-xl',
+            )
+          : cn(
+              'border-transparent',
+              !scrolled && !open && 'bg-transparent',
+              (scrolled || open) &&
+                'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
+              {
+                'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
+                'bg-black/30': open,
+              },
+            ),
       )}
     >
       <nav
         className={cn(
-          'flex h-14 w-full items-center justify-between px-4 text-white/90 md:h-12 md:transition-all md:ease-out',
+          'flex h-14 w-full items-center justify-between px-4 md:h-12 md:transition-all md:ease-out',
+          isLight ? 'text-foreground' : 'text-white/90',
           { 'md:px-2': scrolled },
         )}
       >
-        <a href="/" className="cursor-pointer text-3xl font-semibold tracking-tight text-white no-underline hover:text-white md:text-4xl" style={{ fontFamily: "'Dancing Script', cursive" }}>
+        <a
+          href="/"
+          className={cn(
+            'cursor-pointer text-3xl font-semibold tracking-tight no-underline md:text-4xl',
+            isLight ? 'text-foreground hover:text-foreground' : 'text-white hover:text-white',
+          )}
+          style={{ fontFamily: "'Dancing Script', cursive" }}
+        >
           Tauron
         </a>
         <div className="hidden items-center gap-2 md:flex">
+          <AnimatedThemeToggler
+            className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
+          />
           {links.map((link, i) => (
-            <a key={i} className={cn(buttonVariants({ variant: 'ghost' }), 'cursor-pointer text-white/90 hover:text-white hover:bg-white/10')} href={link.href}>
+            <a
+              key={i}
+              className={cn(
+                buttonVariants({ variant: 'ghost' }),
+                'cursor-pointer',
+                isLight
+                  ? 'text-foreground/90 hover:bg-accent hover:text-foreground'
+                  : 'text-white/90 hover:bg-white/10 hover:text-white',
+              )}
+              href={link.href}
+            >
               {link.label}
             </a>
           ))}
-          <Button variant="outline" className="cursor-pointer border-white/30 text-white hover:bg-white/10 hover:text-white">Sign In</Button>
-          <Button className="cursor-pointer bg-white text-black hover:bg-white/90">Get Started</Button>
+          <Button
+            variant="outline"
+            className={cn(
+              'cursor-pointer',
+              isLight
+                ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
+                : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
+            )}
+            asChild
+          >
+            <Link to="/login">Sign In</Link>
+          </Button>
+          <Button
+            className={cn(
+              'cursor-pointer',
+              !isLight && 'bg-white text-black hover:bg-white/90',
+            )}
+          >
+            Get Started
+          </Button>
         </div>
-        <Button size="icon" variant="outline" onClick={() => setOpen(!open)} className="cursor-pointer border-white/30 text-white hover:bg-white/10 hover:text-white md:hidden">
+        <Button
+          size="icon"
+          variant="outline"
+          onClick={() => setOpen(!open)}
+          className={cn(
+            'cursor-pointer md:hidden',
+            isLight
+              ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
+              : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
+          )}
+        >
           <MenuToggleIcon open={open} className="size-5" duration={300} />
         </Button>
       </nav>
 
       <div
         className={cn(
-          'fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y border-white/10 bg-black/30 backdrop-blur-xl md:hidden',
+          'fixed top-14 right-0 bottom-0 left-0 z-50 flex flex-col overflow-hidden border-y md:hidden',
+          isLight
+            ? 'border-border bg-background/95 backdrop-blur-xl'
+            : 'border-white/10 bg-black/30 backdrop-blur-xl',
           open ? 'block' : 'hidden',
         )}
       >
@@ -82,12 +148,18 @@ export function Header() {
           )}
         >
           <div className="grid gap-y-2">
+            <AnimatedThemeToggler
+              className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
+            />
             {links.map((link) => (
               <a
                 key={link.label}
                 className={cn(
                   buttonVariants({ variant: 'ghost', className: 'justify-start' }),
-                  'cursor-pointer text-white/90 hover:text-white hover:bg-white/10',
+                  'cursor-pointer',
+                  isLight
+                    ? 'text-foreground/90 hover:bg-accent hover:text-foreground'
+                    : 'text-white/90 hover:bg-white/10 hover:text-white',
                 )}
                 href={link.href}
               >
@@ -96,10 +168,26 @@ export function Header() {
             ))}
           </div>
           <div className="flex flex-col gap-2">
-            <Button variant="outline" className="w-full cursor-pointer border-white/30 text-white hover:bg-white/10 hover:text-white">
-              Sign In
+            <Button
+              variant="outline"
+              className={cn(
+                'w-full cursor-pointer',
+                isLight
+                  ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
+                  : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
+              )}
+              asChild
+            >
+              <Link to="/login">Sign In</Link>
             </Button>
-            <Button className="w-full cursor-pointer bg-white text-black hover:bg-white/90">Get Started</Button>
+            <Button
+              className={cn(
+                'w-full cursor-pointer',
+                !isLight && 'bg-white text-black hover:bg-white/90',
+              )}
+            >
+              Get Started
+            </Button>
           </div>
         </div>
       </div>

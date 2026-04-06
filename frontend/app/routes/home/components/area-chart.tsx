@@ -1834,7 +1834,10 @@ function ChartInner({
   );
 
   const bisectDate = useMemo(
-    () => bisector<Record<string, unknown>, Date>((d) => xAccessor(d)).left,
+    () =>
+      bisector<Record<string, unknown>, Date>((d: Record<string, unknown>) =>
+        xAccessor(d)
+      ).left,
     [xAccessor]
   );
 

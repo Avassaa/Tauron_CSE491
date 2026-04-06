@@ -31,10 +31,10 @@ export default function AboutPage() {
 
           {/* Hero Section */}
           <div className="text-center">
-            <h1 className="text-4xl md:text-7xl font-bold tracking-tight text-white mb-6">
-              The Future of <span className="text-white/70">Financial Intelligence</span>
+            <h1 className="text-4xl md:text-7xl font-bold tracking-tight text-foreground dark:text-white mb-6">
+              The Future of <span className="text-meta-blue">Financial Intelligence</span>
             </h1>
-            <p className="max-w-3xl mx-auto text-base md:text-lg text-white/60 leading-relaxed">
+            <p className="max-w-3xl mx-auto text-base md:text-lg text-muted-foreground dark:text-white/60 leading-relaxed">
               Founded in 2025, Tauron is an advanced R&D ecosystem dedicated to
               bridging the gap between complex market data and actionable investor insights.
             </p>
@@ -43,24 +43,24 @@ export default function AboutPage() {
           {/* Our Story Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="relative group">
-              <div className="absolute -inset-4 bg-white/5 rounded-[2rem] blur-2xl group-hover:bg-white/10 transition-all duration-700" />
-              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-white/10 bg-neutral-900 shadow-2xl">
+              <div className="absolute -inset-4 bg-foreground/5 rounded-[2rem] blur-2xl group-hover:bg-foreground/10 transition-all duration-700 dark:bg-white/5 dark:group-hover:bg-white/10" />
+              <div className="relative aspect-[4/3] rounded-2xl overflow-hidden border border-border bg-muted shadow-2xl dark:border-white/10 dark:bg-neutral-900">
                 <img
                   src="/assets/images/about.png"
                   alt="stock image"
-                  className="object-cover w-full h-full opacity-80 group-hover:scale-105 transition-transform duration-700"
+                  className="object-cover w-full h-full opacity-90 group-hover:scale-105 transition-transform duration-700 dark:opacity-80"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/60 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent dark:from-neutral-950/60" />
               </div>
             </div>
 
             <div className="space-y-6">
-              <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight text-balance leading-tight">
+              <h2 className="text-3xl md:text-5xl font-bold text-foreground dark:text-white tracking-tight text-balance leading-tight">
                 Beyond Data <br />
-                <span className="text-white/40 font-light">Meaningful Insights</span>
+                <span className="text-meta-blue font-light">Meaningful Insights</span>
               </h2>
 
-              <div className="space-y-4 text-white/70 text-base md:text-lg leading-relaxed">
+              <div className="space-y-4 text-muted-foreground dark:text-white/70 text-base md:text-lg leading-relaxed">
                 <p>
                   Tauron was born from a simple yet powerful research focus:
                   Can we automate the synthesis of financial news to provide
@@ -75,9 +75,9 @@ export default function AboutPage() {
               </div>
 
               <div className="pt-2">
-                <button 
+                <button
                   onClick={scrollToMethodology}
-                  className="px-8 py-3 rounded-full bg-white text-black text-sm font-bold hover:bg-neutral-200 transition-all cursor-pointer active:scale-[0.98]"
+                  className="px-8 py-3 rounded-full bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-all cursor-pointer active:scale-[0.98] dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                 >
                   Explore Methodology
                 </button>

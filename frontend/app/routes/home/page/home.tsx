@@ -67,7 +67,7 @@ const features = [
           >
             <div className="flex flex-row items-center gap-2">
               <div className="flex flex-col">
-                <figcaption className="text-sm font-medium dark:text-white">
+                <figcaption className="text-sm font-medium text-foreground dark:text-white">
                   {f.name}
                 </figcaption>
               </div>
@@ -178,7 +178,7 @@ export default function Home() {
       <div className="relative w-full overflow-x-hidden px-6 pt-28 pb-16">
         <div className="mx-auto max-w-7xl space-y-24">
           <section>
-            <h2 className="mb-10 text-center text-3xl font-semibold leading-none tracking-tighter text-white text-balance sm:text-4xl md:text-5xl lg:text-6xl">
+            <h2 className="mb-10 text-center text-3xl font-semibold leading-none tracking-tighter text-foreground text-balance dark:text-white sm:text-4xl md:text-5xl lg:text-6xl">
               Our <LineShadowText className="text-meta-blue" shadowColor="oklch(0.55 0.22 255)">Features</LineShadowText>
             </h2>
             <BentoGrid>
@@ -190,21 +190,21 @@ export default function Home() {
 
           <section className="space-y-24">
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
-              <div className="space-y-4 text-white">
+              <div className="space-y-4 text-foreground dark:text-white">
                 <div className="overflow-hidden pb-2">
                   <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                     <LineShadowText className="text-meta-blue" shadowColor="oklch(0.55 0.22 255)">AI-driven</LineShadowText> insights for your data
                   </h3>
                 </div>
-                <p className="text-lg leading-relaxed text-white/90">
+                <p className="text-lg leading-relaxed text-foreground/90 dark:text-white/90">
                   We turn raw market data into actionable intelligence. Our platform
                   uses advanced analytics so you can make <span className="text-meta-blue font-medium">informed decisions</span> faster.
                 </p>
-                <p className="text-white/80">
+                <p className="text-muted-foreground dark:text-white/80">
                   Real-time processing, transparent metrics, and enterprise-grade reliability.
                 </p>
               </div>
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/60">
+              <div className="relative overflow-hidden rounded-2xl border border-border bg-muted/40 dark:border-white/10 dark:bg-neutral-900/60">
                 <img
                   src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80"
                   alt="Analytics dashboard"
@@ -214,24 +214,24 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
-              <div className="relative order-2 overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/60 lg:order-1">
+              <div className="relative order-2 overflow-hidden rounded-2xl border border-border bg-muted/40 dark:border-white/10 dark:bg-neutral-900/60 lg:order-1">
                 <img
                   src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80"
                   alt="Data intelligence"
                   className="aspect-[4/3] w-full object-cover"
                 />
               </div>
-              <div className="order-1 space-y-4 text-white lg:order-2">
+              <div className="order-1 space-y-4 text-foreground dark:text-white lg:order-2">
                 <div className="overflow-hidden pb-2">
                   <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                     From noise to <LineShadowText className="text-meta-blue" shadowColor="oklch(0.55 0.22 255)">signal</LineShadowText>
                   </h3>
                 </div>
-                <p className="text-lg leading-relaxed text-white/90">
+                <p className="text-lg leading-relaxed text-foreground/90 dark:text-white/90">
                   Filter the market noise with our <span className="text-meta-blue font-medium">NLP and LLM</span> pipeline.
                   Get clear, unbiased insights tailored to your strategy.
                 </p>
-                <p className="text-white/80">
+                <p className="text-muted-foreground dark:text-white/80">
                   Built for researchers and investors who demand accuracy.
                 </p>
               </div>
@@ -239,17 +239,17 @@ export default function Home() {
           </section>
 
           <section>
-            <h2 className="mb-12 text-center text-3xl font-semibold leading-none tracking-tighter text-white text-balance sm:text-4xl md:text-5xl lg:text-6xl">
+            <h2 className="mb-12 text-center text-3xl font-semibold leading-none tracking-tighter text-foreground text-balance dark:text-white sm:text-4xl md:text-5xl lg:text-6xl">
               <LineShadowText className="text-meta-blue" shadowColor="oklch(0.55 0.22 255)">Profit</LineShadowText> is Guaranteed
             </h2>
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-center">
-              <div className="space-y-6 text-white">
-                <p className="text-lg leading-relaxed text-white/90">
+              <div className="space-y-6 text-foreground dark:text-white">
+                <p className="text-lg leading-relaxed text-foreground/90 dark:text-white/90">
                   Our AI-powered platform delivers consistent, data-driven insights
                   so you can make <span className="text-meta-blue font-medium">informed decisions</span>. Revenue and cost tracking
                   in one place.
                 </p>
-                <ul className="space-y-3 text-white/80">
+                <ul className="space-y-3 text-muted-foreground dark:text-white/80">
                   <li className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-meta-blue" />
                     Real-time <span className="text-meta-blue">revenue and cost</span> analytics
@@ -264,7 +264,7 @@ export default function Home() {
                   </li>
                 </ul>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/40 p-4 backdrop-blur-sm">
+              <div className="rounded-xl border border-border bg-muted/60 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-black/40">
                 <AreaChart data={chartData} className="h-[280px] w-full" aspectRatio="16 / 9">
                   <Grid horizontal />
                   <Area

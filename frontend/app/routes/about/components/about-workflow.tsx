@@ -25,21 +25,26 @@ const steps = [
 
 export function AboutWorkflow() {
   return (
-    <section className="py-12 border-t border-white/5">
+    <section className="py-12 border-t border-border dark:border-white/5">
       <div className="text-center mb-10">
-        <h3 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">Our Methodology</h3>
-        <p className="text-white/50 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
+        <h3 className="text-3xl md:text-5xl font-bold text-foreground dark:text-white mb-4 tracking-tight">
+          Our <span className="text-meta-blue">Methodology</span>
+        </h3>
+        <p className="text-muted-foreground dark:text-white/50 max-w-2xl mx-auto text-base md:text-lg leading-relaxed">
           The pipeline behind Tauron's intelligence cycle.
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {steps.map((step, i) => (
-          <div key={i} className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all group">
+          <div
+            key={i}
+            className="p-6 rounded-3xl border border-border bg-card shadow-sm transition-all group hover:bg-muted/60 dark:border-white/5 dark:bg-white/[0.02] dark:shadow-none dark:hover:bg-white/[0.04]"
+          >
             <div className="mb-4 p-3 w-fit rounded-xl bg-indigo-500/10 border border-indigo-500/20 group-hover:scale-110 transition-transform">
               {step.icon}
             </div>
-            <h4 className="text-white font-bold text-lg mb-2 tracking-tight">{step.title}</h4>
-            <p className="text-white/50 text-sm leading-relaxed">{step.desc}</p>
+            <h4 className="text-foreground dark:text-white font-bold text-lg mb-2 tracking-tight">{step.title}</h4>
+            <p className="text-muted-foreground dark:text-white/50 text-sm leading-relaxed">{step.desc}</p>
           </div>
         ))}
       </div>

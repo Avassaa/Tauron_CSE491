@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
+
+import { useAppTheme } from "~/theme-context";
 import { cn } from "@/lib/utils";
 
 interface AnimatedGradientBackgroundProps {
@@ -51,6 +53,8 @@ export function BeamsBackground({
   const beamsRef = useRef<Beam[]>([]);
   const animationFrameRef = useRef<number>(0);
   const [mounted, setMounted] = useState(false);
+  const { theme } = useAppTheme();
+  const isDark = theme === "dark";
   const MINIMUM_BEAMS = 20;
 
   const opacityMap = {
@@ -64,7 +68,7 @@ export function BeamsBackground({
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isDark) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -172,13 +176,13 @@ export function BeamsBackground({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [intensity, mounted]);
+  }, [intensity, mounted, isDark]);
 
   if (!mounted) {
     return (
       <div
         className={cn(
-          "relative w-full overflow-hidden bg-neutral-950",
+          "relative w-full overflow-hidden bg-white dark:bg-neutral-950",
           fixed ? "min-h-0" : "min-h-screen",
           className
         )}
@@ -195,31 +199,35 @@ export function BeamsBackground({
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden bg-neutral-950",
+        "relative w-full overflow-hidden bg-white dark:bg-neutral-950",
         fixed ? "min-h-0" : "min-h-screen",
         className
       )}
     >
-      <canvas
-        ref={canvasRef}
-        className={fixed ? "fixed inset-0 z-0" : "absolute inset-0"}
-        style={{ filter: "blur(15px)" }}
-      />
+      {isDark ? (
+        <>
+          <canvas
+            ref={canvasRef}
+            className={fixed ? "fixed inset-0 z-0" : "absolute inset-0"}
+            style={{ filter: "blur(15px)" }}
+          />
 
-      <motion.div
-        className="absolute inset-0 bg-neutral-950/5"
-        animate={{
-          opacity: [0.05, 0.15, 0.05],
-        }}
-        transition={{
-          duration: 10,
-          ease: "easeInOut",
-          repeat: Number.POSITIVE_INFINITY,
-        }}
-        style={{
-          backdropFilter: "blur(50px)",
-        }}
-      />
+          <motion.div
+            className="absolute inset-0 bg-neutral-950/5"
+            animate={{
+              opacity: [0.05, 0.15, 0.05],
+            }}
+            transition={{
+              duration: 10,
+              ease: "easeInOut",
+              repeat: Number.POSITIVE_INFINITY,
+            }}
+            style={{
+              backdropFilter: "blur(50px)",
+            }}
+          />
+        </>
+      ) : null}
 
       {children ? (
         <div
@@ -234,7 +242,7 @@ export function BeamsBackground({
         <div className="relative z-10 flex h-screen w-full items-center justify-center">
           <div className="flex flex-col items-center justify-center gap-6 px-4 text-center">
             <motion.h1
-              className="text-6xl font-semibold tracking-tighter text-white md:text-7xl lg:text-8xl"
+              className="text-6xl font-semibold tracking-tighter text-foreground dark:text-white md:text-7xl lg:text-8xl"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
@@ -244,7 +252,7 @@ export function BeamsBackground({
               Background
             </motion.h1>
             <motion.p
-              className="text-lg tracking-tighter text-white/70 md:text-2xl lg:text-3xl"
+              className="text-lg tracking-tighter text-muted-foreground dark:text-white/70 md:text-2xl lg:text-3xl"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}

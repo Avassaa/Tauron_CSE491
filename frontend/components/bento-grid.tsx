@@ -47,8 +47,8 @@ const BentoCard = ({
     key={name}
     className={cn(
       "group relative col-span-3 flex flex-col justify-between overflow-hidden rounded-xl",
-      "bg-black border border-white/10 transform-gpu",
-      "[box-shadow:0_0_0_1px_rgba(255,255,255,.05),0_2px_4px_rgba(0,0,0,.2)]",
+      "border border-border bg-card transform-gpu dark:border-white/10 dark:bg-black",
+      "[box-shadow:0_0_0_1px_rgba(0,0,0,.06),0_2px_4px_rgba(0,0,0,.08)] dark:[box-shadow:0_0_0_1px_rgba(255,255,255,.05),0_2px_4px_rgba(0,0,0,.2)]",
       className
     )}
     {...props}
@@ -56,11 +56,11 @@ const BentoCard = ({
     <div>{background}</div>
     <div className="p-4">
       <div className="pointer-events-none z-10 flex transform-gpu flex-col gap-1 transition-all duration-300 lg:group-hover:-translate-y-10">
-        <Icon className="h-12 w-12 origin-left transform-gpu text-white/90 transition-all duration-300 ease-in-out group-hover:scale-75" />
-        <h3 className="text-xl font-semibold text-white">
+        <Icon className="h-12 w-12 origin-left transform-gpu text-foreground/90 transition-all duration-300 ease-in-out group-hover:scale-75 dark:text-white/90" />
+        <h3 className="text-xl font-semibold text-foreground dark:text-white">
           {name}
         </h3>
-        <p className="max-w-lg text-white/60">{description}</p>
+        <p className="max-w-lg text-muted-foreground dark:text-white/60">{description}</p>
       </div>
 
       <div
@@ -72,7 +72,7 @@ const BentoCard = ({
           variant="link"
           asChild
           size="sm"
-          className="pointer-events-auto p-0 text-white/80 hover:text-white"
+          className="pointer-events-auto p-0 text-muted-foreground hover:text-foreground dark:text-white/80 dark:hover:text-white"
         >
           <a href={href}>
             {cta}
@@ -100,7 +100,7 @@ const BentoCard = ({
       </Button>
     </div>
 
-    <div className="pointer-events-none absolute inset-0 transform-gpu transition-all duration-300 group-hover:bg-white/[.03]" />
+    <div className="pointer-events-none absolute inset-0 transform-gpu transition-all duration-300 group-hover:bg-black/[.03] dark:group-hover:bg-white/[.03]" />
   </div>
 )
 
