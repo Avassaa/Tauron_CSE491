@@ -5,11 +5,15 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
 import { Header } from "@/components/header";
+import { AppProviders } from "./providers";
 import "./app.css";
+
+const themeInitScript = `(function(){function s(){try{var r=document.documentElement,t=localStorage.getItem("theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";r.dataset.theme="dark";}else{r.classList.remove("dark");r.style.colorScheme="light";r.dataset.theme="light";}}catch(e){}}s();document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("[data-theme-toggle]");if(!el)return;var r=document.documentElement,n=r.classList.contains("dark")?"light":"dark";if(n==="dark"){r.classList.add("dark");r.style.colorScheme="dark";r.dataset.theme="dark";}else{r.classList.remove("dark");r.style.colorScheme="light";r.dataset.theme="light";}try{localStorage.setItem("theme",n);}catch(err){}window.dispatchEvent(new Event("themechange"));},true);})();`;
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -30,15 +34,16 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        {children}
+        <AppProviders>{children}</AppProviders>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -47,9 +52,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
+  const showHeader = pathname !== "/login" && pathname !== "/dashboard";
+
   return (
     <>
-      <Header />
+      {showHeader ? <Header /> : null}
       <Outlet />
     </>
   );
