@@ -56,35 +56,26 @@ export function AboutCTA() {
     }
     prevIsOpen.current = isOpen;
 
-    const duration = 700;
+    const duration = 750;
     const startTime = performance.now();
-    const startScrollY = window.scrollY;
     let animationFrameId = 0;
 
-    const easeInOutCubic = (value: number) => {
-      return value < 0.5
-        ? 4 * value * value * value
-        : 1 - Math.pow(-2 * value + 2, 3) / 2;
-    };
+    const lockToFooterTop = (now: number) => {
+      const elapsed = now - startTime;
 
-    const animateScroll = (now: number) => {
-      const progress = Math.min((now - startTime) / duration, 1);
-      const easedProgress = easeInOutCubic(progress);
+      const footer = document.querySelector("footer");
+      if (footer) {
+        // calc scroll position to keep footer at bottom
+        const targetScrollTop = footer.offsetTop - window.innerHeight;
+        window.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "auto" });
+      }
 
-      // calculate current max possible scroll to stay at the bottom
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const targetScrollTop = Math.max(0, maxScroll);
-
-      const nextScrollTop = startScrollY + (targetScrollTop - startScrollY) * easedProgress;
-
-      window.scrollTo({ top: nextScrollTop, behavior: "auto" });
-
-      if (progress < 1) {
-        animationFrameId = window.requestAnimationFrame(animateScroll);
+      if (elapsed < duration) {
+        animationFrameId = window.requestAnimationFrame(lockToFooterTop);
       }
     };
 
-    animationFrameId = window.requestAnimationFrame(animateScroll);
+    animationFrameId = window.requestAnimationFrame(lockToFooterTop);
 
     return () => {
       window.cancelAnimationFrame(animationFrameId);

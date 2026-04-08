@@ -11,6 +11,7 @@ import {
 
 import type { Route } from "./+types/root";
 import { Header } from "~/components/landing/header";
+import { Footer } from "~/components/landing/footer";
 import { Button } from "~/components/ui/button";
 import { AppProviders } from "./providers";
 import { useAppTheme } from "~/theme-context";
@@ -58,12 +59,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const showHeader = pathname !== "/login" && pathname !== "/signup" && pathname !== "/dashboard";
+  const showNav = pathname !== "/login" && pathname !== "/signup" && pathname !== "/dashboard";
 
   return (
     <>
-      {showHeader ? <Header /> : null}
+      {showNav ? <Header /> : null}
       <Outlet />
+      {showNav ? <Footer /> : null}
     </>
   );
 }
