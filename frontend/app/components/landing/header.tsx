@@ -25,6 +25,7 @@ export function Header() {
     { label: 'Features', href: '#' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'About', href: '/about' },
+    { label: 'FAQs', href: '/faqs' },
   ];
 
   React.useEffect(() => {
@@ -44,19 +45,19 @@ export function Header() {
         'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b md:rounded-xl md:border md:transition-all md:ease-out',
         isLight
           ? cn(
-              'border-border/80 bg-background/90 text-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/75',
-              scrolled && !open && 'md:top-4 md:max-w-4xl md:shadow-xl',
-            )
+            'border-border/80 bg-background/90 text-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/75',
+            scrolled && !open && 'md:top-4 md:max-w-4xl md:shadow-xl',
+          )
           : cn(
-              'border-transparent',
-              !scrolled && !open && 'bg-transparent',
-              (scrolled || open) &&
-                'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
-              {
-                'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
-                'bg-black/30': open,
-              },
-            ),
+            'border-transparent',
+            !scrolled && !open && 'bg-transparent',
+            (scrolled || open) &&
+            'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
+            {
+              'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
+              'bg-black/30': open,
+            },
+          ),
       )}
     >
       <nav
