@@ -53,7 +53,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const showHeader = pathname !== "/login" && pathname !== "/dashboard";
+  const showHeader = pathname !== "/login" && pathname !== "/signup" && pathname !== "/dashboard";
 
   return (
     <>

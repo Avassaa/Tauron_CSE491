@@ -12,6 +12,7 @@ import {
   FieldLabel,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import { PasswordInput } from "~/components/ui/password-input"
 import { Spinner } from "~/components/ui/spinner"
 
 type LoginFormProps = Omit<
@@ -22,6 +23,7 @@ type LoginFormProps = Omit<
 export function LoginForm({ className, ...props }: LoginFormProps) {
   const navigation = useNavigation()
   const pending = navigation.state === "submitting"
+  const [password, setPassword] = React.useState("")
 
   return (
     <Form
@@ -67,12 +69,13 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
               Forgot your password?
             </a>
           </div>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             disabled={pending}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
         <Field>
@@ -89,9 +92,9 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
         </Field>
         <FieldDescription className="text-center">
           Don&apos;t have an account?{" "}
-          <a href="#" className="underline underline-offset-4">
+          <Link to="/signup" className="underline underline-offset-4">
             Sign up
-          </a>
+          </Link>
         </FieldDescription>
       </FieldGroup>
     </Form>
