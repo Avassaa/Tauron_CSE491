@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type FormEvent } from "react";
 import { Mail, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
 
 export function AboutCTA() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,29 +16,47 @@ export function AboutCTA() {
     const email = formData.get("email")?.toString().trim() ?? "";
     const message = formData.get("message")?.toString().trim() ?? "";
 
-    const subject = `New Contact Message from ${name || "Website Visitor"}`;
+    // Manual validation
+    if (!name) {
+      toast.error("Please enter your name");
+      return;
+    }
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    if (!message) {
+      toast.error("Please enter your message");
+      return;
+    }
+
+    const subject = `New Contact Message from ${name}`;
     const body = [
-      `Name: ${name || "-"}`,
-      `Email: ${email || "-"}`,
+      `Name: ${name}`,
+      `Email: ${email}`,
       "",
       "Message:",
-      message || "-",
+      message,
     ].join("\n");
 
+    toast.success("Opening your email client...");
     window.location.href = `mailto:hello@tauron.ai?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
+  const prevIsOpen = useRef(isOpen);
 
-    if (!contactFormRef.current) {
+  useEffect(() => {
+    if (prevIsOpen.current === isOpen) {
       return;
     }
+    prevIsOpen.current = isOpen;
 
     const duration = 700;
-    const offset = 96;
     const startTime = performance.now();
     const startScrollY = window.scrollY;
     let animationFrameId = 0;
@@ -51,16 +70,14 @@ export function AboutCTA() {
     const animateScroll = (now: number) => {
       const progress = Math.min((now - startTime) / duration, 1);
       const easedProgress = easeInOutCubic(progress);
-      const targetElement = contactFormRef.current;
 
-      if (!targetElement) {
-        return;
-      }
+      // calculate current max possible scroll to stay at the bottom
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const targetScrollTop = Math.max(0, maxScroll);
 
-      const dynamicTargetTop = window.scrollY + targetElement.getBoundingClientRect().top - offset;
-      const nextScrollTop = startScrollY + (dynamicTargetTop - startScrollY) * easedProgress;
+      const nextScrollTop = startScrollY + (targetScrollTop - startScrollY) * easedProgress;
 
-      window.scrollTo({ top: Math.max(0, nextScrollTop), behavior: "auto" });
+      window.scrollTo({ top: nextScrollTop, behavior: "auto" });
 
       if (progress < 1) {
         animationFrameId = window.requestAnimationFrame(animateScroll);
@@ -140,7 +157,10 @@ export function AboutCTA() {
                     </p>
                   </div>
 
-                  <div className="flex gap-4 items-center group cursor-pointer">
+                  <a
+                    href="mailto:hello@tauron.ai"
+                    className="flex gap-4 items-center group cursor-pointer transition-opacity hover:opacity-80"
+                  >
                     <div className="flex-shrink-0 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted group-hover:border-indigo-500/50 transition-colors dark:border-white/10 dark:bg-white/5">
                       <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     </div>
@@ -148,10 +168,10 @@ export function AboutCTA() {
                       <h4 className="text-foreground dark:text-white text-xs font-semibold">Get in Touch</h4>
                       <p className="text-indigo-700 dark:text-indigo-300 text-sm font-medium">hello@tauron.ai</p>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
-                <form ref={contactFormRef} className="space-y-5" onSubmit={handleSubmit}>
+                <form ref={contactFormRef} className="space-y-5" onSubmit={handleSubmit} noValidate>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium text-muted-foreground pl-1 uppercase tracking-widest dark:text-white/40">Name</label>
