@@ -32,7 +32,7 @@ export function Header() {
   const { pathname } = useLocation();
   const isLight = theme === 'light';
 
-  const isAuthenticated = pathname === '/dashboard' || pathname === '/settings';
+  const isAuthenticated = pathname === '/dashboard' || pathname.startsWith('/profile');
 
   const DEMO_USER = {
     name: "Test testoglu",
@@ -164,7 +164,7 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" className="cursor-pointer w-full flex items-center">
+                    <Link to="/profile/settings" className="cursor-pointer w-full flex items-center">
                       <User className="mr-2 size-4" />
                       <span>Profile</span>
                     </Link>
@@ -265,7 +265,7 @@ export function Header() {
             {isAuthenticated ? (
               <>
                 <Button variant="outline" className="w-full justify-start gap-2" asChild>
-                  <Link to="/settings">
+                  <Link to="/profile/settings">
                     <User className="size-4" />
                     Profile Settings
                   </Link>

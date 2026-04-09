@@ -7,5 +7,8 @@ export default [
     route("login", "routes/login.tsx"),
     route("signup", "routes/signup.tsx"),
     route("dashboard", "routes/dashboard.tsx"),
+    route("profile", "routes/profile/layout.tsx", [
+        route("settings", "routes/profile/settings.tsx"),
+    ]),
     route("faqs", "routes/faqs.tsx"),
 ] satisfies RouteConfig;
