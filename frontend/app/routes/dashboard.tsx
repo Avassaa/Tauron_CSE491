@@ -88,12 +88,12 @@ function DashboardPageClient() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="font-medium">Dashboard</span>
-        </header>
-        <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 flex-col gap-6 overflow-auto p-4">
+        <div className="flex-1 min-w-0 p-4 pt-6 space-y-6">
+          <div className="flex items-center gap-0 mb-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <h2 className="text-xl font-semibold">Dashboard</h2>
+          </div>
           <DashboardFiltersSection
             applyBusy={applyBusy}
             onApply={handleApply}
@@ -193,7 +193,7 @@ export default function DashboardPage() {
           <div className="hidden w-64 shrink-0 animate-pulse border-r bg-sidebar md:block" />
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="h-14 shrink-0 animate-pulse border-b bg-background" />
-            <div className="flex flex-1 flex-col gap-6 overflow-auto p-4">
+            <div className="flex flex-1 flex-col gap-6 p-4">
               <div className="h-40 animate-pulse rounded-lg bg-muted/50" />
               <div className="h-64 animate-pulse rounded-lg bg-muted/50" />
             </div>

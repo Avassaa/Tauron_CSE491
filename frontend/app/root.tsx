@@ -59,7 +59,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const showNav = pathname !== "/login" && pathname !== "/signup" && pathname !== "/dashboard";
+  const showNav = pathname !== "/login" && pathname !== "/signup";
 
   return (
     <>

@@ -28,26 +28,13 @@ const navMain = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar collapsible="icon" variant="inset" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link
-                to="/dashboard"
-                className="flex min-w-0 justify-center px-1 font-semibold tracking-tight text-sidebar-foreground no-underline hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
-                aria-label="Tauron home"
-                style={{ fontFamily: "'Dancing Script', cursive" }}
-              >
-                <span className="truncate text-2xl group-data-[collapsible=icon]:text-lg md:text-3xl">
-                  Tauron
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
+    <Sidebar
+      collapsible="icon"
+      variant="inset"
+      className="sticky top-12 bottom-auto h-[calc(100vh-3rem)] z-30"
+      {...props}
+    >
+      <SidebarContent className="pt-0">
         <SidebarGroup>
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
