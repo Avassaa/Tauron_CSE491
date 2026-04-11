@@ -1,13 +1,15 @@
 """JWT access tokens, password hashing, and simple rate limiting."""
 
+import secrets
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
@@ -93,14 +95,21 @@ def decode_access_token(token: str) -> dict:
 
 
 _http_bearer = HTTPBearer(auto_error=True)
+_http_bearer_optional = HTTPBearer(auto_error=False)
 
 
-async def get_current_user_id(
-    credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
-) -> uuid.UUID:
-    """FastAPI dependency that returns the authenticated user's id from the JWT."""
+@dataclass(frozen=True)
+class JwtOrAdminContext:
+    """Whether the caller is an admin (API key) or a normal JWT user."""
+
+    is_admin: bool
+    user_id: uuid.UUID | None
+
+
+def _token_to_user_id(token: str) -> uuid.UUID:
+    """Decode JWT and return ``sub`` as UUID or raise HTTP 401."""
     try:
-        payload = decode_access_token(credentials.credentials)
+        payload = decode_access_token(token)
     except jwt.PyJWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -119,3 +128,49 @@ async def get_current_user_id(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user id in token",
         ) from exc
+
+
+async def require_admin_api_key(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> None:
+    """Reject unless ``X-Admin-Key`` matches ``ADMIN_API_KEY`` (constant-time compare)."""
+    configured = (settings.ADMIN_API_KEY or "").strip()
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin API key is not configured",
+        )
+    if x_admin_key is None or not secrets.compare_digest(
+        x_admin_key.strip().encode("utf-8"),
+        configured.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing admin API key",
+        )
+
+
+async def get_jwt_or_admin_context(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_http_bearer_optional),
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+) -> JwtOrAdminContext:
+    """Accept either valid ``X-Admin-Key`` or Bearer JWT; used for mixed user/admin endpoints."""
+    configured = (settings.ADMIN_API_KEY or "").strip()
+    if configured and x_admin_key is not None and secrets.compare_digest(
+        x_admin_key.strip().encode("utf-8"),
+        configured.encode("utf-8"),
+    ):
+        return JwtOrAdminContext(is_admin=True, user_id=None)
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return JwtOrAdminContext(is_admin=False, user_id=_token_to_user_id(credentials.credentials))
+
+
+async def get_current_user_id(
+    credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
+) -> uuid.UUID:
+    """FastAPI dependency that returns the authenticated user's id from the JWT."""
+    return _token_to_user_id(credentials.credentials)

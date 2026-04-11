@@ -1,6 +1,5 @@
 """Response models (Pydantic schemas for outgoing data)."""
 
-from .example_response import ExampleResponse, ExampleListResponse
+from .auth_response import RegisterResponse, TokenResponse
 
-__all__ = ["ExampleResponse", "ExampleListResponse"]
-
+__all__ = ["RegisterResponse", "TokenResponse"]

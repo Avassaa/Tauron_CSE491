@@ -32,15 +32,13 @@ app/
 │       ├── dependencies.py
 │       └── routes/
 │           ├── auth.py       # Register / login (JWT)
-│           ├── health.py
-│           └── example.py
+│           └── health.py
 ├── db/
 │   ├── models/
 │   └── repositories/
 ├── models/
 │   ├── request/
 │   └── response/
-├── services/
 ├── main.py
 └── config.py
 

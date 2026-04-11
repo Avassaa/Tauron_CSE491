@@ -1,6 +1,5 @@
 """Request models (Pydantic schemas for incoming data)."""
 
-from .example_request import CreateExampleRequest, UpdateExampleRequest
+from .auth_request import LoginRequest, RegisterRequest
 
-__all__ = ["CreateExampleRequest", "UpdateExampleRequest"]
-
+__all__ = ["LoginRequest", "RegisterRequest"]

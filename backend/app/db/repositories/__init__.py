@@ -1,10 +1,6 @@
 """Repository pattern for data access.
 
-Repositories encapsulate all database operations, keeping
-the service layer clean and database-agnostic.
+Repositories encapsulate database operations; import concrete classes from submodules.
 """
 
-from .example_repository import ExampleRepository
-
-__all__ = ["ExampleRepository"]
-
+__all__: list[str] = []

@@ -4,7 +4,6 @@ from app.db.models.asset import Asset
 from app.db.models.backtest_results import BacktestResult
 from app.db.models.chat_history import ChatHistory
 from app.db.models.curated_news import CuratedNews
-from app.db.models.example_model import ExampleModel
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.market_data import MarketData
 from app.db.models.ml_models import MlModel
@@ -20,7 +19,6 @@ __all__ = [
     "BacktestResult",
     "ChatHistory",
     "CuratedNews",
-    "ExampleModel",
     "KnowledgeBase",
     "MarketData",
     "MlModel",

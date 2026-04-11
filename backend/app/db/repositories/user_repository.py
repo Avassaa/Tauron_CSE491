@@ -3,7 +3,7 @@
 import uuid
 from typing import Any, Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,3 +60,35 @@ class UserRepository:
             raise
         await self._session.refresh(user)
         return user
+
+    async def update_profile(self, user_id: uuid.UUID, **updates: Any) -> Optional[User]:
+        """Update only keys present in ``updates`` (non-None values)."""
+        user = await self.get_by_id(user_id)
+        if user is None:
+            return None
+        for key in ("username", "email", "preferences"):
+            if key in updates and updates[key] is not None:
+                setattr(user, key, updates[key])
+        try:
+            await self._session.commit()
+        except IntegrityError:
+            await self._session.rollback()
+            raise
+        await self._session.refresh(user)
+        return user
+
+    async def update_password_hash(self, user_id: uuid.UUID, password_hash: str) -> bool:
+        """Replace stored password hash."""
+        user = await self.get_by_id(user_id)
+        if user is None:
+            return False
+        user.password_hash = password_hash
+        await self._session.commit()
+        await self._session.refresh(user)
+        return True
+
+    async def delete_user(self, user_id: uuid.UUID) -> bool:
+        """Remove a user row."""
+        result = await self._session.execute(delete(User).where(User.id == user_id))
+        await self._session.commit()
+        return result.rowcount > 0

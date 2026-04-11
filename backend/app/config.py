@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    ADMIN_API_KEY: str = Field(
+        default="",
+        description="Shared secret for X-Admin-Key header on ingestion and admin routes.",
+    )
+
     RATE_LIMIT_MAX_ATTEMPTS: int = 100
     RATE_LIMIT_WINDOW_HOURS: int = 1
 

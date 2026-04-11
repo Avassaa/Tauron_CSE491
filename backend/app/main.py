@@ -8,7 +8,24 @@ from app.core.app_factory import HealthCheck, create_app, create_lifespan
 from app.core.logging import setup_logging
 from app.core.security import configure_default_rate_limiter
 from app.config import settings
-from app.api.v1.routes import auth_router, example_router, health_router
+from app.api.v1.routes import (
+    assets_router,
+    auth_router,
+    backtest_results_router,
+    chat_history_admin_router,
+    chat_history_router,
+    curated_news_router,
+    health_router,
+    knowledge_base_router,
+    market_data_router,
+    ml_models_router,
+    on_chain_metrics_router,
+    predictions_router,
+    scraper_logs_router,
+    technical_indicators_router,
+    users_router,
+    watchlists_router,
+)
 
 
 async def _bootstrap_database_on_startup() -> None:
@@ -47,7 +64,20 @@ app = create_app(
 
 app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])
-app.include_router(example_router, prefix="/api/v1", tags=["Examples"])
+app.include_router(users_router, prefix="/api/v1", tags=["Users"])
+app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
+app.include_router(assets_router, prefix="/api/v1", tags=["Assets"])
+app.include_router(ml_models_router, prefix="/api/v1", tags=["ML models"])
+app.include_router(predictions_router, prefix="/api/v1", tags=["Predictions"])
+app.include_router(market_data_router, prefix="/api/v1", tags=["Market data"])
+app.include_router(technical_indicators_router, prefix="/api/v1", tags=["Technical indicators"])
+app.include_router(on_chain_metrics_router, prefix="/api/v1", tags=["On-chain metrics"])
+app.include_router(curated_news_router, prefix="/api/v1", tags=["Curated news"])
+app.include_router(knowledge_base_router, prefix="/api/v1", tags=["Knowledge base"])
+app.include_router(chat_history_router, prefix="/api/v1", tags=["Chat history"])
+app.include_router(chat_history_admin_router, prefix="/api/v1", tags=["Chat history (admin)"])
+app.include_router(backtest_results_router, prefix="/api/v1", tags=["Backtest results"])
+app.include_router(scraper_logs_router, prefix="/api/v1", tags=["Scraper logs"])
 
 
 @app.get("/", tags=["Root"])
