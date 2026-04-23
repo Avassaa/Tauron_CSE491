@@ -180,3 +180,10 @@ class ScraperLogResponse(BaseModel):
     error_msg: Optional[str]
     rows_affected: Optional[int]
     executed_at: datetime
+
+
+class NewsScrapeTriggerResponse(BaseModel):
+    """Summary after a manual news scraper run and DB ingest."""
+
+    articles_in_file: int
+    rows_inserted: int

@@ -10,6 +10,7 @@ from .health import router as health_router
 from .knowledge_base import router as knowledge_base_router
 from .market_data import router as market_data_router
 from .ml_models import router as ml_models_router
+from .news_scrape import router as news_scrape_router
 from .on_chain_metrics import router as on_chain_metrics_router
 from .predictions import router as predictions_router
 from .scraper_logs import router as scraper_logs_router
@@ -28,6 +29,7 @@ __all__ = [
     "knowledge_base_router",
     "market_data_router",
     "ml_models_router",
+    "news_scrape_router",
     "on_chain_metrics_router",
     "predictions_router",
     "scraper_logs_router",

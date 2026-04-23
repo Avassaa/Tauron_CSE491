@@ -20,6 +20,7 @@ from app.api.v1.routes import (
     knowledge_base_router,
     market_data_router,
     ml_models_router,
+    news_scrape_router,
     on_chain_metrics_router,
     predictions_router,
     scraper_logs_router,
@@ -69,6 +70,7 @@ app.include_router(users_router, prefix="/api/v1", tags=["Users"])
 app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
 app.include_router(assets_router, prefix="/api/v1", tags=["Assets"])
 app.include_router(ml_models_router, prefix="/api/v1", tags=["ML models"])
+app.include_router(news_scrape_router, prefix="/api/v1", tags=["News"])
 app.include_router(predictions_router, prefix="/api/v1", tags=["Predictions"])
 app.include_router(market_data_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(technical_indicators_router, prefix="/api/v1", tags=["Technical indicators"])

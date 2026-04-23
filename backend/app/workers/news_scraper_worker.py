@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 _news_worker_task: Optional[asyncio.Task[None]] = None
 
+# Fixed operational defaults (not env-configurable).
+_SCRAPER_INITIAL_DELAY_SECONDS = 300
+_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS = 7200
+_UV_COMMAND = "uv"
+
 
 def _default_scrapers_dir() -> Path:
     """``…/repo/scrapers`` when the repo layout is ``…/repo/backend/app/workers/``."""
@@ -117,15 +122,9 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
 
     Returns a small summary dict for logging.
     """
-    scrapers_dir = (
-        Path(settings.SCRAPERS_DIR).resolve()
-        if settings.SCRAPERS_DIR.strip()
-        else _default_scrapers_dir()
-    )
+    scrapers_dir = _default_scrapers_dir()
     if not (scrapers_dir / "main.py").is_file():
         raise FileNotFoundError(f"scrapers main.py not found under {scrapers_dir}")
-
-    uv_cmd = (settings.NEWS_SCRAPER_UV_BIN or "uv").strip() or "uv"
     with tempfile.NamedTemporaryFile(
         prefix="tauron-scrape-",
         suffix=".json",
@@ -135,7 +134,7 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
 
     try:
         cmd = [
-            uv_cmd,
+            _UV_COMMAND,
             "run",
             "python",
             "main.py",
@@ -155,13 +154,13 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
         try:
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
-                timeout=float(settings.NEWS_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS),
+                timeout=float(_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS),
             )
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
             raise TimeoutError(
-                f"Scraper subprocess exceeded {settings.NEWS_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS}s",
+                f"Scraper subprocess exceeded {_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS}s",
             ) from None
         if proc.returncode != 0:
             err = (stderr or b"").decode("utf-8", errors="replace").strip()
@@ -194,8 +193,8 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
 
 
 async def _news_worker_loop() -> None:
-    if settings.NEWS_SCRAPER_INITIAL_DELAY_SECONDS > 0:
-        await asyncio.sleep(float(settings.NEWS_SCRAPER_INITIAL_DELAY_SECONDS))
+    if _SCRAPER_INITIAL_DELAY_SECONDS > 0:
+        await asyncio.sleep(float(_SCRAPER_INITIAL_DELAY_SECONDS))
     while True:
         try:
             await run_news_scraper_ingest_once()
@@ -212,11 +211,10 @@ async def start_news_scraper_worker() -> None:
     if not settings.NEWS_SCRAPER_WORKER_ENABLED:
         logger.info("News scraper worker disabled (NEWS_SCRAPER_WORKER_ENABLED is false).")
         return
-    uv_cmd = (settings.NEWS_SCRAPER_UV_BIN or "uv").strip() or "uv"
-    if shutil.which(uv_cmd) is None and not Path(uv_cmd).is_file():
+    if shutil.which(_UV_COMMAND) is None:
         logger.warning(
-            "News scraper worker not started: uv not found (%r). Install uv or set NEWS_SCRAPER_UV_BIN.",
-            uv_cmd,
+            "News scraper worker not started: `%s` not found on PATH (install uv for scraper runs).",
+            _UV_COMMAND,
         )
         return
     if _news_worker_task is not None and not _news_worker_task.done():
@@ -227,7 +225,7 @@ async def start_news_scraper_worker() -> None:
     )
     logger.info(
         "News scraper worker scheduled (first run after %ss, then every %ss).",
-        settings.NEWS_SCRAPER_INITIAL_DELAY_SECONDS,
+        _SCRAPER_INITIAL_DELAY_SECONDS,
         settings.NEWS_SCRAPER_INTERVAL_SECONDS,
     )
 
