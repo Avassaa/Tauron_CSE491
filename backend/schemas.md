@@ -128,6 +128,24 @@ CREATE TABLE curated_news (
 *   **Population:** **Cron Job (Hourly).** Pulls last 1h of data $\rightarrow$ LLM Synthesis $\rightarrow$ Insert.
 *   **Logic:** `data_points_used` allows the frontend to draw the exact charts the AI used to make its conclusion.
 
+#### Table: `news_data`
+*Raw articles from site scrapers (same field names as JSON: `source`, `scrapedAt`, `publishedAt`, `title`, `content`).*
+```sql
+CREATE TABLE news_data (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fingerprint VARCHAR(64) NOT NULL,
+    source VARCHAR(64) NOT NULL,
+    scraped_at TIMESTAMPTZ NOT NULL,
+    published_at TIMESTAMPTZ,
+    title TEXT,
+    content TEXT NOT NULL DEFAULT '',
+    CONSTRAINT uq_news_data_fingerprint UNIQUE (fingerprint)
+);
+CREATE INDEX ix_news_data_source_scraped_at ON news_data (source, scraped_at);
+```
+*   **Population:** Scraper batch jobs / merged scraper JSON ingest (map camelCase JSON keys to snake_case columns).
+*   **Logic:** Append-only store for RAG or downstream curation; optional dedupe in application code.
+
 ---
 
 ### 4. Strategy & Prediction Pillar

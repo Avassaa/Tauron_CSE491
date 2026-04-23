@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tauron-scrapers"
+version = "0.1.0"
+description = "Tauron news scrapers (requests, BeautifulSoup, curl_cffi)"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.28",
+    "beautifulsoup4>=4.12",
+    "curl-cffi>=0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["tauron_scrapers"]

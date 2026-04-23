@@ -100,6 +100,31 @@ class Settings(BaseSettings):
         description="Timeout for external requests",
     )
 
+    NEWS_SCRAPER_WORKER_ENABLED: bool = Field(
+        default=False,
+        description="When True, run scrapers/main.py on an interval and ingest into news_data.",
+    )
+    NEWS_SCRAPER_INTERVAL_SECONDS: int = Field(
+        default=86400,
+        description="Sleep between successful scraper runs (default 86400 = 24 hours).",
+    )
+    NEWS_SCRAPER_INITIAL_DELAY_SECONDS: int = Field(
+        default=300,
+        description="Seconds to wait after API startup before the first scraper run.",
+    )
+    NEWS_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS: int = Field(
+        default=7200,
+        description="Max wall-clock time for one uv scraper subprocess (seconds).",
+    )
+    SCRAPERS_DIR: str = Field(
+        default="",
+        description="Absolute path to the scrapers project root; empty uses repo sibling backend/../scrapers.",
+    )
+    NEWS_SCRAPER_UV_BIN: str = Field(
+        default="uv",
+        description="uv executable (name on PATH or absolute path) used to run scrapers/main.py.",
+    )
+
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:
         """Parse ``CORS_ORIGINS`` as a comma-separated list."""

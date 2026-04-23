@@ -55,6 +55,8 @@ See `app/config.py` for all settings. Important variables:
 - `POSTGRES_*` — database connection (or set `DATABASE_URL_OVERRIDE` for async SQLAlchemy URL)
 - `SERVICE_ID`, `SERVICE_NAME` — logging and root payload labels
 - `RATE_LIMIT_*` — optional limits on auth and other endpoints using the shared limiter
+- `NEWS_SCRAPER_WORKER_ENABLED` — set `true` to run `scrapers/main.py` on a timer and insert into `news_data` (skips duplicates via `fingerprint`). Requires `uv` on `PATH` (or set `NEWS_SCRAPER_UV_BIN`) and repo layout `…/scrapers` next to `backend/`, or set `SCRAPERS_DIR` to an absolute path.
+- `NEWS_SCRAPER_INTERVAL_SECONDS` (default `86400`), `NEWS_SCRAPER_INITIAL_DELAY_SECONDS` (default `300`), `NEWS_SCRAPER_SUBPROCESS_TIMEOUT_SECONDS` (default `7200`)
 
 ## API Documentation
 

@@ -7,6 +7,7 @@ from app.db.models.curated_news import CuratedNews
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.market_data import MarketData
 from app.db.models.ml_models import MlModel
+from app.db.models.news_data import NewsData
 from app.db.models.on_chain_metrics import OnChainMetric
 from app.db.models.predictions import Prediction
 from app.db.models.scraper_logs import ScraperLog
@@ -22,6 +23,7 @@ __all__ = [
     "KnowledgeBase",
     "MarketData",
     "MlModel",
+    "NewsData",
     "OnChainMetric",
     "Prediction",
     "ScraperLog",

@@ -5,6 +5,7 @@ creates the FastAPI app with middleware, and includes routers.
 """
 
 from app.core.app_factory import HealthCheck, create_app, create_lifespan
+from app.workers.news_scraper_worker import start_news_scraper_worker, stop_news_scraper_worker
 from app.core.logging import setup_logging
 from app.core.security import configure_default_rate_limiter
 from app.config import settings
@@ -46,8 +47,8 @@ configure_default_rate_limiter(
 )
 
 lifespan = create_lifespan(
-    on_startup=[_bootstrap_database_on_startup],
-    on_shutdown=[],
+    on_startup=[_bootstrap_database_on_startup, start_news_scraper_worker],
+    on_shutdown=[stop_news_scraper_worker],
 )
 
 health_check = HealthCheck()

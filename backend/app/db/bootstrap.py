@@ -162,6 +162,7 @@ def _register_all_orm_models() -> None:
     import app.db.models.knowledge_base
     import app.db.models.market_data
     import app.db.models.ml_models
+    import app.db.models.news_data
     import app.db.models.on_chain_metrics
     import app.db.models.predictions
     import app.db.models.scraper_logs
