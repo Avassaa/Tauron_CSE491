@@ -1,55 +1,68 @@
 """Manual trigger for news scraper + ``news_data`` ingest (admin only)."""
 
+import asyncio
 import logging
+from typing import Set
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.security import require_admin_api_key
-from app.models.response.table_responses import NewsScrapeTriggerResponse
-from app.workers.news_scraper_worker import run_news_scraper_ingest_once
+from app.models.response.table_responses import NewsScrapeAcceptedResponse
+from app.workers.news_scraper_worker import (
+    news_scrape_prerequisite_error,
+    run_news_scraper_ingest_once,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/news")
 
+_background_scrape_tasks: Set[asyncio.Task[None]] = set()
+
+
+def _schedule_background_ingest() -> None:
+    async def _runner() -> None:
+        try:
+            summary = await run_news_scraper_ingest_once()
+            logger.info("Background news scrape finished: %s", summary)
+        except Exception:
+            logger.exception("Background news scrape failed")
+
+    task = asyncio.create_task(_runner())
+    _background_scrape_tasks.add(task)
+    task.add_done_callback(_background_scrape_tasks.discard)
+
+
+async def cancel_background_news_scrape_tasks() -> None:
+    """Cancel in-flight manual scrapes (called on app shutdown)."""
+    if not _background_scrape_tasks:
+        return
+    pending = list(_background_scrape_tasks)
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    _background_scrape_tasks.clear()
+
 
 @router.post(
     "/scrape",
-    response_model=NewsScrapeTriggerResponse,
-    summary="Run news scrapers and ingest into news_data",
+    response_model=NewsScrapeAcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue news scrapers and ingest into news_data",
 )
 async def trigger_news_scrape(
     _admin: None = Depends(require_admin_api_key),
-) -> NewsScrapeTriggerResponse:
+) -> NewsScrapeAcceptedResponse:
     """
-    Run ``scrapers/main.py`` via ``uv``, then insert new rows into ``news_data``.
-
-    Duplicate articles (same ``fingerprint``) are skipped. Requires ``uv`` on
-    ``PATH`` and ``ADMIN_API_KEY`` (header ``X-Admin-Key``). This can run for a long time.
+    Return **202 Accepted** immediately and run scrape + ``news_data`` ingest in the
+    background. Check logs for completion and row counts. Requires ``uv`` on ``PATH``,
+    ``ADMIN_API_KEY`` (``X-Admin-Key``), and repo layout ``…/scrapers`` beside ``…/backend``.
     """
-    try:
-        summary = await run_news_scraper_ingest_once()
-    except FileNotFoundError as exc:
+    err = news_scrape_prerequisite_error()
+    if err is not None:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
-        ) from exc
-    except TimeoutError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=str(exc),
-        ) from exc
-    except RuntimeError as exc:
-        logger.warning("News scraper subprocess failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        logger.exception("News scrape ingest failed")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="News scrape ingest failed",
-        ) from exc
-
-    return NewsScrapeTriggerResponse.model_validate(summary)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=err,
+        )
+    _schedule_background_ingest()
+    return NewsScrapeAcceptedResponse()

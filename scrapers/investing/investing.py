@@ -34,7 +34,12 @@ def to_iso8601_from_investing(value: str) -> Optional[str]:
     # Common strings:
     # - Published 04/17/2026, 10:56 AM
     # - Yayınlanma 17.04.2026 10:56
-    text = re.sub(r"^(Published|Yayınlanma)\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(
+        r"^(Published|Yayınlanma|Yayın\s*Tarihi)\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
 
     # Already ISO-like
     iso_candidate = text.replace("Z", "+00:00")
@@ -192,7 +197,9 @@ class InvestingScraper:
             if not isinstance(span, Tag):
                 continue
             text = clean_text(span.get_text(" ", strip=True))
-            if text and ("Published" in text or "Yayınlanma" in text):
+            if text and (
+                "Published" in text or "Yayınlanma" in text or "Yayın Tarihi" in text
+            ):
                 return to_iso8601_from_investing(text) or text
 
         return None

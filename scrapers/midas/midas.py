@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -34,6 +35,36 @@ def clean_text(value: str) -> str:
     return " ".join(value.split())
 
 
+def published_display_to_iso8601(raw: str) -> Optional[str]:
+    """
+    Parse Midas article date lines (e.g. ``Yayın Tarihi 23.04.2026 21:25``) to UTC ISO-8601.
+    """
+    text = clean_text(raw)
+    if not text:
+        return None
+    text = re.sub(
+        r"^(Yayın\s*Tarihi|Yayınlanma|Published)\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+    iso_candidate = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(iso_candidate)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except ValueError:
+        pass
+    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y %H.%M"):
+        try:
+            parsed = datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
+            return parsed.isoformat().replace("+00:00", "Z")
+        except ValueError:
+            continue
+    return None
+
+
 def get_soup(url: str, session: requests.Session) -> BeautifulSoup:
     response = session.get(url, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
@@ -52,7 +83,9 @@ def parse_article_published_at(article_soup: BeautifulSoup) -> Optional[str]:
     if not published_node:
         return None
     published_text = clean_text(published_node.get_text(strip=True))
-    return published_text or None
+    if not published_text:
+        return None
+    return published_display_to_iso8601(published_text)
 
 
 def parse_article_title(article_soup: BeautifulSoup) -> Optional[str]:

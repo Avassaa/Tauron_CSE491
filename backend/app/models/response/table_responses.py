@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -182,8 +182,8 @@ class ScraperLogResponse(BaseModel):
     executed_at: datetime
 
 
-class NewsScrapeTriggerResponse(BaseModel):
-    """Summary after a manual news scraper run and DB ingest."""
+class NewsScrapeAcceptedResponse(BaseModel):
+    """Immediate acknowledgement for ``POST /news/scrape`` (work runs in background)."""
 
-    articles_in_file: int
-    rows_inserted: int
+    status: Literal["accepted"] = "accepted"
+    message: str = "News scrape and ingest started in the background."

@@ -15,7 +15,10 @@ class NewsData(Base):
     One row per scraped article.
 
     Maps scraper / aggregated JSON fields: source, scrapedAt, publishedAt, title, content.
-    ``fingerprint`` is a SHA-256 hex digest used to skip duplicate articles on ingest.
+    ``fingerprint`` is a SHA-256 hex digest of canonical ``source`` / ``publishedAt`` /
+    ``title`` / ``content`` (same story = same fingerprint). Rows get a DB ``id`` UUID;
+    dedupe does not use an external article id: inserts use ``ON CONFLICT (fingerprint)
+    DO NOTHING``, which probes the unique B-tree index per row (not a full table scan).
     """
 
     __tablename__ = "news_data"

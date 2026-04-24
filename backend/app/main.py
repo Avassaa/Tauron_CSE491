@@ -37,6 +37,12 @@ async def _bootstrap_database_on_startup() -> None:
 
     await bootstrap_database(engine)
 
+
+async def _cancel_background_news_scrapes() -> None:
+    from app.api.v1.routes.news_scrape import cancel_background_news_scrape_tasks
+
+    await cancel_background_news_scrape_tasks()
+
 setup_logging(
     service_name=settings.SERVICE_ID,
     log_level=settings.LOG_LEVEL,
@@ -49,7 +55,7 @@ configure_default_rate_limiter(
 
 lifespan = create_lifespan(
     on_startup=[_bootstrap_database_on_startup, start_news_scraper_worker],
-    on_shutdown=[stop_news_scraper_worker],
+    on_shutdown=[_cancel_background_news_scrapes, stop_news_scraper_worker],
 )
 
 health_check = HealthCheck()

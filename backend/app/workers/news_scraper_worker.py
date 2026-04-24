@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -19,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.models.news_data import NewsData
+from app.db.repositories.scraper_log_repository import ScraperLogRepository
 from app.db.session import async_session_factory
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,16 @@ _news_worker_task: Optional[asyncio.Task[None]] = None
 _SCRAPER_INITIAL_DELAY_SECONDS = 300
 _SCRAPER_SUBPROCESS_TIMEOUT_SECONDS = 7200
 _UV_COMMAND = "uv"
+
+
+def news_scrape_prerequisite_error() -> Optional[str]:
+    """Return a human-readable reason scrapers cannot run, or ``None`` if OK."""
+    scrapers_dir = _default_scrapers_dir()
+    if not (scrapers_dir / "main.py").is_file():
+        return f"scrapers/main.py not found (expected under {scrapers_dir})"
+    if shutil.which(_UV_COMMAND) is None:
+        return "uv executable not found on PATH"
+    return None
 
 
 def _default_scrapers_dir() -> Path:
@@ -57,12 +69,50 @@ def _parse_iso_datetime(value: Any) -> Optional[datetime]:
     text = str(value).strip()
     if not text:
         return None
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    parsed = datetime.fromisoformat(text)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+
+    stripped = re.sub(
+        r"^(Yayın\s*Tarihi|Yayınlanma|Published)\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+    candidates = [text] if stripped == text else [text, stripped]
+
+    for candidate in candidates:
+        c = candidate
+        if c.endswith("Z"):
+            c = c[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(c)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            pass
+
+    for candidate in candidates:
+        for fmt in (
+            "%d.%m.%Y %H:%M",
+            "%d.%m.%Y %H.%M",
+            "%d/%m/%Y %H:%M",
+            "%m/%d/%Y, %I:%M %p",
+            "%m/%d/%Y, %H:%M",
+        ):
+            try:
+                return datetime.strptime(candidate.strip(), fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+
+    m = re.search(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})\b", text)
+    if m:
+        d, mo, y, h, mi = (int(m.group(i)) for i in range(1, 6))
+        try:
+            return datetime(y, mo, d, h, mi, tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    logger.debug("Could not parse published/scraped datetime: %r", value)
+    return None
 
 
 def _flatten_scraper_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -116,23 +166,50 @@ async def _insert_news_rows(session: AsyncSession, articles: list[dict[str, Any]
     return inserted
 
 
+async def _persist_news_scrape_scraper_log(
+    status: str,
+    error_msg: Optional[str],
+    rows_affected: Optional[int],
+) -> None:
+    """Append one ``scraper_logs`` row for the aggregated news scrape (best-effort)."""
+    try:
+        async with async_session_factory() as session:
+            repo = ScraperLogRepository(session)
+            await repo.create(
+                source="news_aggregator",
+                status=status,
+                error_msg=error_msg,
+                rows_affected=rows_affected,
+            )
+    except Exception:
+        logger.exception("Could not append news scrape run to scraper_logs")
+
+
 async def run_news_scraper_ingest_once() -> dict[str, Any]:
     """
     Run ``scrapers/main.py`` via ``uv``, then upsert-equivalent insert (skip duplicates).
 
+    Appends a ``scraper_logs`` row (``source=news_aggregator``) on success or failure.
     Returns a small summary dict for logging.
     """
-    scrapers_dir = _default_scrapers_dir()
-    if not (scrapers_dir / "main.py").is_file():
-        raise FileNotFoundError(f"scrapers main.py not found under {scrapers_dir}")
-    with tempfile.NamedTemporaryFile(
-        prefix="tauron-scrape-",
-        suffix=".json",
-        delete=False,
-    ) as tmp:
-        out_path = Path(tmp.name)
+    log_status = "SUCCESS"
+    log_error: Optional[str] = None
+    log_rows: Optional[int] = None
+    articles_in_file = 0
+    out_path: Optional[Path] = None
 
     try:
+        scrapers_dir = _default_scrapers_dir()
+        if not (scrapers_dir / "main.py").is_file():
+            raise FileNotFoundError(f"scrapers main.py not found under {scrapers_dir}")
+
+        with tempfile.NamedTemporaryFile(
+            prefix="tauron-scrape-",
+            suffix=".json",
+            delete=False,
+        ) as tmp:
+            out_path = Path(tmp.name)
+
         cmd = [
             _UV_COMMAND,
             "run",
@@ -172,24 +249,32 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
         raw = out_path.read_text(encoding="utf-8")
         data = json.loads(raw)
         articles = _flatten_scraper_payload(data)
+        articles_in_file = len(articles)
 
         async with async_session_factory() as session:
             inserted = await _insert_news_rows(session, articles)
 
+        log_rows = inserted
         logger.info(
             "News ingest finished: %d unique articles in file, %d new rows inserted.",
-            len(articles),
+            articles_in_file,
             inserted,
         )
         return {
-            "articles_in_file": len(articles),
+            "articles_in_file": articles_in_file,
             "rows_inserted": inserted,
         }
+    except Exception as exc:
+        log_status = "ERROR"
+        log_error = str(exc)[:8000]
+        raise exc
     finally:
-        try:
-            out_path.unlink(missing_ok=True)
-        except OSError as exc:
-            logger.warning("Could not remove temp scrape file %s: %s", out_path, exc)
+        if out_path is not None:
+            try:
+                out_path.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning("Could not remove temp scrape file %s: %s", out_path, exc)
+        await _persist_news_scrape_scraper_log(log_status, log_error, log_rows)
 
 
 async def _news_worker_loop() -> None:
@@ -211,11 +296,9 @@ async def start_news_scraper_worker() -> None:
     if not settings.NEWS_SCRAPER_WORKER_ENABLED:
         logger.info("News scraper worker disabled (NEWS_SCRAPER_WORKER_ENABLED is false).")
         return
-    if shutil.which(_UV_COMMAND) is None:
-        logger.warning(
-            "News scraper worker not started: `%s` not found on PATH (install uv for scraper runs).",
-            _UV_COMMAND,
-        )
+    prereq = news_scrape_prerequisite_error()
+    if prereq is not None:
+        logger.warning("News scraper worker not started: %s", prereq)
         return
     if _news_worker_task is not None and not _news_worker_task.done():
         return

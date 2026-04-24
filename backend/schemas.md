@@ -238,3 +238,4 @@ CREATE TABLE scraper_logs (
     executed_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+*   **Population:** Per-source scrapers and the bundled pipeline append rows; `source = 'news_aggregator'` is written after each full multi-site scrape + `news_data` ingest (`rows_affected` = newly inserted rows, `0` when every article was a duplicate).
