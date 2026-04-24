@@ -32,6 +32,18 @@ _SCRAPER_INITIAL_DELAY_SECONDS = 300
 _SCRAPER_SUBPROCESS_TIMEOUT_SECONDS = 7200
 _UV_COMMAND = "uv"
 
+# ``main.py`` output keys -> ``scraper_logs.source`` / article ``source`` field (VARCHAR 50).
+_FOLDER_TO_SOURCE_LABEL: dict[str, str] = {
+    "bloomberg": "BLOOMBERG",
+    "coindesk": "COINDESK",
+    "foreks": "FOREKS",
+    "forbes": "FORBES",
+    "investing": "INVESTING",
+    "midas": "MIDAS",
+    "theblock": "THEBLOCK",
+    "tradingview": "TRADINGVIEW",
+}
+
 
 def news_scrape_prerequisite_error() -> Optional[str]:
     """Return a human-readable reason scrapers cannot run, or ``None`` if OK."""
@@ -113,23 +125,6 @@ def _parse_iso_datetime(value: Any) -> Optional[datetime]:
 
     logger.debug("Could not parse published/scraped datetime: %r", value)
     return None
-
-
-def _flatten_scraper_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    sources = data.get("sources")
-    if not isinstance(sources, dict):
-        return rows
-    for _folder, block in sources.items():
-        if not isinstance(block, dict) or not block.get("ok"):
-            continue
-        articles = block.get("articles")
-        if not isinstance(articles, list):
-            continue
-        for article in articles:
-            if isinstance(article, dict):
-                rows.append(article)
-    return rows
 
 
 async def _insert_news_rows(session: AsyncSession, articles: list[dict[str, Any]]) -> int:
