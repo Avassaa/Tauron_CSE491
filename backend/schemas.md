@@ -238,4 +238,4 @@ CREATE TABLE scraper_logs (
     executed_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
-*   **Population:** Per-source scrapers and the bundled pipeline append rows; `source = 'news_aggregator'` is written after each full multi-site scrape + `news_data` ingest (`rows_affected` = newly inserted rows, `0` when every article was a duplicate).
+*   **Population:** After each `scrapers/main.py` run + `news_data` ingest, one row is appended per site (`BLOOMBERG`, `INVESTING`, `MIDAS`, …): `SUCCESS` with `rows_affected` = new rows from that site’s articles (0 if empty or all duplicates), or `ERROR` with `error_msg` when that site’s scrape block failed. Failures before JSON is parsed (subprocess, missing file, invalid payload) use `source = 'NEWS_INGEST'` once.

@@ -64,7 +64,7 @@ With the app running:
 
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
-- Manual news scrape (admin): `POST /api/v1/news/scrape` with header `X-Admin-Key: <ADMIN_API_KEY>` returns **202 Accepted** immediately (`status: accepted`) and runs scrape + DB ingest in the background; watch logs for completion and counts (same pipeline as the scheduled worker). Each run also appends **`scraper_logs`** with `source=news_aggregator`, `status` SUCCESS/ERROR, `rows_affected` = new `news_data` rows inserted (0 if all duplicates), and `error_msg` on failure.
+- Manual news scrape (admin): `POST /api/v1/news/scrape` with header `X-Admin-Key: <ADMIN_API_KEY>` returns **202 Accepted** immediately (`status: accepted`) and runs scrape + DB ingest in the background; watch logs for completion and counts (same pipeline as the scheduled worker). Each run appends **`scraper_logs`** once per site (`INVESTING`, `BLOOMBERG`, …): `SUCCESS` with that site’s new row count, or `ERROR` with `error_msg` for that site. Pipeline-level failures before JSON is available use `source=NEWS_INGEST` once.
 
 ## Docker
 
