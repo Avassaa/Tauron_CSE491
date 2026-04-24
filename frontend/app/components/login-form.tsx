@@ -1,7 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Link, Form, useNavigation } from "react-router"
+import { Eye, EyeOff } from "lucide-react"
+import { Link, Form, useActionData, useNavigation } from "react-router"
+import { toast } from "sonner"
 
 import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
@@ -20,14 +22,71 @@ type LoginFormProps = Omit<
 >
 
 export function LoginForm({ className, ...props }: LoginFormProps) {
+  const actionData = useActionData() as { error?: string } | undefined
   const navigation = useNavigation()
   const pending = navigation.state === "submitting"
+  const [showPassword, setShowPassword] = React.useState(false)
+  const [invalidFields, setInvalidFields] = React.useState<Set<string>>(new Set())
+  const invalidTimerRef = React.useRef<number | null>(null)
+
+  React.useEffect(() => {
+    return () => {
+      if (invalidTimerRef.current !== null) {
+        window.clearTimeout(invalidTimerRef.current)
+      }
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (actionData?.error) {
+      toast.error(actionData.error)
+    }
+  }, [actionData?.error])
+
+  const handleSubmit = React.useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    const formData = new FormData(event.currentTarget)
+    const email = String(formData.get("email") ?? "").trim()
+    const password = String(formData.get("password") ?? "")
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+    const nextInvalid = new Set<string>()
+    const messages: string[] = []
+
+    if (!email) {
+      nextInvalid.add("email")
+      messages.push("Email is required.")
+    } else if (!emailPattern.test(email)) {
+      nextInvalid.add("email")
+      messages.push("Please enter a valid email address.")
+    }
+
+    if (!password) {
+      nextInvalid.add("password")
+      messages.push("Password is required.")
+    }
+
+    if (nextInvalid.size === 0) {
+      setInvalidFields(new Set())
+      return
+    }
+
+    event.preventDefault()
+    setInvalidFields(nextInvalid)
+    toast.error(messages[0] ?? "Please fix the highlighted fields.")
+    if (invalidTimerRef.current !== null) {
+      window.clearTimeout(invalidTimerRef.current)
+    }
+    invalidTimerRef.current = window.setTimeout(() => {
+      setInvalidFields(new Set())
+    }, 3000)
+  }, [])
 
   return (
     <Form
       method="post"
       replace
       noValidate
+      onSubmit={handleSubmit}
       className={cn("flex flex-col gap-6", className)}
       {...props}
     >
@@ -46,7 +105,12 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           </p>
         </div>
         <Field>
-          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <FieldLabel
+            htmlFor="email"
+            className={cn(invalidFields.has("email") && "text-destructive")}
+          >
+            Email
+          </FieldLabel>
           <Input
             id="email"
             name="email"
@@ -55,11 +119,17 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
             autoComplete="username"
             placeholder="m@example.com"
             disabled={pending}
+            aria-invalid={invalidFields.has("email")}
           />
         </Field>
         <Field>
           <div className="flex items-center">
-            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <FieldLabel
+              htmlFor="password"
+              className={cn(invalidFields.has("password") && "text-destructive")}
+            >
+              Password
+            </FieldLabel>
             <a
               href="#"
               className="ml-auto text-sm underline-offset-4 hover:underline"
@@ -67,13 +137,26 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
               Forgot your password?
             </a>
           </div>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            disabled={pending}
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              disabled={pending}
+              aria-invalid={invalidFields.has("password")}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+              disabled={pending}
+            >
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
         </Field>
         <Field>
           <Button type="submit" className="w-full" disabled={pending}>
@@ -89,9 +172,9 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
         </Field>
         <FieldDescription className="text-center">
           Don&apos;t have an account?{" "}
-          <a href="#" className="underline underline-offset-4">
+          <Link to="/register" className="underline underline-offset-4">
             Sign up
-          </a>
+          </Link>
         </FieldDescription>
       </FieldGroup>
     </Form>

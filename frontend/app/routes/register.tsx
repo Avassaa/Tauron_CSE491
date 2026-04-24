@@ -1,38 +1,38 @@
 import { redirect } from "react-router"
 
-import { getMe, login, persistSession } from "~/lib/auth-client"
-import { LoginForm } from "~/components/login-form"
+import { persistSession, register } from "~/lib/auth-client"
+import { RegisterForm } from "~/components/register-form"
 import { AnimatedThemeToggler } from "~/components/ui/animated-theme-toggler"
-import type { Route } from "./+types/login"
+import type { Route } from "./+types/register"
 
-type LoginActionData = {
+type RegisterActionData = {
   error?: string
 }
 
 export async function clientAction(args: Route.ClientActionArgs) {
   const formData = await args.request.formData()
+  const username = String(formData.get("username") ?? "").trim()
   const email = String(formData.get("email") ?? "").trim()
   const password = String(formData.get("password") ?? "")
 
-  if (!email || !password) {
-    return { error: "Email and password are required." } satisfies LoginActionData
+  if (!username || !email || !password) {
+    return { error: "Username, email and password are required." } satisfies RegisterActionData
   }
 
   try {
-    const result = await login({ email, password })
-    const me = await getMe(result.access_token)
+    const result = await register({ username, email, password })
     persistSession(result.access_token, result.user_id, {
-      username: me.username,
-      email: me.email,
+      username: result.username,
+      email: result.email,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not sign in."
-    return { error: message } satisfies LoginActionData
+    const message = error instanceof Error ? error.message : "Could not register."
+    return { error: message } satisfies RegisterActionData
   }
 
   if (typeof window !== "undefined") {
     const { toast } = await import("sonner")
-    toast.success("Signed in successfully.")
+    toast.success("Account created successfully.")
   }
   return redirect("/dashboard")
 }
@@ -40,10 +40,10 @@ export async function clientAction(args: Route.ClientActionArgs) {
 export async function action(_args: Route.ActionArgs) {
   return {
     error: "Client-side actions are required. Please enable JavaScript.",
-  } satisfies LoginActionData
+  } satisfies RegisterActionData
 }
 
-export default function LoginPage() {
+export default function RegisterPage() {
   return (
     <div className="relative grid min-h-svh lg:grid-cols-2">
       <div className="absolute end-4 top-4 z-20 md:end-6 md:top-6">
@@ -52,7 +52,7 @@ export default function LoginPage() {
       <div className="flex flex-col p-6 md:p-10">
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <RegisterForm />
           </div>
         </div>
       </div>
@@ -66,14 +66,6 @@ export default function LoginPage() {
           src="/assets/images/login.png"
           alt=""
           className="absolute inset-0 hidden h-full w-full object-cover dark:block"
-        />
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[42%] bg-gradient-to-b from-black/10 via-black/5 via-38% to-transparent dark:from-neutral-950/85 dark:via-neutral-950/35"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[45%] bg-gradient-to-t from-black/12 via-black/5 via-35% to-transparent dark:from-neutral-950/90 dark:via-neutral-950/40"
-          aria-hidden
         />
       </div>
     </div>

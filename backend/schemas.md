@@ -144,7 +144,7 @@ CREATE TABLE news_data (
 CREATE INDEX ix_news_data_source_scraped_at ON news_data (source, scraped_at);
 ```
 *   **Population:** Scraper batch jobs / merged scraper JSON ingest (map camelCase JSON keys to snake_case columns).
-*   **Logic:** Append-only store for RAG or downstream curation; inserts use `ON CONFLICT (fingerprint) DO NOTHING` against `uq_news_data_fingerprint`.
+*   **Logic:** Append-only store for RAG or downstream curation; `fingerprint` hashes `source` + normalized `published_at` + `title` only (not `content`); inserts use `ON CONFLICT (fingerprint) DO NOTHING` against `uq_news_data_fingerprint`.
 
 ---
 

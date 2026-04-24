@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { LogOut } from "lucide-react"
 import { Link } from "react-router"
 
@@ -14,15 +15,62 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover"
 import { Separator } from "~/components/ui/separator"
+import { clearSession, getMe } from "~/lib/auth-client"
 import { cn } from "~/lib/utils"
 
-const DEMO_USER = {
+const FALLBACK_USER = {
   name: "Test testoglu",
   email: "testoglu@tauron.dev",
   initials: "TT",
-} as const
+}
 
 export function SidebarUserMenu() {
+  const [user, setUser] = React.useState(FALLBACK_USER)
+
+  React.useEffect(() => {
+    const token = localStorage.getItem("access_token")
+    const storedName = localStorage.getItem("username")
+    const storedEmail = localStorage.getItem("email")
+
+    if (storedName || storedEmail) {
+      const name = storedName?.trim() || FALLBACK_USER.name
+      const email = storedEmail?.trim() || FALLBACK_USER.email
+      setUser({
+        name,
+        email,
+        initials:
+          name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? "")
+            .join("") || FALLBACK_USER.initials,
+      })
+    }
+
+    if (!token) return
+
+    getMe(token)
+      .then((me) => {
+        const name = me.username
+        const email = me.email
+        localStorage.setItem("username", name)
+        localStorage.setItem("email", email)
+        setUser({
+          name,
+          email,
+          initials:
+            name
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase() ?? "")
+              .join("") || FALLBACK_USER.initials,
+        })
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -37,11 +85,11 @@ export function SidebarUserMenu() {
         >
           <Avatar size="sm" className="ring-2 ring-sidebar-border">
             <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
-              {DEMO_USER.initials}
+              {user.initials}
             </AvatarFallback>
           </Avatar>
           <span className="min-w-0 flex-1 truncate font-medium group-data-[collapsible=icon]:hidden">
-            {DEMO_USER.name}
+            {user.name}
           </span>
         </button>
       </PopoverTrigger>
@@ -54,13 +102,13 @@ export function SidebarUserMenu() {
         <div className="flex items-center gap-3">
           <Avatar>
             <AvatarFallback className="bg-primary text-primary-foreground">
-              {DEMO_USER.initials}
+              {user.initials}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{DEMO_USER.name}</p>
+            <p className="truncate font-medium">{user.name}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {DEMO_USER.email}
+              {user.email}
             </p>
           </div>
         </div>
@@ -70,7 +118,12 @@ export function SidebarUserMenu() {
           className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/20"
           asChild
         >
-          <Link to="/login">
+          <Link
+            to="/login"
+            onClick={() => {
+              clearSession()
+            }}
+          >
             <LogOut className="size-4 shrink-0" />
             Log out
           </Link>
