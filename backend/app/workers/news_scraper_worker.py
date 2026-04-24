@@ -157,11 +157,15 @@ async def _insert_news_rows(session: AsyncSession, articles: list[dict[str, Any]
     batch_size = 500
     for start in range(0, len(values), batch_size):
         batch = values[start : start + batch_size]
-        stmt = pg_insert(NewsData).values(batch).on_conflict_do_nothing(
-            constraint="uq_news_data_fingerprint",
+        stmt = (
+            pg_insert(NewsData)
+            .values(batch)
+            .on_conflict_do_nothing(constraint="uq_news_data_fingerprint")
+            .returning(NewsData.id)
         )
         result = await session.execute(stmt)
-        inserted += int(result.rowcount or 0)
+        # rowcount is often -1 for multi-row INSERT ... ON CONFLICT with asyncpg/psycopg.
+        inserted += len(result.all())
     await session.commit()
     return inserted
 
