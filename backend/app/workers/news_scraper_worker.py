@@ -165,37 +165,35 @@ async def _insert_news_rows(session: AsyncSession, articles: list[dict[str, Any]
     return inserted
 
 
-async def _persist_news_scrape_scraper_log(
+async def _append_scraper_log(
+    source: str,
     status: str,
     error_msg: Optional[str],
     rows_affected: Optional[int],
 ) -> None:
-    """Append one ``scraper_logs`` row for the aggregated news scrape (best-effort)."""
+    """Append one ``scraper_logs`` row (best-effort). ``source`` is truncated to 50 chars."""
     try:
         async with async_session_factory() as session:
             repo = ScraperLogRepository(session)
             await repo.create(
-                source="news_aggregator",
+                source=(source or "")[:50] or None,
                 status=status,
                 error_msg=error_msg,
                 rows_affected=rows_affected,
             )
     except Exception:
-        logger.exception("Could not append news scrape run to scraper_logs")
+        logger.exception("Could not append scraper_logs row for source=%s", source)
 
 
 async def run_news_scraper_ingest_once() -> dict[str, Any]:
     """
     Run ``scrapers/main.py`` via ``uv``, then upsert-equivalent insert (skip duplicates).
 
-    Appends a ``scraper_logs`` row (``source=news_aggregator``) on success or failure.
-    Returns a small summary dict for logging.
+    Appends one ``scraper_logs`` row per site (``BLOOMBERG``, ``INVESTING``, …). Failures
+    before JSON is parsed use ``source=NEWS_INGEST`` once. Returns aggregate counts for logging.
     """
-    log_status = "SUCCESS"
-    log_error: Optional[str] = None
-    log_rows: Optional[int] = None
-    articles_in_file = 0
     out_path: Optional[Path] = None
+    per_source_logging_started = False
 
     try:
         scrapers_dir = _default_scrapers_dir()
@@ -247,25 +245,53 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
 
         raw = out_path.read_text(encoding="utf-8")
         data = json.loads(raw)
-        articles = _flatten_scraper_payload(data)
-        articles_in_file = len(articles)
+        sources = data.get("sources")
+        if not isinstance(sources, dict):
+            raise ValueError("Merged scraper JSON missing a 'sources' object.")
 
-        async with async_session_factory() as session:
-            inserted = await _insert_news_rows(session, articles)
+        per_source_logging_started = True
+        total_articles = 0
+        total_inserted = 0
 
-        log_rows = inserted
+        for folder, block in sources.items():
+            label = _FOLDER_TO_SOURCE_LABEL.get(folder, folder.upper())[:50]
+            if not isinstance(block, dict):
+                await _append_scraper_log(label, "ERROR", "Invalid source block in scrape JSON", None)
+                continue
+            if not block.get("ok"):
+                err = str(block.get("error") or "scrape failed")[:8000]
+                await _append_scraper_log(label, "ERROR", err, None)
+                continue
+            raw_arts = block.get("articles")
+            if not isinstance(raw_arts, list):
+                await _append_scraper_log(label, "SUCCESS", None, 0)
+                continue
+            art_list = [a for a in raw_arts if isinstance(a, dict)]
+            total_articles += len(art_list)
+            inserted = 0
+            if art_list:
+                async with async_session_factory() as session:
+                    inserted = await _insert_news_rows(session, art_list)
+            total_inserted += inserted
+            await _append_scraper_log(label, "SUCCESS", None, inserted)
+
         logger.info(
-            "News ingest finished: %d unique articles in file, %d new rows inserted.",
-            articles_in_file,
-            inserted,
+            "News ingest finished: %d articles across sources, %d new rows inserted.",
+            total_articles,
+            total_inserted,
         )
         return {
-            "articles_in_file": articles_in_file,
-            "rows_inserted": inserted,
+            "articles_in_file": total_articles,
+            "rows_inserted": total_inserted,
         }
     except Exception as exc:
-        log_status = "ERROR"
-        log_error = str(exc)[:8000]
+        if not per_source_logging_started:
+            await _append_scraper_log(
+                "NEWS_INGEST",
+                "ERROR",
+                str(exc)[:8000],
+                None,
+            )
         raise exc
     finally:
         if out_path is not None:
@@ -273,7 +299,6 @@ async def run_news_scraper_ingest_once() -> dict[str, Any]:
                 out_path.unlink(missing_ok=True)
             except OSError as exc:
                 logger.warning("Could not remove temp scrape file %s: %s", out_path, exc)
-        await _persist_news_scrape_scraper_log(log_status, log_error, log_rows)
 
 
 async def _news_worker_loop() -> None:
