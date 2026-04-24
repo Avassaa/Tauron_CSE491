@@ -37,6 +37,13 @@ export async function clientAction(args: Route.ClientActionArgs) {
   return redirect("/dashboard")
 }
 
+export async function clientLoader() {
+  if (typeof window !== "undefined" && localStorage.getItem("access_token")) {
+    throw redirect("/dashboard")
+  }
+  return null
+}
+
 export async function action(_args: Route.ActionArgs) {
   return {
     error: "Client-side actions are required. Please enable JavaScript.",

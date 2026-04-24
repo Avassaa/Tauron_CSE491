@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_MAX_ATTEMPTS: int = 100
     RATE_LIMIT_WINDOW_HOURS: int = 1
 
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173"
     CORS_ALLOW_CREDENTIALS: bool = True
 
     POSTGRES_HOST: str = "localhost"
