@@ -17,7 +17,7 @@ class NewsData(Base):
     Maps scraper / aggregated JSON fields: source, scrapedAt, publishedAt, title, content.
     ``fingerprint`` is a SHA-256 hex digest of canonical ``source``, normalized
     ``publishedAt`` (same instant, one string form), and whitespace-normalized
-    ``title`` / ``content``. Rows use a UUID ``id`` as the primary key for stable
+    ``title``; ``content`` is not hashed. Rows use a UUID ``id`` as the primary key for stable
     references; sites rarely expose a durable global article id, so dedupe is by
     fingerprint via ``ON CONFLICT (fingerprint) DO NOTHING`` on
     ``uq_news_data_fingerprint``.

@@ -144,7 +144,6 @@ def _article_fingerprint(article: dict[str, Any]) -> str:
         "source": (article.get("source") or "").strip(),
         "publishedAt": _canonical_published_for_fingerprint(article),
         "title": _fingerprint_text_field(article.get("title")),
-        "content": _fingerprint_text_field(article.get("content")),
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
