@@ -57,7 +57,24 @@ export function MarketMarqueeBanner() {
     initialTickerMap(),
   )
   const [connected, setConnected] = React.useState(false)
+  const [flashBySymbol, setFlashBySymbol] = React.useState<Record<string, "up" | "down">>({})
   const bannerRef = React.useRef<HTMLDivElement | null>(null)
+  const lastPriceBySymbolRef = React.useRef<Record<string, number>>({})
+  const flashTimersRef = React.useRef<Record<string, number>>({})
+
+  const queuePriceFlash = React.useCallback((symbol: string, direction: "up" | "down") => {
+    setFlashBySymbol((prev) => ({ ...prev, [symbol]: direction }))
+    const existing = flashTimersRef.current[symbol]
+    if (existing) window.clearTimeout(existing)
+    flashTimersRef.current[symbol] = window.setTimeout(() => {
+      setFlashBySymbol((prev) => {
+        const next = { ...prev }
+        delete next[symbol]
+        return next
+      })
+      delete flashTimersRef.current[symbol]
+    }, 650)
+  }, [])
 
   React.useEffect(() => {
     setVisible(isMarketBannerVisible())
@@ -97,14 +114,37 @@ export function MarketMarqueeBanner() {
   }, [visible])
 
   React.useEffect(() => {
+    return () => {
+      for (const timer of Object.values(flashTimersRef.current)) {
+        window.clearTimeout(timer)
+      }
+      flashTimersRef.current = {}
+    }
+  }, [])
+
+  React.useEffect(() => {
     if (!visible) return
 
     let ws: WebSocket | null = null
     let reconnectTimer: number | null = null
+    let restPollingTimer: number | null = null
+    let staleCheckTimer: number | null = null
+    let lastUpdateMs = 0
     let closedByCleanup = false
 
     const applyTickerRows = (rows: Array<{ s?: string; c?: string; P?: string }>) => {
       if (!rows.length) return
+      for (const row of rows) {
+        const symbol = (row.s || "").toUpperCase()
+        if (!symbol) continue
+        const nextPrice = Number.parseFloat(row.c || "")
+        if (!Number.isFinite(nextPrice)) continue
+        const prevPrice = lastPriceBySymbolRef.current[symbol]
+        if (Number.isFinite(prevPrice) && nextPrice !== prevPrice) {
+          queuePriceFlash(symbol, nextPrice > prevPrice ? "up" : "down")
+        }
+        lastPriceBySymbolRef.current[symbol] = nextPrice
+      }
       setTickerMap((prev) => {
         let changed = false
         const next = { ...prev }
@@ -127,8 +167,46 @@ export function MarketMarqueeBanner() {
       })
     }
 
+    const fetchRestSnapshot = () => {
+      fetch("https://api.binance.com/api/v3/ticker/24hr")
+        .then(async (response) => {
+          if (!response.ok) return
+          const rows = (await response.json()) as Array<{
+            symbol?: string
+            lastPrice?: string
+            priceChangePercent?: string
+          }>
+          const normalized = rows.map((r) => ({
+            s: r.symbol,
+            c: r.lastPrice,
+            P: r.priceChangePercent,
+          }))
+          applyTickerRows(normalized)
+          lastUpdateMs = Date.now()
+        })
+        .catch(() => {})
+    }
+
+    const parseRowsFromPayload = (
+      raw: unknown,
+    ): Array<{ s?: string; c?: string; P?: string }> => {
+      if (Array.isArray(raw)) return raw as Array<{ s?: string; c?: string; P?: string }>
+      if (raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)) {
+        const wrapped = (raw as { data?: unknown }).data
+        if (Array.isArray(wrapped)) {
+          return wrapped as Array<{ s?: string; c?: string; P?: string }>
+        }
+        if (wrapped && typeof wrapped === "object") {
+          return [wrapped as { s?: string; c?: string; P?: string }]
+        }
+      }
+      if (raw && typeof raw === "object") return [raw as { s?: string; c?: string; P?: string }]
+      return []
+    }
+
     const connect = () => {
-      ws = new WebSocket("wss://stream.binance.com:9443/ws/!ticker@arr")
+      const streams = STREAM_SYMBOLS.map((item) => `${item.symbol}@ticker`).join("/")
+      ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`)
       setConnected(false)
 
       ws.onopen = () => {
@@ -137,9 +215,11 @@ export function MarketMarqueeBanner() {
 
       ws.onmessage = (event) => {
         try {
-          const payload = JSON.parse(event.data) as Array<{ s?: string; c?: string; P?: string }>
-          if (Array.isArray(payload)) {
-            applyTickerRows(payload)
+          const payload = JSON.parse(event.data) as unknown
+          const rows = parseRowsFromPayload(payload)
+          if (rows.length > 0) {
+            applyTickerRows(rows)
+            lastUpdateMs = Date.now()
           }
         } catch {
           // Ignore malformed packets.
@@ -153,27 +233,31 @@ export function MarketMarqueeBanner() {
       }
     }
 
-    fetch("https://api.binance.com/api/v3/ticker/24hr")
-      .then(async (response) => {
-        if (!response.ok) return
-        const rows = (await response.json()) as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>
-        const normalized = rows.map((r) => ({
-          s: r.symbol,
-          c: r.lastPrice,
-          P: r.priceChangePercent,
-        }))
-        applyTickerRows(normalized)
-      })
-      .catch(() => {})
+    fetchRestSnapshot()
+
+    // Keep prices moving even when websocket opens but doesn't deliver frames.
+    staleCheckTimer = window.setInterval(() => {
+      const now = Date.now()
+      if (lastUpdateMs === 0 || now - lastUpdateMs > 7000) {
+        fetchRestSnapshot()
+      }
+    }, 3000)
+
+    // Slow polling fallback in restrictive networks.
+    restPollingTimer = window.setInterval(() => {
+      fetchRestSnapshot()
+    }, 20000)
 
     connect()
 
     return () => {
       closedByCleanup = true
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer)
+      if (restPollingTimer !== null) window.clearInterval(restPollingTimer)
+      if (staleCheckTimer !== null) window.clearInterval(staleCheckTimer)
       ws?.close()
     }
-  }, [visible])
+  }, [queuePriceFlash, visible])
 
   const tickers = React.useMemo(
     () =>
@@ -197,7 +281,15 @@ export function MarketMarqueeBanner() {
       className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs md:text-sm"
     >
       <span className="font-semibold">{ticker.label}</span>
-      <span className="tabular-nums">${ticker.price}</span>
+      <span
+        className={cn(
+          "tabular-nums rounded px-1 transition-colors duration-300",
+          flashBySymbol[ticker.symbol] === "down" && "bg-red-500/25 text-red-300",
+          flashBySymbol[ticker.symbol] === "up" && "bg-emerald-500/25 text-emerald-300",
+        )}
+      >
+        ${ticker.price}
+      </span>
       <span
         className={cn(
           "tabular-nums",
