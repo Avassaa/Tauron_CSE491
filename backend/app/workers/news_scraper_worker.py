@@ -60,17 +60,6 @@ def _default_scrapers_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "scrapers"
 
 
-def _article_fingerprint(article: dict[str, Any]) -> str:
-    payload = {
-        "source": (article.get("source") or "").strip(),
-        "publishedAt": article.get("publishedAt"),
-        "title": (article.get("title") or "").strip(),
-        "content": (article.get("content") or "").strip(),
-    }
-    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
 def _parse_iso_datetime(value: Any) -> Optional[datetime]:
     if value is None:
         return None
@@ -125,6 +114,40 @@ def _parse_iso_datetime(value: Any) -> Optional[datetime]:
 
     logger.debug("Could not parse published/scraped datetime: %r", value)
     return None
+
+
+def _canonical_published_for_fingerprint(article: dict[str, Any]) -> Any:
+    """
+    Value fed into the fingerprint hash so the same instant does not get multiple digests
+    when scrapers emit different string forms (e.g. ``...+03:00`` vs ``Z``).
+    """
+    raw = article.get("publishedAt")
+    parsed = _parse_iso_datetime(raw)
+    if parsed is not None:
+        z = parsed.astimezone(timezone.utc).replace(microsecond=0)
+        return z.isoformat().replace("+00:00", "Z")
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def _fingerprint_text_field(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text)
+
+
+def _article_fingerprint(article: dict[str, Any]) -> str:
+    payload = {
+        "source": (article.get("source") or "").strip(),
+        "publishedAt": _canonical_published_for_fingerprint(article),
+        "title": _fingerprint_text_field(article.get("title")),
+        "content": _fingerprint_text_field(article.get("content")),
+    }
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 async def _insert_news_rows(session: AsyncSession, articles: list[dict[str, Any]]) -> int:

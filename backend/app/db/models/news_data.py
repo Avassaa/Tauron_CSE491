@@ -15,10 +15,12 @@ class NewsData(Base):
     One row per scraped article.
 
     Maps scraper / aggregated JSON fields: source, scrapedAt, publishedAt, title, content.
-    ``fingerprint`` is a SHA-256 hex digest of canonical ``source`` / ``publishedAt`` /
-    ``title`` / ``content`` (same story = same fingerprint). Rows get a DB ``id`` UUID;
-    dedupe does not use an external article id: inserts use ``ON CONFLICT (fingerprint)
-    DO NOTHING``, which probes the unique B-tree index per row (not a full table scan).
+    ``fingerprint`` is a SHA-256 hex digest of canonical ``source``, normalized
+    ``publishedAt`` (same instant, one string form), and whitespace-normalized
+    ``title`` / ``content``. Rows use a UUID ``id`` as the primary key for stable
+    references; sites rarely expose a durable global article id, so dedupe is by
+    fingerprint via ``ON CONFLICT (fingerprint) DO NOTHING`` on
+    ``uq_news_data_fingerprint``.
     """
 
     __tablename__ = "news_data"
