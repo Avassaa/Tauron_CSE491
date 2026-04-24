@@ -10,6 +10,7 @@ import {
 
 import type { Route } from "./+types/root";
 import { Header } from "~/components/landing/header";
+import { MarketMarqueeBanner } from "~/components/market-marquee-banner";
 import { AppProviders } from "./providers";
 import "./app.css";
 
@@ -53,13 +54,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const showHeader =
-    pathname !== "/login" && pathname !== "/register" && pathname !== "/dashboard";
+  const showHeader = ["/", "/pricing", "/about"].includes(pathname);
 
   return (
     <>
-      {showHeader ? <Header /> : null}
-      <Outlet />
+      <MarketMarqueeBanner />
+      <div
+        style={{
+          paddingTop: "var(--market-banner-offset, 0px)",
+          overflowX: "clip",
+        }}
+      >
+        {showHeader ? <Header /> : null}
+        <Outlet />
+      </div>
     </>
   );
 }
