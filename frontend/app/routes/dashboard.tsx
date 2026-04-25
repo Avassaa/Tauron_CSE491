@@ -39,7 +39,7 @@ const APPLY_MOCK_MS = 1500
 function DashboardPageClient() {
   const [searchParams] = useSearchParams()
   const selectedAssetId = searchParams.get("asset")
-  
+
   const [filtersReady, setFiltersReady] = React.useState(false)
   const [applyBusy, setApplyBusy] = React.useState(false)
   const applyTimerRef = React.useRef<number | null>(null)
@@ -87,7 +87,7 @@ function DashboardPageClient() {
   const dataBusy = !filtersReady || applyBusy
 
   return (
-    <DashboardLayout 
+    <DashboardLayout
       title={
         <div className="flex items-center gap-2">
           <span className="font-medium">Dashboard</span>

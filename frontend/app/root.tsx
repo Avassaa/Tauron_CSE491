@@ -15,6 +15,7 @@ import { Header } from "~/components/landing/header";
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner";
 import { Button } from "~/components/landing/button";
 import { AppProviders } from "./providers";
+import { useAppTheme } from "~/theme-context";
 import "./app.css";
 
 const themeInitScript = `(function(){function s(){try{var r=document.documentElement,t=localStorage.getItem("theme");if(t==="dark"){r.classList.add("dark");r.style.colorScheme="dark";r.dataset.theme="dark";}else{r.classList.remove("dark");r.style.colorScheme="light";r.dataset.theme="light";}}catch(e){}}s();document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest("[data-theme-toggle]");if(!el)return;var r=document.documentElement,n=r.classList.contains("dark")?"light":"dark";if(n==="dark"){r.classList.add("dark");r.style.colorScheme="dark";r.dataset.theme="dark";}else{r.classList.remove("dark");r.style.colorScheme="light";r.dataset.theme="light";}try{localStorage.setItem("theme",n);}catch(err){}window.dispatchEvent(new Event("themechange"));},true);})();`;
@@ -37,8 +38,10 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const { theme } = useAppTheme();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={theme} data-theme={theme} style={{ colorScheme: theme }} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -109,14 +112,14 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
             <h1 className="text-[10rem] font-black tracking-tighter text-foreground/5 sm:text-[16rem] md:text-[20rem] select-none leading-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
               {is404 ? "404" : "Error"}
             </h1>
-            <LineShadowText 
+            <LineShadowText
               className="text-8xl font-black tracking-tighter text-foreground sm:text-[10rem] md:text-[12rem] leading-none relative z-10"
               shadowColor="oklch(0.55 0.22 255)"
             >
               {is404 ? "404" : "ERROR"}
             </LineShadowText>
           </div>
-          
+
           <div className="relative z-20 space-y-6">
             <div className="space-y-4">
               <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
@@ -126,7 +129,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
                 {details}
               </p>
             </div>
-            
+
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Button asChild size="lg" className="h-12 rounded-full px-8 font-bold shadow-2xl transition-all hover:scale-105 active:scale-95 bg-primary text-primary-foreground dark:bg-white dark:text-black">
                 <Link to={isLoggedIn ? "/dashboard" : "/"}>

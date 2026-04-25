@@ -1,13 +1,23 @@
 'use client';
 
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useAppTheme } from '~/theme-context';
 import { Button, buttonVariants } from "~/components/landing/button";
 import { cn } from "~/lib/utils";
 import { MenuToggleIcon } from "~/components/landing/menu-toggle-icon";
 import { useScroll } from "~/hooks/use-scroll";
 import { AnimatedThemeToggler } from '~/components/ui/animated-theme-toggler';
+import { Bell, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 export const WordmarkIcon = (props: React.ComponentProps<'svg'>) => (
   <svg viewBox="0 0 84 24" fill="currentColor" {...props}>
@@ -19,7 +29,16 @@ export function Header() {
   const [open, setOpen] = React.useState(false);
   const scrolled = useScroll(10);
   const { theme } = useAppTheme();
+  const { pathname } = useLocation();
   const isLight = theme === 'light';
+
+  const isAuthenticated = pathname === '/dashboard' || pathname.startsWith('/profile');
+
+  const DEMO_USER = {
+    name: "Test testoglu",
+    email: "testoglu@tauron.dev",
+    initials: "TT",
+  } as const
 
   const links = [
     { label: 'Features', href: '/#features' },
@@ -45,19 +64,19 @@ export function Header() {
         'sticky top-0 z-50 mx-auto w-full max-w-5xl border-b md:rounded-xl md:border md:transition-all md:ease-out',
         isLight
           ? cn(
-              'border-border/80 bg-background/90 text-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/75',
-              scrolled && !open && 'md:top-4 md:max-w-4xl md:shadow-xl',
-            )
+            'border-border/80 bg-background/90 text-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/75',
+            scrolled && !open && 'md:top-4 md:max-w-4xl md:shadow-xl',
+          )
           : cn(
-              'border-transparent',
-              !scrolled && !open && 'bg-transparent',
-              (scrolled || open) &&
-                'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
-              {
-                'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
-                'bg-black/30': open,
-              },
-            ),
+            'border-transparent',
+            !scrolled && !open && 'bg-transparent',
+            (scrolled || open) &&
+            'border-white/10 bg-black/25 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-black/20',
+            {
+              'md:top-4 md:max-w-4xl md:shadow-xl': scrolled && !open,
+              'bg-black/30': open,
+            },
+          ),
       )}
     >
       <nav
@@ -78,9 +97,11 @@ export function Header() {
           Tauron
         </a>
         <div className="hidden items-center gap-2 md:flex">
-          <AnimatedThemeToggler
-            className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
-          />
+          {!isAuthenticated && (
+            <AnimatedThemeToggler
+              className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
+            />
+          )}
           {links.map((link, i) => (
             <a
               key={i}
@@ -96,26 +117,96 @@ export function Header() {
               {link.label}
             </a>
           ))}
-          <Button
-            variant="outline"
-            className={cn(
-              'cursor-pointer',
-              isLight
-                ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
-                : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
-            )}
-            asChild
-          >
-            <Link to="/login">Sign In</Link>
-          </Button>
-          <Button
-            className={cn(
-              'cursor-pointer',
-              !isLight && 'bg-white text-black hover:bg-white/90',
-            )}
-          >
-            Get Started
-          </Button>
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2">
+
+              {/* fix here to navigate to /notifications */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'relative rounded-full',
+                  isLight ? 'text-foreground' : 'text-white'
+                )}
+              >
+                <Bell className="size-5" />
+                <span className="absolute top-2 right-2 flex h-2 w-2 rounded-full bg-red-500" />
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      'flex items-center gap-2 rounded-full px-2 py-1.5',
+                      isLight ? 'text-foreground hover:bg-accent' : 'text-white hover:bg-white/10'
+                    )}
+                  >
+                    <Avatar className="size-8 border border-border/50">
+                      <AvatarFallback className="bg-primary/10 text-xs text-primary font-bold">
+                        {DEMO_USER.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden text-sm font-medium md:inline-block">
+                      {DEMO_USER.name}
+                    </span>
+                    <ChevronDown className="size-4 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" sideOffset={8}>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{DEMO_USER.name}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {DEMO_USER.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile/settings" className="cursor-pointer w-full flex items-center">
+                      <User className="mr-2 size-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem data-theme-toggle className="cursor-pointer">
+                    <AnimatedThemeToggler className="mr-2 size-4" />
+                    <span>Theme</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/" className="cursor-pointer w-full flex items-center text-red-500 focus:text-red-500">
+                      <LogOut className="mr-2 size-4" />
+                      <span>Logout</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                className={cn(
+                  'cursor-pointer',
+                  isLight
+                    ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
+                    : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
+                )}
+                asChild
+              >
+                <Link to="/login">Sign In</Link>
+              </Button>
+              <Button asChild
+                className={cn(
+                  'w-full cursor-pointer',
+                  !isLight && 'bg-white text-black hover:bg-white/90',
+                )}
+              >
+                <Link to="/signup">Get Started</Link>
+              </Button>
+            </>
+          )}
         </div>
         <Button
           size="icon"
@@ -149,9 +240,11 @@ export function Header() {
           )}
         >
           <div className="grid gap-y-2">
-            <AnimatedThemeToggler
-              className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
-            />
+            {!isAuthenticated && (
+              <AnimatedThemeToggler
+                className={cn('relative z-10', isLight ? 'text-foreground' : 'text-white')}
+              />
+            )}
             {links.map((link) => (
               <a
                 key={link.label}
@@ -169,26 +262,45 @@ export function Header() {
             ))}
           </div>
           <div className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full cursor-pointer',
-                isLight
-                  ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
-                  : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
-              )}
-              asChild
-            >
-              <Link to="/login">Sign In</Link>
-            </Button>
-            <Button
-              className={cn(
-                'w-full cursor-pointer',
-                !isLight && 'bg-white text-black hover:bg-white/90',
-              )}
-            >
-              Get Started
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button variant="outline" className="w-full justify-start gap-2" asChild>
+                  <Link to="/profile/settings">
+                    <User className="size-4" />
+                    Profile Settings
+                  </Link>
+                </Button>
+                <Button variant="destructive" className="w-full justify-start gap-2" asChild>
+                  <Link to="/">
+                    <LogOut className="size-4" />
+                    Logout
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    'w-full cursor-pointer',
+                    isLight
+                      ? 'border-border text-foreground hover:bg-accent hover:text-foreground'
+                      : 'border-white/30 text-white hover:bg-white/10 hover:text-white',
+                  )}
+                  asChild
+                >
+                  <Link to="/login">Sign In</Link>
+                </Button>
+                <Button asChild
+                  className={cn(
+                    'w-full cursor-pointer',
+                    !isLight && 'bg-white text-black hover:bg-white/90',
+                  )}
+                >
+                  <Link to="/signup">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
