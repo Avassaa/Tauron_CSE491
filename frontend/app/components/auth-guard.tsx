@@ -22,12 +22,18 @@ export function AuthGuard({
   const navigate = useNavigate()
 
   React.useEffect(() => {
-    const token = localStorage.getItem("access_token")
-    if (token && token.trim().length > 0) {
-      setStatus("authenticated")
-    } else {
+    try {
+      const token = localStorage.getItem("access_token")
+      if (token && token.trim().length > 0) {
+        setStatus("authenticated")
+        return
+      }
       setStatus("unauthenticated")
       void navigate("/login", { replace: true })
+    } catch {
+      // If localStorage is blocked (privacy mode, sandbox), never stay stuck in "checking".
+      setStatus("unauthenticated")
+      window.location.replace("/login")
     }
   }, [navigate])
 

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { AppSidebar } from "./app-sidebar"
+import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Separator } from "~/components/ui/separator"
 import { DashboardClientOnly } from "./dashboard-client-only"
@@ -25,6 +26,7 @@ export function DashboardLayout({
       <AuthGuard>
         <SidebarProvider>
           <AppSidebar />
+          <MarketMarqueeBanner />
           <div className="flex-1 flex flex-col min-w-0 bg-background">
             <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between border-b bg-background/50 px-4 backdrop-blur-md">
               <div className="flex items-center gap-2">

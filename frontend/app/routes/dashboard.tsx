@@ -2,7 +2,6 @@
 
 import * as React from "react"
 
-import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { useSearchParams } from "react-router"
 import { Separator } from "~/components/ui/separator"
@@ -88,28 +87,26 @@ function DashboardPageClient() {
   const dataBusy = !filtersReady || applyBusy
 
   return (
-    <>
-      <MarketMarqueeBanner />
-      <DashboardLayout
-        title={
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Dashboard</span>
-            {selectedAssetId && (
-              <>
-                <Separator orientation="vertical" className="mx-2 h-4" />
-                <span className="text-sm font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                  {selectedAssetId}
-                </span>
-              </>
-            )}
-          </div>
-        }
+    <DashboardLayout
+      title={
+        <div className="flex items-center gap-2">
+          <span className="font-medium">Dashboard</span>
+          {selectedAssetId && (
+            <>
+              <Separator orientation="vertical" className="mx-2 h-4" />
+              <span className="text-sm font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                {selectedAssetId}
+              </span>
+            </>
+          )}
+        </div>
+      }
+    >
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
-        <div
-          className="flex-1 overflow-y-auto"
-          style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-        >
-          <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
           <DashboardFiltersSection
             applyBusy={applyBusy}
             onApply={handleApply}
@@ -191,10 +188,9 @@ function DashboardPageClient() {
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-          </div>
         </div>
-      </DashboardLayout>
-    </>
+      </div>
+    </DashboardLayout>
   )
 }
 
