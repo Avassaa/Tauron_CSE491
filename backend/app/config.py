@@ -109,6 +109,26 @@ class Settings(BaseSettings):
         description="Sleep between successful scraper runs (default 86400 = 24 hours).",
     )
 
+    AUTO_POPULATE_ONCHAIN_ON_EMPTY_DB: bool = Field(
+        default=True,
+        description=(
+            "When True, startup auto-populates assets and on_chain_metrics if "
+            "on_chain_metrics is empty."
+        ),
+    )
+    AUTO_POPULATE_ONCHAIN_SYMBOLS: str = Field(
+        default="BTC,ETH",
+        description="Comma-separated symbols to backfill (must exist or be auto-seeded).",
+    )
+    AUTO_POPULATE_ONCHAIN_METRICS: str = Field(
+        default="AdrActCnt,TxCnt,CapMrktCurUSD,SplyCur",
+        description="Comma-separated CoinMetrics metrics to fetch.",
+    )
+    AUTO_POPULATE_ONCHAIN_YEARS: int = Field(
+        default=5,
+        description="How many years of historical on-chain data to backfill on empty DB.",
+    )
+
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:
         """Parse ``CORS_ORIGINS`` as a comma-separated list."""

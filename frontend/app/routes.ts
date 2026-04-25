@@ -8,4 +8,5 @@ export default [
     route("register", "routes/register.tsx"),
     route("dashboard", "routes/dashboard.tsx"),
     route("settings", "routes/settings.tsx"),
+    route("tools", "routes/tools.tsx"),
 ] satisfies RouteConfig;

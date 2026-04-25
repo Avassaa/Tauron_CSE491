@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronRight, SlidersHorizontal } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
+import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Switch } from "~/components/ui/switch"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Separator } from "~/components/ui/separator"
@@ -26,7 +27,12 @@ export default function SettingsPage() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <MarketMarqueeBanner />
+      <SidebarInset
+        style={{
+          paddingTop: "var(--market-banner-offset, 0px)",
+        }}
+      >
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -76,7 +82,7 @@ export default function SettingsPage() {
                     <div>
                       <div className="text-sm font-medium">Show market ticker banner</div>
                       <div className="text-xs text-muted-foreground">
-                        Overlay marquee shown at the top of all pages.
+                        Live ticker shown at the top of app pages.
                       </div>
                     </div>
                   </div>

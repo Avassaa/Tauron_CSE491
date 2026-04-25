@@ -32,10 +32,11 @@ from app.api.v1.routes import (
 
 async def _bootstrap_database_on_startup() -> None:
     """Create PostgreSQL schema, tables, and extensions when configured."""
-    from app.db.bootstrap import bootstrap_database
+    from app.db.bootstrap import auto_populate_onchain_if_empty, bootstrap_database
     from app.db.session import engine
 
     await bootstrap_database(engine)
+    await auto_populate_onchain_if_empty(engine)
 
 
 async def _cancel_background_news_scrapes() -> None:

@@ -1,7 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { BarChart3, LayoutDashboard, Settings2 } from "lucide-react"
+import {
+  BarChart3,
+  LayoutDashboard,
+  Settings2,
+  Wrench,
+} from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import { SidebarUserMenu } from "~/components/dashboard/sidebar-user-menu"
@@ -23,6 +28,7 @@ import {
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", url: "#", icon: BarChart3 },
+  { title: "Tools", url: "/tools", icon: Wrench },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -81,6 +81,14 @@
       transform: translateY(calc(-100% - var(--gap)));
     }
   }
+  @keyframes market-ticker {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
   --animate-line-shadow: line-shadow 15s linear infinite;
   @keyframes line-shadow {
     0% {

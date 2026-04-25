@@ -2,7 +2,6 @@
 
 import * as React from "react"
 
-import { Marquee } from "~/routes/home/components/marquee"
 import {
   isMarketBannerVisible,
   onMarketBannerVisibilityChange,
@@ -283,16 +282,16 @@ export function MarketMarqueeBanner() {
       <span className="font-semibold">{ticker.label}</span>
       <span
         className={cn(
-          "tabular-nums rounded px-1 transition-colors duration-300",
-          flashBySymbol[ticker.symbol] === "down" && "bg-red-500/25 text-red-300",
-          flashBySymbol[ticker.symbol] === "up" && "bg-emerald-500/25 text-emerald-300",
+          "inline-block min-w-[10ch] px-1 text-right tabular-nums transition-colors duration-300",
+          flashBySymbol[ticker.symbol] === "down" && "text-red-500 dark:text-red-400",
+          flashBySymbol[ticker.symbol] === "up" && "text-emerald-500 dark:text-emerald-400",
         )}
       >
         ${ticker.price}
       </span>
       <span
         className={cn(
-          "tabular-nums",
+          "inline-block min-w-[8ch] text-right tabular-nums",
           ticker.changePct == null
             ? "text-muted-foreground"
             : ticker.changePct >= 0
@@ -312,18 +311,24 @@ export function MarketMarqueeBanner() {
       ref={bannerRef}
       className="fixed inset-x-0 top-0 z-[9] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
     >
-      <Marquee className="py-2 [--duration:55s] [--gap:1.5rem]" repeat={6}>
-        <div className="ml-2 mr-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          <span
-            className={cn(
-              "inline-block h-2 w-2 rounded-full",
-              connected ? "bg-emerald-500" : "bg-amber-500",
-            )}
-          />
-          {connected ? "Live" : "Reconnecting"}
+      <div className="overflow-hidden py-2">
+        <div className="flex w-max [--duration:55s] will-change-transform [animation:market-ticker_var(--duration)_linear_infinite]">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="ml-2 flex shrink-0 items-center gap-6 pr-6">
+              <div className="mr-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span
+                  className={cn(
+                    "inline-block h-2 w-2 rounded-full",
+                    connected ? "bg-emerald-500" : "bg-amber-500",
+                  )}
+                />
+                {connected ? "Live" : "Reconnecting"}
+              </div>
+              {tickerItems}
+            </div>
+          ))}
         </div>
-        {tickerItems}
-      </Marquee>
+      </div>
     </div>
   )
 }

@@ -10,7 +10,6 @@ import {
 
 import type { Route } from "./+types/root";
 import { Header } from "~/components/landing/header";
-import { MarketMarqueeBanner } from "~/components/market-marquee-banner";
 import { AppProviders } from "./providers";
 import "./app.css";
 
@@ -57,18 +56,10 @@ export default function App() {
   const showHeader = ["/", "/pricing", "/about"].includes(pathname);
 
   return (
-    <>
-      <MarketMarqueeBanner />
-      <div
-        style={{
-          paddingTop: "var(--market-banner-offset, 0px)",
-          overflowX: "clip",
-        }}
-      >
-        {showHeader ? <Header /> : null}
-        <Outlet />
-      </div>
-    </>
+    <div style={{ overflowX: "clip" }}>
+      {showHeader ? <Header /> : null}
+      <Outlet />
+    </div>
   );
 }
 
