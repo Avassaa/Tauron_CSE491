@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import {
-  BarChart3,
   LayoutDashboard,
+  Coins,
+  Star,
   Settings2,
   Wrench,
 } from "lucide-react"
@@ -27,7 +28,8 @@ import {
 
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Analytics", url: "#", icon: BarChart3 },
+  { title: "Assets", url: "/assets", icon: Coins },
+  { title: "Watchlist", url: "/watchlists", icon: Star },
   { title: "Tools", url: "/tools", icon: Wrench },
 ]
 
@@ -35,7 +37,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation()
 
   return (
-    <Sidebar collapsible="icon" variant="inset" {...props}>
+    <Sidebar collapsible="icon" className="bg-background border-r rounded-r-[2.5rem] overflow-hidden" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

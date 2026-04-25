@@ -17,6 +17,9 @@ type Pages = {
   "/pricing": {
     params: {};
   };
+  "/faq": {
+    params: {};
+  };
   "/about": {
     params: {};
   };
@@ -35,12 +38,18 @@ type Pages = {
   "/tools": {
     params: {};
   };
+  "/assets": {
+    params: {};
+  };
+  "/watchlists": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/about" | "/login" | "/register" | "/dashboard" | "/settings" | "/tools";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/settings" | "/tools" | "/assets" | "/watchlists";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -49,6 +58,10 @@ type RouteFiles = {
   "routes/pricing/page/pricing.tsx": {
     id: "routes/pricing/page/pricing";
     page: "/pricing";
+  };
+  "routes/faq/page/faq.tsx": {
+    id: "routes/faq/page/faq";
+    page: "/faq";
   };
   "routes/about/page/about.tsx": {
     id: "routes/about/page/about";
@@ -74,16 +87,27 @@ type RouteFiles = {
     id: "routes/tools";
     page: "/tools";
   };
+  "routes/assets.tsx": {
+    id: "routes/assets";
+    page: "/assets";
+  };
+  "routes/watchlists.tsx": {
+    id: "routes/watchlists";
+    page: "/watchlists";
+  };
 };
 
 type RouteModules = {
   "root": typeof import("./app/root.tsx");
   "routes/home/page/home": typeof import("./app/routes/home/page/home.tsx");
   "routes/pricing/page/pricing": typeof import("./app/routes/pricing/page/pricing.tsx");
+  "routes/faq/page/faq": typeof import("./app/routes/faq/page/faq.tsx");
   "routes/about/page/about": typeof import("./app/routes/about/page/about.tsx");
   "routes/login": typeof import("./app/routes/login.tsx");
   "routes/register": typeof import("./app/routes/register.tsx");
   "routes/dashboard": typeof import("./app/routes/dashboard.tsx");
   "routes/settings": typeof import("./app/routes/settings.tsx");
   "routes/tools": typeof import("./app/routes/tools.tsx");
+  "routes/assets": typeof import("./app/routes/assets.tsx");
+  "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
 };

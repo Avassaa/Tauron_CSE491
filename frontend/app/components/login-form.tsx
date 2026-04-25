@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
+import { PasswordInput } from "~/components/ui/password-input"
 import { Spinner } from "~/components/ui/spinner"
 
 type LoginFormProps = Omit<
@@ -177,6 +178,6 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           </Link>
         </FieldDescription>
       </FieldGroup>
-    </Form>
+    </Form >
   )
 }
