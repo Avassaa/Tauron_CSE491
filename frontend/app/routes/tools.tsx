@@ -30,7 +30,7 @@ const CURRENCY_LABELS: Record<CurrencyCode, string> = {
   CHF: "Swiss Franc",
 }
 
-const USD_BASE_RATES: Record<CurrencyCode, number> = {
+const FALLBACK_USD_BASE_RATES: Record<CurrencyCode, number> = {
   USD: 1,
   EUR: 0.93,
   TRY: 38.65,
@@ -42,20 +42,66 @@ const USD_BASE_RATES: Record<CurrencyCode, number> = {
 }
 
 const CURRENCIES = Object.keys(CURRENCY_LABELS) as CurrencyCode[]
+const BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
 
-function convertAmount(amount: number, from: CurrencyCode, to: CurrencyCode): number {
+function convertAmount(
+  amount: number,
+  from: CurrencyCode,
+  to: CurrencyCode,
+  rates: Record<CurrencyCode, number>
+): number {
   if (!Number.isFinite(amount)) return 0
-  const amountInUsd = amount / USD_BASE_RATES[from]
-  return amountInUsd * USD_BASE_RATES[to]
+  const amountInUsd = amount / rates[from]
+  return amountInUsd * rates[to]
+}
+
+function toNumber(value: string | undefined): number | null {
+  if (!value) return null
+  const n = Number.parseFloat(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function getUsdtPerCurrency(
+  currency: CurrencyCode,
+  tickerBySymbol: Record<string, string>
+): number | null {
+  if (currency === "USD") return 1
+
+  const direct = toNumber(tickerBySymbol[`${currency}USDT`])
+  if (direct && direct > 0) return direct
+
+  const inverse = toNumber(tickerBySymbol[`USDT${currency}`])
+  if (inverse && inverse > 0) return 1 / inverse
+
+  return null
+}
+
+function buildUsdBaseRatesFromBinance(
+  tickerBySymbol: Record<string, string>
+): Record<CurrencyCode, number> {
+  const next = { ...FALLBACK_USD_BASE_RATES }
+  for (const currency of CURRENCIES) {
+    const usdtPerCurrency = getUsdtPerCurrency(currency, tickerBySymbol)
+    if (usdtPerCurrency == null || usdtPerCurrency <= 0) continue
+    // Approximate USD with USDT for converter use.
+    next[currency] = 1 / usdtPerCurrency
+  }
+  next.USD = 1
+  return next
 }
 
 export default function ToolsPage() {
   const [amount, setAmount] = React.useState("1")
   const [fromCurrency, setFromCurrency] = React.useState<CurrencyCode>("USD")
   const [toCurrency, setToCurrency] = React.useState<CurrencyCode>("TRY")
+  const [usdBaseRates, setUsdBaseRates] = React.useState<Record<CurrencyCode, number>>(
+    FALLBACK_USD_BASE_RATES
+  )
+  const [ratesStatus, setRatesStatus] = React.useState<"loading" | "live" | "fallback">("loading")
+  const [lastUpdatedAt, setLastUpdatedAt] = React.useState<Date | null>(null)
 
   const numericAmount = Number.parseFloat(amount)
-  const converted = convertAmount(numericAmount, fromCurrency, toCurrency)
+  const converted = convertAmount(numericAmount, fromCurrency, toCurrency, usdBaseRates)
 
   const formattedResult = Number.isFinite(converted)
     ? converted.toLocaleString(undefined, {
@@ -68,6 +114,44 @@ export default function ToolsPage() {
     setFromCurrency(toCurrency)
     setToCurrency(fromCurrency)
   }
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    const refreshRates = async () => {
+      try {
+        const response = await fetch(BINANCE_TICKER_URL)
+        if (!response.ok) throw new Error("Failed to fetch Binance tickers")
+
+        const rows = (await response.json()) as Array<{ symbol?: string; price?: string }>
+        const tickerBySymbol: Record<string, string> = {}
+        for (const row of rows) {
+          if (!row.symbol || !row.price) continue
+          tickerBySymbol[row.symbol.toUpperCase()] = row.price
+        }
+
+        const liveRates = buildUsdBaseRatesFromBinance(tickerBySymbol)
+        if (cancelled) return
+        setUsdBaseRates(liveRates)
+        setRatesStatus("live")
+        setLastUpdatedAt(new Date())
+      } catch {
+        if (cancelled) return
+        setUsdBaseRates(FALLBACK_USD_BASE_RATES)
+        setRatesStatus("fallback")
+      }
+    }
+
+    void refreshRates()
+    const intervalId = window.setInterval(() => {
+      void refreshRates()
+    }, 60_000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [])
 
   return (
     <SidebarProvider>
@@ -175,7 +259,11 @@ export default function ToolsPage() {
                       {formattedResult} {toCurrency}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Rate basis: static demo rates relative to USD.
+                      {ratesStatus === "live"
+                        ? `Rate basis: live Binance ticker data${lastUpdatedAt ? ` (updated ${lastUpdatedAt.toLocaleTimeString()})` : ""}.`
+                        : ratesStatus === "loading"
+                          ? "Rate basis: loading Binance data..."
+                          : "Rate basis: Binance unavailable, using fallback rates."}
                     </p>
                   </div>
                 </div>

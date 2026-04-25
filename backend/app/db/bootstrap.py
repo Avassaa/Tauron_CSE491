@@ -413,16 +413,7 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
 
     table_prefix = f'"{schema}".' if schema else ""
 
-    async with engine.connect() as conn:
-        onchain_count = int(
-            (await conn.scalar(text(f"SELECT COUNT(*) FROM {table_prefix}on_chain_metrics"))) or 0
-        )
-    if onchain_count > 0:
-        logger.info("Auto-populate skipped: on_chain_metrics already has data.")
-        return
-
-    logger.info("Auto-populate: on_chain_metrics is empty, seeding assets and backfilling.")
-
+    # Always ensure configured assets exist (e.g., SOL) even if metrics table is not empty.
     asset_seed_rows = _asset_seed_rows_for_symbols(symbols)
     async with engine.begin() as conn:
         await conn.execute(
@@ -435,6 +426,16 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
             ),
             asset_seed_rows,
         )
+
+    async with engine.connect() as conn:
+        onchain_count = int(
+            (await conn.scalar(text(f"SELECT COUNT(*) FROM {table_prefix}on_chain_metrics"))) or 0
+        )
+    if onchain_count > 0:
+        logger.info("Auto-populate metrics skipped: on_chain_metrics already has data.")
+        return
+
+    logger.info("Auto-populate: on_chain_metrics is empty, seeding assets and backfilling.")
 
     async with engine.connect() as conn:
         rows = (
