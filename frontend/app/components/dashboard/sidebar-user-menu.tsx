@@ -68,7 +68,7 @@ export function SidebarUserMenu() {
               .join("") || FALLBACK_USER.initials,
         })
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   return (

@@ -2,10 +2,9 @@
 
 import * as React from "react"
 
-import { DashboardClientOnly } from "~/components/dashboard/dashboard-client-only"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
+import { useSearchParams } from "react-router"
 import { Separator } from "~/components/ui/separator"
-import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import {
   ChartAreaInteractive,
   ChartBarDefault,
@@ -38,6 +37,9 @@ const INITIAL_DATA_MOCK_MS = 1500
 const APPLY_MOCK_MS = 1500
 
 function DashboardPageClient() {
+  const [searchParams] = useSearchParams()
+  const selectedAssetId = searchParams.get("asset")
+
   const [filtersReady, setFiltersReady] = React.useState(false)
   const [applyBusy, setApplyBusy] = React.useState(false)
   const applyTimerRef = React.useRef<number | null>(null)
@@ -85,15 +87,23 @@ function DashboardPageClient() {
   const dataBusy = !filtersReady || applyBusy
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+    <DashboardLayout
+      title={
+        <div className="flex items-center gap-2">
           <span className="font-medium">Dashboard</span>
-        </header>
-        <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 flex-col gap-6 overflow-auto p-4">
+          {selectedAssetId && (
+            <>
+              <Separator orientation="vertical" className="mx-2 h-4" />
+              <span className="text-sm font-bold text-primary uppercase bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                {selectedAssetId}
+              </span>
+            </>
+          )}
+        </div>
+      }
+    >
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
           <DashboardFiltersSection
             applyBusy={applyBusy}
             onApply={handleApply}
@@ -176,32 +186,11 @@ function DashboardPageClient() {
             </ContextMenuContent>
           </ContextMenu>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </DashboardLayout>
   )
 }
 
 export default function DashboardPage() {
-  return (
-    <DashboardClientOnly
-      fallback={
-        <div
-          className="flex min-h-svh w-full bg-background"
-          aria-busy
-          aria-label="Loading dashboard"
-        >
-          <div className="hidden w-64 shrink-0 animate-pulse border-r bg-sidebar md:block" />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <div className="h-14 shrink-0 animate-pulse border-b bg-background" />
-            <div className="flex flex-1 flex-col gap-6 overflow-auto p-4">
-              <div className="h-40 animate-pulse rounded-lg bg-muted/50" />
-              <div className="h-64 animate-pulse rounded-lg bg-muted/50" />
-            </div>
-          </div>
-        </div>
-      }
-    >
-      <DashboardPageClient />
-    </DashboardClientOnly>
-  )
+  return <DashboardPageClient />
 }

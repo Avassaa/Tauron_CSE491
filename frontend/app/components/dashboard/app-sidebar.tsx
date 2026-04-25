@@ -1,7 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { BarChart3, LayoutDashboard, Settings2 } from "lucide-react"
+import {
+  LayoutDashboard,
+  Settings2,
+  Coins,
+  Star,
+  FlaskConical,
+  Brain,
+} from "lucide-react"
 import { Link, useLocation } from "react-router"
 
 import { SidebarUserMenu } from "~/components/dashboard/sidebar-user-menu"
@@ -22,14 +29,15 @@ import {
 
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Analytics", url: "#", icon: BarChart3 },
+  { title: "Assets", url: "/assets", icon: Coins },
+  { title: "Watchlist", url: "/watchlists", icon: Star },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { pathname } = useLocation()
 
   return (
-    <Sidebar collapsible="icon" variant="inset" {...props}>
+    <Sidebar collapsible="icon" className="bg-background border-r rounded-r-[2.5rem] overflow-hidden" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
