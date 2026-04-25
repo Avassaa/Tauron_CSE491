@@ -38,8 +38,20 @@ export async function clientAction(args: Route.ClientActionArgs) {
 }
 
 export async function clientLoader() {
-  if (typeof window !== "undefined" && localStorage.getItem("access_token")) {
-    throw redirect("/dashboard")
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("access_token")
+    if (token) {
+      try {
+        await getMe(token)
+        throw redirect("/dashboard")
+      } catch {
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("token_type")
+        localStorage.removeItem("user_id")
+        localStorage.removeItem("username")
+        localStorage.removeItem("email")
+      }
+    }
   }
   return null
 }

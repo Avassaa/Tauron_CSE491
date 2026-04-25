@@ -1,6 +1,6 @@
 import { redirect } from "react-router"
 
-import { persistSession, register } from "~/lib/auth-client"
+import { getMe, persistSession, register } from "~/lib/auth-client"
 import { RegisterForm } from "~/components/register-form"
 import { AnimatedThemeToggler } from "~/components/ui/animated-theme-toggler"
 import type { Route } from "./+types/register"
@@ -38,8 +38,20 @@ export async function clientAction(args: Route.ClientActionArgs) {
 }
 
 export async function clientLoader() {
-  if (typeof window !== "undefined" && localStorage.getItem("access_token")) {
-    throw redirect("/dashboard")
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("access_token")
+    if (token) {
+      try {
+        await getMe(token)
+        throw redirect("/dashboard")
+      } catch {
+        localStorage.removeItem("access_token")
+        localStorage.removeItem("token_type")
+        localStorage.removeItem("user_id")
+        localStorage.removeItem("username")
+        localStorage.removeItem("email")
+      }
+    }
   }
   return null
 }

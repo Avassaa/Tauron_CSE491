@@ -74,6 +74,10 @@ export async function getMe(token: string): Promise<UserProfile> {
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearSession()
+      throw new Error("Session expired. Please sign in again.")
+    }
     throw new Error(await parseErrorMessage(response))
   }
 
