@@ -42,6 +42,7 @@ export function Header() {
 
   const links = [
     { label: 'Features', href: '/#features' },
+    { label: 'Features', href: '/#features' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'About', href: '/about' },
     { label: 'FAQ', href: '/faq' },
@@ -302,6 +303,6 @@ export function Header() {
           </div>
         </div>
       </div>
-    </header>
+    </header >
   );
 }

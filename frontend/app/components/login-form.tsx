@@ -178,6 +178,6 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           </Link>
         </FieldDescription>
       </FieldGroup>
-    </Form>
+    </Form >
   )
 }
