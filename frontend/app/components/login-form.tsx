@@ -15,6 +15,7 @@ import {
 } from "~/components/ui/field"
 import { Input } from "~/components/ui/input"
 import { PasswordInput } from "~/components/ui/password-input"
+import { PasswordInput } from "~/components/ui/password-input"
 import { Spinner } from "~/components/ui/spinner"
 
 type LoginFormProps = Omit<
@@ -176,8 +177,9 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           <Link to="/register" className="underline underline-offset-4">
             Sign up
           </Link>
-        </FieldDescription>
-      </FieldGroup>
+        </Link>
+      </FieldDescription>
+    </FieldGroup>
     </Form >
   )
 }
