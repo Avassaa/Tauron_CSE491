@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, TrendingDown, X, Activity, MoreVertical, Star, Circle } from "lucide-react"
-import { Badge } from "~/components/ui/badge"
+import { TrendingUp, TrendingDown, Star } from "lucide-react"
 import { cn } from "~/lib/utils"
-import { getAssetStats } from "~/lib/mock-data"
 import type { AssetResponse } from "~/lib/api-client"
 
 interface WatchlistCardProps {
@@ -22,8 +20,85 @@ export function WatchlistCard({
   onRemove,
   onSelect,
 }: WatchlistCardProps) {
-  // Deterministic mock performance data
-  const stats = React.useMemo(() => getAssetStats(asset.symbol, timeRange), [asset.symbol, timeRange])
+  const [stats, setStats] = React.useState<{
+    price: number | null
+    change: string
+    isUp: boolean
+    marketCap: string
+    volume: string
+    supply: string
+    sparkline: string
+  }>({
+    price: null,
+    change: "--",
+    isUp: false,
+    marketCap: "—",
+    volume: "—",
+    supply: "—",
+    sparkline: "0,25 L 25,23 L 50,24 L 75,22 L 100,24",
+  })
+
+  React.useEffect(() => {
+    let cancelled = false
+    const symbol = `${asset.symbol.toUpperCase()}USDT`
+
+    const run = async () => {
+      try {
+        const tickerRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`)
+        if (!tickerRes.ok) return
+        const ticker = (await tickerRes.json()) as {
+          lastPrice?: string
+          priceChangePercent?: string
+          quoteVolume?: string
+        }
+
+        const price = Number.parseFloat(ticker.lastPrice || "")
+        const changePct = Number.parseFloat(ticker.priceChangePercent || "")
+        const quoteVolume = Number.parseFloat(ticker.quoteVolume || "")
+        const isUp = Number.isFinite(changePct) ? changePct >= 0 : false
+
+        const klinesRes = await fetch(
+          `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=4h&limit=25`
+        )
+        let sparkline = "0,25 L 25,23 L 50,24 L 75,22 L 100,24"
+        if (klinesRes.ok) {
+          const klines = (await klinesRes.json()) as Array<[number, string, string, string, string]>
+          const closes = klines
+            .map((k) => Number.parseFloat(k[4]))
+            .filter((v) => Number.isFinite(v))
+          if (closes.length > 1) {
+            const min = Math.min(...closes)
+            const max = Math.max(...closes)
+            const span = Math.max(max - min, 1e-9)
+            const points = closes.map((value, idx) => {
+              const x = (idx / (closes.length - 1)) * 100
+              const y = 32 - ((value - min) / span) * 24
+              return `${x},${y}`
+            })
+            sparkline = points.join(" L ")
+          }
+        }
+
+        if (cancelled) return
+        setStats({
+          price: Number.isFinite(price) ? price : null,
+          change: Number.isFinite(changePct) ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : "--",
+          isUp,
+          marketCap: "—",
+          volume: Number.isFinite(quoteVolume) ? `$${(quoteVolume / 1_000_000).toFixed(1)}M` : "—",
+          supply: "—",
+          sparkline,
+        })
+      } catch {
+        // Keep graceful placeholders.
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [asset.symbol, timeRange])
 
   return (
     <div
@@ -63,7 +138,9 @@ export function WatchlistCard({
         <div className="space-y-1.5">
           <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-[0.2em]">Activity</span>
           <div className="text-3xl font-black text-foreground tracking-tighter">
-            ${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {stats.price == null
+              ? "—"
+              : `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </div>
           <div className="flex items-center gap-2">
             <div className={cn(

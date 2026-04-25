@@ -13,7 +13,7 @@ import {
   type WatchlistEntryResponse,
   type PaginatedResponse,
 } from "~/lib/api-client"
-import { MOCK_WATCHLIST, MOCK_ASSETS, MOCK_MARKET_DATA, MOCK_MODELS, MOCK_MARKET_STATS_FALLBACK } from "~/lib/mock-data"
+import { MOCK_ASSETS } from "~/lib/mock-data"
 import {
   WatchlistCard,
   WatchlistTable,
@@ -90,15 +90,12 @@ function WatchlistPageClient() {
     setError(null)
     try {
       const data = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
-      if (data.length === 0) {
-        setWatchlist(MOCK_WATCHLIST)
-      } else {
-        setWatchlist(data)
-      }
+      setWatchlist(data)
       setLastUpdate(new Date())
     } catch (err) {
-      console.error("API failed, using mock watchlist:", err)
-      setWatchlist(MOCK_WATCHLIST)
+      console.error("API failed to fetch watchlist:", err)
+      setError("Failed to load watchlist from backend.")
+      setWatchlist([])
     } finally {
       setLoadingWatchlist(false)
     }
@@ -121,7 +118,7 @@ function WatchlistPageClient() {
     }
   }, [allAssets.length])
 
-  const fetchChartData = React.useCallback(async (assetId: string, range: TimeRange) => {
+  const fetchChartData = React.useCallback(async (assetId: string, assetSymbol: string, range: TimeRange) => {
     setChartLoading(true)
     try {
       const now = new Date()
@@ -147,11 +144,11 @@ function WatchlistPageClient() {
           break
         case "1y":
           timeFrom = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
-          resolution = "1w"
+          resolution = "1d"
           break
         case "max":
-          timeFrom = new Date(0)
-          resolution = "1mo"
+          timeFrom = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+          resolution = "1d"
           break
       }
 
@@ -184,27 +181,77 @@ function WatchlistPageClient() {
         }))
         setChartData(formatted)
       } else {
-        setMarketStats(MOCK_MARKET_STATS_FALLBACK)
-        const mockFormatted = MOCK_MARKET_DATA
-          .map((item) => ({
-            date: item.time,
-            price: 50000 + (Math.random() * 20000),
-            confidence: 48000 + (Math.random() * 20000)
-          }))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        setChartData(mockFormatted)
+        throw new Error("No backend market data for selected asset/range")
       }
     } catch (err) {
-      console.error("Failed to fetch chart data:", err)
-      setMarketStats(MOCK_MARKET_STATS_FALLBACK)
-      const mockFormatted = MOCK_MARKET_DATA
-        .map((item) => ({
-          date: item.time,
-          price: 50000 + (Math.random() * 20000),
-          confidence: 48000 + (Math.random() * 20000)
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      setChartData(mockFormatted)
+      console.error("Failed to fetch backend chart data, trying Binance:", err)
+      try {
+        const symbol = `${assetSymbol.toUpperCase()}USDT`
+        const interval =
+          range === "24h" ? "1h" :
+          range === "7d" ? "4h" :
+          range === "1m" ? "1d" :
+          range === "3m" ? "1d" :
+          range === "1y" ? "1d" : "1d"
+        const limit =
+          range === "24h" ? 24 :
+          range === "7d" ? 42 :
+          range === "1m" ? 30 :
+          range === "3m" ? 90 :
+          range === "1y" ? 365 : 365
+
+        const [tickerRes, klinesRes] = await Promise.all([
+          fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`),
+          fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`),
+        ])
+
+        if (!tickerRes.ok || !klinesRes.ok) {
+          throw new Error("Binance fallback unavailable")
+        }
+
+        const ticker = (await tickerRes.json()) as {
+          lastPrice?: string
+          priceChangePercent?: string
+          quoteVolume?: string
+        }
+        const klines = (await klinesRes.json()) as Array<[number, string, string, string, string, string]>
+
+        const points = klines
+          .map((k) => {
+            const close = Number.parseFloat(k[4])
+            if (!Number.isFinite(close)) return null
+            return {
+              date: new Date(k[0]).toISOString(),
+              price: close,
+              confidence: close * 0.95,
+            }
+          })
+          .filter((p): p is { date: string; price: number; confidence: number } => p != null)
+
+        const sortedPoints = points.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        if (sortedPoints.length === 0) throw new Error("No Binance chart points")
+
+        const first = sortedPoints[0]
+        const latest = sortedPoints[sortedPoints.length - 1]
+        const lastPrice = Number.parseFloat(ticker.lastPrice || "")
+        const priceChange = Number.parseFloat(ticker.priceChangePercent || "")
+        const quoteVolume = Number.parseFloat(ticker.quoteVolume || "")
+
+        setMarketStats({
+          price: Number.isFinite(lastPrice) ? lastPrice : latest.price,
+          change24h: Number.isFinite(priceChange)
+            ? priceChange
+            : first.price > 0
+              ? ((latest.price - first.price) / first.price) * 100
+              : 0,
+          volume: Number.isFinite(quoteVolume) ? quoteVolume : 0,
+        })
+        setChartData(sortedPoints)
+      } catch (fallbackErr) {
+        console.error("Binance fallback failed:", fallbackErr)
+        setMarketStats(null)
+        setChartData([])
+      }
     } finally {
       setChartLoading(false)
     }
@@ -212,7 +259,7 @@ function WatchlistPageClient() {
 
   React.useEffect(() => {
     if (selectedAsset) {
-      void fetchChartData(selectedAsset.id, timeRange)
+      void fetchChartData(selectedAsset.id, selectedAsset.symbol, timeRange)
       apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", { asset_id: selectedAsset.id })
         .then((data) => {
           if (data.items.length > 0) {
@@ -220,15 +267,13 @@ function WatchlistPageClient() {
             const activeModel = data.items.find((m) => m.is_active) || data.items[0]
             setPredictionModel(activeModel)
           } else {
-            const mockModels = MOCK_MODELS.filter((m) => m.asset_id === selectedAsset.id)
-            setAvailableModels(mockModels)
-            setPredictionModel(mockModels.find((m) => m.is_active) || mockModels[0] || null)
+            setAvailableModels([])
+            setPredictionModel(null)
           }
         })
         .catch(() => {
-          const mockModels = MOCK_MODELS.filter((m) => m.asset_id === selectedAsset.id)
-          setAvailableModels(mockModels)
-          setPredictionModel(mockModels.find((m) => m.is_active) || mockModels[0] || null)
+          setAvailableModels([])
+          setPredictionModel(null)
         })
     } else {
       setChartData([])
@@ -278,17 +323,12 @@ function WatchlistPageClient() {
   const handleAdd = async (asset: AssetResponse) => {
     setAddingId(asset.id)
     const previousWatchlist = [...watchlist]
+    let added = false
     try {
       await apiPut(`/users/me/watchlist/${asset.id}`)
       const data = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
       setWatchlist(data)
-    } catch (err) {
-      console.warn("Backend sync failed, adding to local state:", err)
-      setWatchlist(prev => {
-        if (prev.some(w => w.asset.id === asset.id)) return prev
-        return [...prev, { user_id: "demo", asset }]
-      })
-    } finally {
+      added = true
       toast.success(`Added ${asset.symbol} to watchlist.`, {
         action: {
           label: <span className="underline font-bold">Undo</span>,
@@ -301,6 +341,13 @@ function WatchlistPageClient() {
           },
         },
       })
+    } catch (err) {
+      console.warn("Backend sync failed when adding:", err)
+      toast.error(`Failed to add ${asset.symbol} to watchlist`)
+    } finally {
+      if (!added) {
+        setWatchlist(previousWatchlist)
+      }
       setAddingId(null)
     }
   }

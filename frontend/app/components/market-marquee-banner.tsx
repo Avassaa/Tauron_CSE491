@@ -35,6 +35,7 @@ const INITIAL_TICKERS: TickerEntry[] = STREAM_SYMBOLS.map((entry) => ({
   price: "--",
   changePct: null,
 }))
+const MARKET_BANNER_FALLBACK_HEIGHT_PX = 33
 
 function initialTickerMap(): Record<string, TickerEntry> {
   const map: Record<string, TickerEntry> = {}
@@ -51,7 +52,7 @@ function formatPrice(value: number): string {
 }
 
 export function MarketMarqueeBanner() {
-  const [visible, setVisible] = React.useState<boolean | null>(null)
+  const [visible, setVisible] = React.useState<boolean>(() => isMarketBannerVisible())
   const [tickerMap, setTickerMap] = React.useState<Record<string, TickerEntry>>(() =>
     initialTickerMap(),
   )
@@ -75,14 +76,15 @@ export function MarketMarqueeBanner() {
     }, 650)
   }, [])
 
-  React.useEffect(() => {
-    setVisible(isMarketBannerVisible())
-    return onMarketBannerVisibilityChange((nextVisible) => {
-      setVisible(nextVisible)
-    })
-  }, [])
+  React.useEffect(
+    () =>
+      onMarketBannerVisibilityChange((nextVisible) => {
+        setVisible(nextVisible)
+      }),
+    [],
+  )
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const root = document.documentElement
     if (!visible) {
       root.style.setProperty("--market-banner-offset", "0px")
@@ -90,6 +92,9 @@ export function MarketMarqueeBanner() {
         root.style.setProperty("--market-banner-offset", "0px")
       }
     }
+
+    // Reserve space immediately to avoid page jump between route transitions.
+    root.style.setProperty("--market-banner-offset", `${MARKET_BANNER_FALLBACK_HEIGHT_PX}px`)
 
     const setOffsetFromHeight = () => {
       const h = bannerRef.current?.offsetHeight ?? 0
@@ -304,7 +309,7 @@ export function MarketMarqueeBanner() {
     </div>
   ))
 
-  if (visible !== true) return null
+  if (!visible) return null
 
   return (
     <div

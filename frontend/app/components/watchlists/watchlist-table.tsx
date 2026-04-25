@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, TrendingDown, X, MoreHorizontal, Activity, Star } from "lucide-react"
+import { TrendingUp, TrendingDown, Star } from "lucide-react"
 import { cn } from "~/lib/utils"
 import {
   Table,
@@ -14,8 +14,6 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import type { WatchlistEntryResponse, AssetResponse } from "~/lib/api-client"
-
-import { getAssetStats } from "~/lib/mock-data"
 
 interface WatchlistTableProps {
   watchlist: WatchlistEntryResponse[]
@@ -30,6 +28,50 @@ export function WatchlistTable({
   onRemove,
   onSelect,
 }: WatchlistTableProps) {
+  const [tickerBySymbol, setTickerBySymbol] = React.useState<
+    Record<string, { lastPrice: number; priceChangePercent: number; quoteVolume: number }>
+  >({})
+
+  React.useEffect(() => {
+    let cancelled = false
+    const loadTickers = async () => {
+      try {
+        const res = await fetch("https://api.binance.com/api/v3/ticker/24hr")
+        if (!res.ok) return
+        const rows = (await res.json()) as Array<{
+          symbol?: string
+          lastPrice?: string
+          priceChangePercent?: string
+          quoteVolume?: string
+        }>
+        const next: Record<string, { lastPrice: number; priceChangePercent: number; quoteVolume: number }> = {}
+        for (const row of rows) {
+          const symbol = (row.symbol || "").toUpperCase()
+          if (!symbol) continue
+          const lastPrice = Number.parseFloat(row.lastPrice || "")
+          const priceChangePercent = Number.parseFloat(row.priceChangePercent || "")
+          const quoteVolume = Number.parseFloat(row.quoteVolume || "")
+          if (!Number.isFinite(lastPrice) || !Number.isFinite(priceChangePercent)) continue
+          next[symbol] = {
+            lastPrice,
+            priceChangePercent,
+            quoteVolume: Number.isFinite(quoteVolume) ? quoteVolume : 0,
+          }
+        }
+        if (!cancelled) setTickerBySymbol(next)
+      } catch {
+        // Keep placeholders if Binance is unavailable.
+      }
+    }
+
+    void loadTickers()
+    const interval = window.setInterval(() => void loadTickers(), 30000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
+
   return (
     <div className="rounded-3xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl shadow-primary/5">
       <Table>
@@ -58,7 +100,11 @@ export function WatchlistTable({
         </TableHeader>
         <TableBody>
           {watchlist.map(({ asset }) => {
-            const stats = getAssetStats(asset.symbol, timeRange)
+            const ticker = tickerBySymbol[`${asset.symbol.toUpperCase()}USDT`]
+            const isUp = (ticker?.priceChangePercent ?? 0) >= 0
+            const change = ticker
+              ? `${ticker.priceChangePercent >= 0 ? "+" : ""}${ticker.priceChangePercent.toFixed(2)}%`
+              : "--"
 
             return (
               <TableRow
@@ -88,26 +134,35 @@ export function WatchlistTable({
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <span className="font-black text-sm tracking-tight text-foreground">
-                    ${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {ticker
+                      ? `$${ticker.lastPrice.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 6,
+                        })}`
+                      : "—"}
                   </span>
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <div className={cn(
                     "inline-flex items-center gap-1 px-2 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest",
-                    stats.isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+                    ticker == null
+                      ? "bg-muted/30 text-muted-foreground"
+                      : isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
                   )}>
-                    {stats.isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-                    {stats.change}
+                    {ticker == null ? null : isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                    {change}
                   </div>
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                    {stats.marketCap}
+                    —
                   </span>
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                    {stats.volume}
+                    {ticker
+                      ? `$${(ticker.quoteVolume / 1_000_000).toFixed(1)}M`
+                      : "—"}
                   </span>
                 </TableCell>
                 <TableCell className="py-5 text-center">
@@ -115,9 +170,13 @@ export function WatchlistTable({
                     <div className="w-16 h-8">
                       <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
                         <path
-                          d={`M ${stats.sparkline}`}
+                          d={
+                            isUp
+                              ? "M 0,28 L 20,26 L 40,24 L 60,22 L 80,20 L 100,18"
+                              : "M 0,18 L 20,20 L 40,22 L 60,24 L 80,26 L 100,28"
+                          }
                           fill="none"
-                          stroke={stats.isUp ? "#22c55e" : "#ef4444"}
+                          stroke={ticker == null ? "var(--muted-foreground)" : isUp ? "#22c55e" : "#ef4444"}
                           strokeWidth="2.5"
                           strokeLinecap="round"
                           strokeLinejoin="round"
