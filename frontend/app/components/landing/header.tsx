@@ -22,9 +22,10 @@ export function Header() {
   const isLight = theme === 'light';
 
   const links = [
-    { label: 'Features', href: '#' },
+    { label: 'Features', href: '/#features' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'About', href: '/about' },
+    { label: 'FAQ', href: '/faq' },
   ];
 
   React.useEffect(() => {
