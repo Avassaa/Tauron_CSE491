@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
@@ -18,6 +19,8 @@ from app.db.session import _postgres_connect_args_for_url
 
 logger = logging.getLogger(__name__)
 _COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
+_COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
+_METRIC_BATCH_SIZE = 30
 
 _MISSING_DATABASE_HINT = (
     "The PostgreSQL database in your URL (POSTGRES_DB or the path in "
@@ -290,6 +293,12 @@ def _parse_csv_setting(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _chunked(values: list[str], chunk_size: int) -> list[list[str]]:
+    if chunk_size <= 0:
+        return [values]
+    return [values[i : i + chunk_size] for i in range(0, len(values), chunk_size)]
+
+
 def _asset_seed_rows_for_symbols(symbols: list[str]) -> list[dict[str, str | None]]:
     defaults: dict[str, tuple[str, str | None]] = {
         "BTC": ("Bitcoin", "bitcoin"),
@@ -305,6 +314,7 @@ def _asset_seed_rows_for_symbols(symbols: list[str]) -> list[dict[str, str | Non
         name, coingecko_id = defaults.get(symbol, (symbol, None))
         rows.append(
             {
+                "id": str(uuid.uuid4()),
                 "symbol": symbol,
                 "name": name,
                 "category": "Layer1",
@@ -352,6 +362,37 @@ def _fetch_coinmetrics_rows_sync(
     return data
 
 
+def _fetch_available_metrics_for_symbol_sync(symbol: str) -> list[str]:
+    """
+    Query CoinMetrics catalog and return metric names for one asset symbol.
+
+    Falls back to an empty list if catalog shape differs.
+    """
+    url = f"{_COINMETRICS_CATALOG_URL}?assets={symbol.lower()}"
+    request = Request(url, headers={"User-Agent": "tauron-bootstrap/1.0"})
+    with urlopen(request, timeout=45) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return []
+
+    metrics: list[str] = []
+    symbol_lower = symbol.lower()
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        metric = row.get("metric")
+        if isinstance(metric, str):
+            metrics.append(metric)
+            continue
+        row_assets = row.get("assets")
+        if isinstance(row_assets, list) and symbol_lower in row_assets:
+            nested = row.get("metrics")
+            if isinstance(nested, list):
+                metrics.extend([m for m in nested if isinstance(m, str)])
+    return sorted(set(metrics))
+
+
 async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
     """
     Seed assets and backfill on-chain metrics when ``on_chain_metrics`` is empty.
@@ -365,9 +406,9 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
 
     schema = settings.effective_database_schema
     symbols = [s.upper() for s in _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_SYMBOLS)]
-    metrics = _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_METRICS)
-    if not symbols or not metrics:
-        logger.info("Auto-populate skipped: no symbols/metrics configured.")
+    metrics_config = _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_METRICS)
+    if not symbols:
+        logger.info("Auto-populate skipped: no symbols configured.")
         return
 
     table_prefix = f'"{schema}".' if schema else ""
@@ -387,8 +428,8 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
         await conn.execute(
             text(
                 f"""
-                INSERT INTO {table_prefix}assets (symbol, name, category, coingecko_id, is_active)
-                VALUES (:symbol, :name, :category, :coingecko_id, TRUE)
+                INSERT INTO {table_prefix}assets (id, symbol, name, category, coingecko_id, is_active)
+                VALUES (CAST(:id AS uuid), :symbol, :name, :category, :coingecko_id, TRUE)
                 ON CONFLICT (symbol) DO NOTHING
                 """
             ),
@@ -419,26 +460,49 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
 
     to_insert: list[dict[str, object]] = []
     for symbol in symbols:
+        requested_metrics = metrics_config
+        if len(metrics_config) == 1 and metrics_config[0].upper() == "ALL":
+            try:
+                requested_metrics = await asyncio.to_thread(
+                    _fetch_available_metrics_for_symbol_sync, symbol
+                )
+            except Exception as exc:
+                logger.warning("Auto-populate metric catalog fetch failed for %s: %s", symbol, exc)
+                requested_metrics = []
+
+        if not requested_metrics:
+            logger.warning("Auto-populate found no metrics for %s; skipping.", symbol)
+            continue
+
         try:
-            points = await asyncio.to_thread(
-                _fetch_coinmetrics_rows_sync,
-                symbol,
-                metrics,
-                start_time,
-                end_time,
-                "1d",
-            )
+            points: list[dict] = []
+            for metric_chunk in _chunked(requested_metrics, _METRIC_BATCH_SIZE):
+                points.extend(
+                    await asyncio.to_thread(
+                        _fetch_coinmetrics_rows_sync,
+                        symbol,
+                        metric_chunk,
+                        start_time,
+                        end_time,
+                        "1d",
+                    )
+                )
         except Exception as exc:
             logger.warning("Auto-populate fetch failed for %s: %s", symbol, exc)
             continue
 
         asset_id = symbol_to_asset_id[symbol]
+        points_by_time: dict[str, dict] = {}
         for point in points:
             time_raw = point.get("time")
+            if isinstance(time_raw, str):
+                points_by_time.setdefault(time_raw, {}).update(point)
+
+        for time_raw, point in points_by_time.items():
             if not isinstance(time_raw, str):
                 continue
             point_time = _parse_ts(time_raw)
-            for metric in metrics:
+            for metric in requested_metrics:
                 value = _to_decimal(point.get(metric))
                 if value is None:
                     continue
@@ -450,6 +514,12 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
                         "value": value,
                     }
                 )
+        logger.info(
+            "Auto-populate %s: collected %s rows from %s metrics.",
+            symbol,
+            len([r for r in to_insert if r["asset_id"] == asset_id]),
+            len(requested_metrics),
+        )
 
     if not to_insert:
         logger.warning("Auto-populate finished with 0 rows fetched.")

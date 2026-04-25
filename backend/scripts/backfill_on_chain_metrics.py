@@ -23,7 +23,9 @@ from psycopg import sql
 from app.config import settings
 
 COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
-DEFAULT_METRICS = ["AdrActCnt", "TxCnt", "CapMrktCurUSD", "SplyCur"]
+COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
+DEFAULT_METRICS = ["ALL"]
+METRIC_BATCH_SIZE = 30
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,7 +40,7 @@ def parse_args() -> argparse.Namespace:
         "--metrics",
         nargs="+",
         default=DEFAULT_METRICS,
-        help=f"CoinMetrics metric names. Default: {' '.join(DEFAULT_METRICS)}",
+        help=f'CoinMetrics metric names or ALL. Default: {" ".join(DEFAULT_METRICS)}',
     )
     parser.add_argument("--years", type=int, default=5, help="How many years to backfill.")
     parser.add_argument(
@@ -96,6 +98,49 @@ def fetch_coinmetrics_rows(
     if not isinstance(data, list):
         raise RuntimeError(f"Unexpected payload for {asset_symbol}: missing data[]")
     return data
+
+
+def fetch_available_metrics_for_symbol(asset_symbol: str) -> list[str]:
+    query = {"assets": asset_symbol.lower()}
+    url = f"{COINMETRICS_CATALOG_URL}?{urlencode(query)}"
+    request = Request(url, headers={"User-Agent": "tauron-onchain-backfill/1.0"})
+    try:
+        with urlopen(request, timeout=45) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(
+            f"CoinMetrics catalog HTTP error for {asset_symbol}: {exc.code}"
+        ) from exc
+    except URLError as exc:
+        raise RuntimeError(
+            f"CoinMetrics catalog network error for {asset_symbol}: {exc.reason}"
+        ) from exc
+
+    data = payload.get("data")
+    if not isinstance(data, list):
+        raise RuntimeError(f"Unexpected catalog payload for {asset_symbol}: missing data[]")
+
+    metrics: list[str] = []
+    symbol_lower = asset_symbol.lower()
+    for row in data:
+        if not isinstance(row, dict):
+            continue
+        metric = row.get("metric")
+        if isinstance(metric, str):
+            metrics.append(metric)
+            continue
+        row_assets = row.get("assets")
+        if isinstance(row_assets, list) and symbol_lower in row_assets:
+            nested = row.get("metrics")
+            if isinstance(nested, list):
+                metrics.extend([m for m in nested if isinstance(m, str)])
+    return sorted(set(metrics))
+
+
+def chunked(values: list[str], chunk_size: int) -> list[list[str]]:
+    if chunk_size <= 0:
+        return [values]
+    return [values[i : i + chunk_size] for i in range(0, len(values), chunk_size)]
 
 
 def to_numeric(value: str | None) -> Decimal | None:
@@ -180,22 +225,34 @@ def main() -> None:
         total_rows = 0
         for symbol in symbols:
             asset_id = symbol_to_asset_id[symbol]
-            series = fetch_coinmetrics_rows(
-                asset_symbol=symbol,
-                metrics=args.metrics,
-                start_time=start_time,
-                end_time=end_time,
-                frequency=args.frequency,
-            )
+            selected_metrics = args.metrics
+            if len(args.metrics) == 1 and args.metrics[0].upper() == "ALL":
+                selected_metrics = fetch_available_metrics_for_symbol(symbol)
+                if not selected_metrics:
+                    print(f"{symbol}: no catalog metrics found, skipping")
+                    continue
+
+            points_by_time: dict[str, dict] = {}
+            for metric_chunk in chunked(selected_metrics, METRIC_BATCH_SIZE):
+                series = fetch_coinmetrics_rows(
+                    asset_symbol=symbol,
+                    metrics=metric_chunk,
+                    start_time=start_time,
+                    end_time=end_time,
+                    frequency=args.frequency,
+                )
+                for point in series:
+                    time_raw = point.get("time")
+                    if isinstance(time_raw, str):
+                        points_by_time.setdefault(time_raw, {}).update(point)
 
             to_write: list[tuple[datetime, str, str, Decimal]] = []
-            for point in series:
-                time_raw = point.get("time")
+            for time_raw, point in points_by_time.items():
                 if not isinstance(time_raw, str):
                     continue
                 point_time = parse_time(time_raw)
 
-                for metric in args.metrics:
+                for metric in selected_metrics:
                     numeric = to_numeric(point.get(metric))
                     if numeric is None:
                         continue
@@ -206,7 +263,10 @@ def main() -> None:
                 conn.commit()
 
             total_rows += len(to_write)
-            print(f"{symbol}: prepared {len(to_write)} rows")
+            print(
+                f"{symbol}: prepared {len(to_write)} rows "
+                f"from {len(selected_metrics)} metrics"
+            )
 
         mode = "dry-run" if args.dry_run else "written"
         print(f"Done. Total rows {mode}: {total_rows}")

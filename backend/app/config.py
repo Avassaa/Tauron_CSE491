@@ -121,8 +121,8 @@ class Settings(BaseSettings):
         description="Comma-separated symbols to backfill (must exist or be auto-seeded).",
     )
     AUTO_POPULATE_ONCHAIN_METRICS: str = Field(
-        default="AdrActCnt,TxCnt,CapMrktCurUSD,SplyCur",
-        description="Comma-separated CoinMetrics metrics to fetch.",
+        default="ALL",
+        description='Comma-separated CoinMetrics metrics to fetch, or "ALL".',
     )
     AUTO_POPULATE_ONCHAIN_YEARS: int = Field(
         default=5,
