@@ -6,7 +6,7 @@ import { TeamSection } from "../components/team-section";
 import { AboutCTA } from "../components/cta";
 import { AboutWorkflow } from "../components/about-workflow";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "About" },
     {
