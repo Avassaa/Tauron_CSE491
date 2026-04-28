@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Coins,
   Star,
-  Settings2,
   Wrench,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
@@ -77,20 +76,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarUserMenu />
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === "/settings"}
-              className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
-            >
-              <Link to="/settings">
-                <Settings2 />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
         <div className="flex items-center justify-between gap-2 px-2 py-1.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
           <span className="truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
             Theme

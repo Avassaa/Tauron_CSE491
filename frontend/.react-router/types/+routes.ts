@@ -32,6 +32,12 @@ type Pages = {
   "/dashboard": {
     params: {};
   };
+  "/profile": {
+    params: {};
+  };
+  "/profile/edit": {
+    params: {};
+  };
   "/settings": {
     params: {};
   };
@@ -49,7 +55,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/settings" | "/tools" | "/assets" | "/watchlists";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/assets" | "/watchlists";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -79,6 +85,14 @@ type RouteFiles = {
     id: "routes/dashboard";
     page: "/dashboard";
   };
+  "routes/profile.tsx": {
+    id: "routes/profile";
+    page: "/profile";
+  };
+  "routes/profile-edit.tsx": {
+    id: "routes/profile-edit";
+    page: "/profile/edit";
+  };
   "routes/settings.tsx": {
     id: "routes/settings";
     page: "/settings";
@@ -106,6 +120,8 @@ type RouteModules = {
   "routes/login": typeof import("./app/routes/login.tsx");
   "routes/register": typeof import("./app/routes/register.tsx");
   "routes/dashboard": typeof import("./app/routes/dashboard.tsx");
+  "routes/profile": typeof import("./app/routes/profile.tsx");
+  "routes/profile-edit": typeof import("./app/routes/profile-edit.tsx");
   "routes/settings": typeof import("./app/routes/settings.tsx");
   "routes/tools": typeof import("./app/routes/tools.tsx");
   "routes/assets": typeof import("./app/routes/assets.tsx");
