@@ -14,6 +14,7 @@ from app.db.models.scraper_logs import ScraperLog
 from app.db.models.technical_indicators import TechnicalIndicator
 from app.db.models.user import User
 from app.db.models.watchlists import Watchlist
+from app.db.models.watchlist_lists import WatchlistList, WatchlistListItem
 
 __all__ = [
     "Asset",
@@ -30,4 +31,6 @@ __all__ = [
     "TechnicalIndicator",
     "User",
     "Watchlist",
+    "WatchlistList",
+    "WatchlistListItem",
 ]

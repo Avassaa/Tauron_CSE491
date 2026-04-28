@@ -2,11 +2,21 @@
 
 import * as React from "react"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
-import { Separator } from "~/components/ui/separator"
-import { apiGet, apiPut, apiDelete, type AssetResponse, type PaginatedResponse, type MarketDataResponse, type MlModelResponse, type WatchlistEntryResponse } from "~/lib/api-client"
+import { apiGet, apiPut, apiDelete, apiPost, type AssetResponse, type PaginatedResponse, type MarketDataResponse, type MlModelResponse, type WatchlistEntryResponse, type WatchlistListResponse } from "~/lib/api-client"
 import { toast } from "sonner"
-import { MOCK_ASSETS, MOCK_MARKET_DATA, MOCK_MODELS, MOCK_MARKET_STATS_FALLBACK, generateMockChartData, getAssetStats } from "~/lib/mock-data"
+import { MOCK_ASSETS } from "~/lib/mock-data"
 import { cn } from "~/lib/utils"
+import { Input } from "~/components/ui/input"
+import { Button } from "~/components/ui/button"
+import { useLiveTickers } from "~/lib/live-price-stream"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
 
 import {
   AssetsSkeleton,
@@ -17,26 +27,42 @@ import {
 } from "~/components/assets"
 
 const PAGE_SIZE = 20
+const TRENDING_COINS_COUNT = 20
+const TRENDING_PAGE_SIZE = 120
+const FIVE_YEARS_MS = 5 * 365 * 24 * 60 * 60 * 1000
 
 type TimeRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "MAX"
 const TIME_RANGES: TimeRange[] = ["24H", "7D", "1M", "3M", "1Y", "MAX"]
 
-const formatCurrency = (val?: number) => {
-  if (val === undefined) return "—"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(val)
-}
+const QUOTE_CURRENCIES = ["USDT", "TRY", "EUR", "GBP", "USDC", "BUSD"] as const
+const USD_PEGGED_QUOTES = new Set<(typeof QUOTE_CURRENCIES)[number]>(["USDT", "USDC", "BUSD"])
 
-const formatCompactCurrency = (val?: number) => {
-  if (val === undefined) return "—"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(val)
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const isUuid = (value: string) => UUID_REGEX.test(value)
+
+const mergeWithMockAssets = (primary: AssetResponse[], targetCount: number) => {
+  const seenSymbols = new Set<string>()
+  const merged: AssetResponse[] = []
+
+  for (const asset of primary) {
+    const key = asset.symbol.toUpperCase()
+    if (seenSymbols.has(key)) continue
+    seenSymbols.add(key)
+    merged.push(asset)
+    if (merged.length >= targetCount) return merged
+  }
+
+  for (const asset of MOCK_ASSETS) {
+    const key = asset.symbol.toUpperCase()
+    if (seenSymbols.has(key)) continue
+    seenSymbols.add(key)
+    merged.push(asset)
+    if (merged.length >= targetCount) break
+  }
+
+  return merged
 }
 
 function AssetsPageClient() {
@@ -62,7 +88,70 @@ function AssetsPageClient() {
     direction: "asc" | "desc"
   } | null>(null)
   const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
+  const [watchlistLists, setWatchlistLists] = React.useState<WatchlistListResponse[]>([])
   const [addingId, setAddingId] = React.useState<string | null>(null)
+  const [trendingAssets, setTrendingAssets] = React.useState<AssetResponse[]>([])
+  const [backendAssetIdBySymbol, setBackendAssetIdBySymbol] = React.useState<Record<string, string>>({})
+  const backendAssetIdBySymbolRef = React.useRef<Record<string, string>>({})
+  const ensuredSymbolsRef = React.useRef<Set<string>>(new Set())
+  const [createWatchlistDialogOpen, setCreateWatchlistDialogOpen] = React.useState(false)
+  const [newWatchlistName, setNewWatchlistName] = React.useState("")
+  const [creatingWatchlist, setCreatingWatchlist] = React.useState(false)
+  const [quoteCurrency, setQuoteCurrency] = React.useState<(typeof QUOTE_CURRENCIES)[number]>(() => {
+    if (typeof window === "undefined") return "USDT"
+    const saved = localStorage.getItem("assets.quoteCurrency")
+    return QUOTE_CURRENCIES.includes(saved as (typeof QUOTE_CURRENCIES)[number])
+      ? (saved as (typeof QUOTE_CURRENCIES)[number])
+      : "USDT"
+  })
+
+  React.useEffect(() => {
+    localStorage.setItem("assets.quoteCurrency", quoteCurrency)
+  }, [quoteCurrency])
+
+  React.useEffect(() => {
+    backendAssetIdBySymbolRef.current = backendAssetIdBySymbol
+  }, [backendAssetIdBySymbol])
+
+  const normalizedQuoteCurrency: (typeof QUOTE_CURRENCIES)[number] =
+    QUOTE_CURRENCIES.includes(quoteCurrency) ? quoteCurrency : "USDT"
+  const marketQuoteCurrency: (typeof QUOTE_CURRENCIES)[number] = USD_PEGGED_QUOTES.has(normalizedQuoteCurrency)
+    ? "USDT"
+    : normalizedQuoteCurrency
+
+  const formatCurrency = React.useCallback((val?: number) => {
+    if (val === undefined) return "—"
+    const intlCurrency =
+      normalizedQuoteCurrency === "TRY"
+        ? "TRY"
+        : normalizedQuoteCurrency === "EUR"
+          ? "EUR"
+          : normalizedQuoteCurrency === "GBP"
+            ? "GBP"
+            : "USD"
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: intlCurrency,
+    }).format(val)
+  }, [normalizedQuoteCurrency])
+
+  const formatCompactCurrency = React.useCallback((val?: number) => {
+    if (val === undefined) return "—"
+    const intlCurrency =
+      normalizedQuoteCurrency === "TRY"
+        ? "TRY"
+        : normalizedQuoteCurrency === "EUR"
+          ? "EUR"
+          : normalizedQuoteCurrency === "GBP"
+            ? "GBP"
+            : "USD"
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: intlCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(val)
+  }, [normalizedQuoteCurrency])
 
   const handleSort = (key: "name" | "symbol" | "category" | "is_active" | "activity") => {
     setSortConfig((prev) => {
@@ -73,114 +162,206 @@ function AssetsPageClient() {
     })
   }
 
-  const fetchChartData = React.useCallback(async (assetId: string, range: TimeRange) => {
+  const fetchChartData = React.useCallback(async (asset: AssetResponse, range: TimeRange, backendAssetId?: string) => {
     setChartLoading(true)
+    setMarketStats(null)
+    setChartData([])
     try {
       const now = new Date()
       let timeFrom = new Date()
       let resolution = "1d"
+      let binanceInterval = "1d"
 
       switch (range) {
         case "24H":
           timeFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000)
           resolution = "1h"
+          binanceInterval = "1h"
           break
         case "7D":
           timeFrom = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
           resolution = "1d"
+          binanceInterval = "4h"
           break
         case "1M":
           timeFrom = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
           resolution = "1d"
+          binanceInterval = "1d"
           break
         case "3M":
           timeFrom = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
           resolution = "1d"
+          binanceInterval = "1d"
           break
         case "1Y":
           timeFrom = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
           resolution = "1w"
+          binanceInterval = "1w"
           break
         case "MAX":
-          timeFrom = new Date(0)
+          timeFrom = new Date(now.getTime() - FIVE_YEARS_MS)
           resolution = "1mo"
+          binanceInterval = "1M"
           break
       }
 
-      const data = await apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
-        asset_id: assetId,
-        time_from: timeFrom.toISOString(),
-        time_to: now.toISOString(),
-        resolution: resolution,
-        page_size: 100,
-      })
+      let hasBackendData = false
+      const apiAssetId = backendAssetId && isUuid(backendAssetId) ? backendAssetId : isUuid(asset.id) ? asset.id : null
+      if (apiAssetId) {
+        try {
+          const data = await apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
+            asset_id: apiAssetId,
+            time_from: timeFrom.toISOString(),
+            time_to: now.toISOString(),
+            resolution: resolution,
+            page_size: 100,
+          })
+          if (data.items.length > 0) {
+            hasBackendData = true
+            const sortedItems = [...data.items].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+            const latest = sortedItems[sortedItems.length - 1]
+            const first = sortedItems[0]
+            const currentPrice = latest.close
+            const currentVolume = latest.volume
+            const priceChange = first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : 0
 
-      if (data.items.length > 0) {
-        const sortedItems = [...data.items].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
-        const latest = sortedItems[sortedItems.length - 1]
-        const first = sortedItems[0]
-        const currentPrice = latest.close
-        const currentVolume = latest.volume
-        const priceChange = first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : 0
+            setMarketStats({
+              price: currentPrice,
+              change24h: priceChange,
+              volume: currentVolume
+            })
 
+            const formatted = sortedItems.map(item => ({
+              date: item.time,
+              price: item.close,
+              volume: item.volume,
+              confidence: item.close * 0.95
+            }))
+            setChartData(formatted)
+          }
+        } catch (backendErr) {
+          console.warn("Backend market-data unavailable, using Binance fallback:", backendErr)
+        }
+      }
+
+      if (!hasBackendData) {
+        // Binance market fallback for assets without backend historical rows.
+        const directPair = `${asset.symbol.toUpperCase()}${marketQuoteCurrency.toUpperCase()}`
+        const usdtPair = `${asset.symbol.toUpperCase()}USDT`
+        const startTime = timeFrom.getTime()
+        let klines: Array<
+          [number, string, string, string, string, string, number, string, number, string, string, string]
+        > = []
+        let usedUsdtConversion = false
+
+        const directRes = await fetch(
+          `https://api.binance.com/api/v3/klines?symbol=${directPair}&interval=${binanceInterval}&startTime=${startTime}&endTime=${now.getTime()}&limit=1000`,
+        )
+        if (directRes.ok) {
+          const directKlines = (await directRes.json()) as Array<
+            [number, string, string, string, string, string, number, string, number, string, string, string]
+          >
+          if (Array.isArray(directKlines) && directKlines.length > 0) {
+            klines = directKlines
+          }
+        }
+
+        if (klines.length === 0) {
+          const usdtRes = await fetch(
+            `https://api.binance.com/api/v3/klines?symbol=${usdtPair}&interval=${binanceInterval}&startTime=${startTime}&endTime=${now.getTime()}&limit=1000`,
+          )
+          if (!usdtRes.ok) throw new Error("Failed to fetch Binance klines")
+          const usdtKlines = (await usdtRes.json()) as Array<
+            [number, string, string, string, string, string, number, string, number, string, string, string]
+          >
+          if (!Array.isArray(usdtKlines) || usdtKlines.length === 0) throw new Error("No Binance klines data")
+          klines = usdtKlines
+          usedUsdtConversion = marketQuoteCurrency !== "USDT"
+        }
+
+        const quotePerUsdt = async () => {
+          if (!usedUsdtConversion) return 1
+          const quoteUsdtRes = await fetch(
+            `https://api.binance.com/api/v3/ticker/price?symbol=${marketQuoteCurrency.toUpperCase()}USDT`,
+          )
+          if (quoteUsdtRes.ok) {
+            const row = (await quoteUsdtRes.json()) as { price?: string }
+            const price = Number.parseFloat(row.price || "")
+            if (Number.isFinite(price) && price > 0) return 1 / price
+          }
+          const usdtQuoteRes = await fetch(
+            `https://api.binance.com/api/v3/ticker/price?symbol=USDT${marketQuoteCurrency.toUpperCase()}`,
+          )
+          if (usdtQuoteRes.ok) {
+            const row = (await usdtQuoteRes.json()) as { price?: string }
+            const price = Number.parseFloat(row.price || "")
+            if (Number.isFinite(price) && price > 0) return price
+          }
+          return 1
+        }
+        const fx = await quotePerUsdt()
+
+        const first = klines[0]
+        const latest = klines[klines.length - 1]
+        const firstClose = Number.parseFloat(first[4]) * fx
+        const latestClose = Number.parseFloat(latest[4]) * fx
+        const latestVolume = Number.parseFloat(latest[5])
+        const priceChange = firstClose > 0 ? ((latestClose - firstClose) / firstClose) * 100 : 0
         setMarketStats({
-          price: currentPrice,
+          price: latestClose,
           change24h: priceChange,
-          volume: currentVolume
+          volume: Number.isFinite(latestVolume) ? latestVolume : 0,
         })
-
-        const formatted = sortedItems.map(item => ({
-          date: item.time,
-          price: item.close,
-          confidence: item.close * 0.95
-        }))
-        setChartData(formatted)
-      } else {
-        setMarketStats(MOCK_MARKET_STATS_FALLBACK)
-        const mockFormatted = MOCK_MARKET_DATA
-          .map((item) => ({
-            date: item.time,
-            price: 50000 + (Math.random() * 20000),
-            confidence: 48000 + (Math.random() * 20000)
-          }))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        setChartData(mockFormatted)
+        setChartData(
+          klines.map((kline) => {
+            const close = Number.parseFloat(kline[4])
+            const volume = Number.parseFloat(kline[5])
+            return {
+              date: new Date(kline[0]).toISOString(),
+              price: close * fx,
+              volume: Number.isFinite(volume) ? volume : 0,
+              confidence: close * fx * 0.95,
+            }
+          }),
+        )
       }
     } catch (err) {
-      console.error("Failed to fetch chart data:", err)
-      setMarketStats(MOCK_MARKET_STATS_FALLBACK)
-      const mockFormatted = MOCK_MARKET_DATA
-        .map((item) => ({
-          date: item.time,
-          price: 50000 + (Math.random() * 20000),
-          confidence: 48000 + (Math.random() * 20000)
-        }))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      setChartData(mockFormatted)
+      console.error("Failed to fetch chart data from all sources:", err)
+      setMarketStats(null)
+      setChartData([])
     } finally {
       setChartLoading(false)
     }
-  }, [])
+  }, [marketQuoteCurrency])
 
   React.useEffect(() => {
     if (selectedAsset) {
-      void fetchChartData(selectedAsset.id, timeRange)
-      apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", { asset_id: selectedAsset.id })
+      const backendAssetId =
+        backendAssetIdBySymbol[selectedAsset.symbol.toUpperCase()] ||
+        (isUuid(selectedAsset.id) ? selectedAsset.id : undefined)
+
+      void fetchChartData(selectedAsset, timeRange, backendAssetId)
+
+      if (!backendAssetId) {
+        setAvailableModels([])
+        setPredictionModel(null)
+        return
+      }
+
+      apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", { asset_id: backendAssetId })
         .then((data) => {
           if (data.items.length > 0) {
             setAvailableModels(data.items)
             const activeModel = data.items.find((m) => m.is_active) || data.items[0]
             setPredictionModel(activeModel)
           } else {
-            const mockModels = MOCK_MODELS.filter((m) => m.asset_id === selectedAsset.id)
-            setAvailableModels(mockModels)
-            setPredictionModel(mockModels.find((m) => m.is_active) || mockModels[0] || null)
+            setAvailableModels([])
+            setPredictionModel(null)
           }
         })
         .catch(() => {
-          const mockModels = MOCK_MODELS.filter((m) => m.asset_id === selectedAsset.id)
-          setAvailableModels(mockModels)
-          setPredictionModel(mockModels.find((m) => m.is_active) || mockModels[0] || null)
+          setAvailableModels([])
+          setPredictionModel(null)
         })
     } else {
       setChartData([])
@@ -188,7 +369,46 @@ function AssetsPageClient() {
       setPredictionModel(null)
       setAvailableModels([])
     }
-  }, [selectedAsset, timeRange, fetchChartData])
+  }, [selectedAsset, timeRange, fetchChartData, backendAssetIdBySymbol])
+
+  const ensureAssetsPersisted = React.useCallback(async (rows: AssetResponse[]) => {
+    const needsEnsure = rows.filter((asset) => {
+      if (isUuid(asset.id)) return false
+      const symbol = asset.symbol.toUpperCase()
+      if (backendAssetIdBySymbolRef.current[symbol]) return false
+      if (ensuredSymbolsRef.current.has(symbol)) return false
+      ensuredSymbolsRef.current.add(symbol)
+      return true
+    })
+    if (needsEnsure.length === 0) return
+
+    const settled = await Promise.allSettled(
+      needsEnsure.map((asset) =>
+        apiPost<AssetResponse>("/assets/ensure", {
+          symbol: asset.symbol,
+          name: asset.name,
+          category: asset.category || "General",
+          coingecko_id: asset.coingecko_id || null,
+          is_active: true,
+        }),
+      ),
+    )
+
+    setBackendAssetIdBySymbol((prev) => {
+      const next = { ...prev }
+      for (let i = 0; i < settled.length; i += 1) {
+        const result = settled[i]
+        const symbol = needsEnsure[i]?.symbol?.toUpperCase()
+        if (!symbol) continue
+        if (result.status === "fulfilled" && result.value?.id) {
+          next[symbol] = result.value.id
+        } else {
+          ensuredSymbolsRef.current.delete(symbol)
+        }
+      }
+      return next
+    })
+  }, [])
 
   const fetchAssets = React.useCallback(async (currentPage: number) => {
     setLoading(true)
@@ -198,29 +418,59 @@ function AssetsPageClient() {
         page: currentPage,
         page_size: PAGE_SIZE,
       })
-      if (data.items.length === 0) {
-        const start = (currentPage - 1) * PAGE_SIZE
-        const end = start + PAGE_SIZE
-        setAssets(MOCK_ASSETS.slice(start, end))
-        setTotal(MOCK_ASSETS.length)
-      } else {
-        setAssets(data.items)
-        setTotal(data.total)
-      }
+      setBackendAssetIdBySymbol((prev) => {
+        const next = { ...prev }
+        for (const asset of data.items) {
+          if (isUuid(asset.id)) next[asset.symbol.toUpperCase()] = asset.id
+        }
+        return next
+      })
+      const mergedItems = mergeWithMockAssets(data.items, PAGE_SIZE)
+      setAssets(mergedItems)
+      setTotal(Math.max(data.total, mergedItems.length))
+      await ensureAssetsPersisted(mergedItems)
     } catch (err) {
       console.error("API failed, using mock assets:", err)
       const start = (currentPage - 1) * PAGE_SIZE
       const end = start + PAGE_SIZE
-      setAssets(MOCK_ASSETS.slice(start, end))
+      const fallbackItems = MOCK_ASSETS.slice(start, end)
+      setAssets(fallbackItems)
       setTotal(MOCK_ASSETS.length)
+      await ensureAssetsPersisted(fallbackItems)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [ensureAssetsPersisted])
 
   React.useEffect(() => {
     void fetchAssets(page)
   }, [fetchAssets, page])
+
+  const fetchTrendingAssets = React.useCallback(async () => {
+    try {
+      const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", {
+        page: 1,
+        page_size: TRENDING_PAGE_SIZE,
+      })
+      setBackendAssetIdBySymbol((prev) => {
+        const next = { ...prev }
+        for (const asset of data.items) {
+          if (isUuid(asset.id)) next[asset.symbol.toUpperCase()] = asset.id
+        }
+        return next
+      })
+      const merged = mergeWithMockAssets(data.items, TRENDING_PAGE_SIZE)
+      setTrendingAssets(merged)
+      await ensureAssetsPersisted(merged)
+    } catch {
+      setTrendingAssets(MOCK_ASSETS)
+      await ensureAssetsPersisted(MOCK_ASSETS)
+    }
+  }, [ensureAssetsPersisted])
+
+  React.useEffect(() => {
+    void fetchTrendingAssets()
+  }, [fetchTrendingAssets])
 
   const fetchWatchlist = React.useCallback(async () => {
     try {
@@ -235,6 +485,19 @@ function AssetsPageClient() {
     void fetchWatchlist()
   }, [fetchWatchlist])
 
+  const fetchWatchlistLists = React.useCallback(async () => {
+    try {
+      const data = await apiGet<WatchlistListResponse[]>("/users/me/watchlists")
+      setWatchlistLists(data)
+    } catch {
+      setWatchlistLists([])
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void fetchWatchlistLists()
+  }, [fetchWatchlistLists])
+
   const handleAdd = async (asset: AssetResponse) => {
     setAddingId(asset.id)
     try {
@@ -245,6 +508,80 @@ function AssetsPageClient() {
       toast.error(`Failed to add ${asset.symbol}`)
     } finally {
       setAddingId(null)
+    }
+  }
+
+  const resolveBackendAssetId = async (asset: AssetResponse): Promise<string> => {
+    if (isUuid(asset.id)) return asset.id
+    const symbol = asset.symbol.toUpperCase()
+    const existing = backendAssetIdBySymbol[symbol]
+    if (existing) return existing
+
+    try {
+      const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page: 1, page_size: 500 })
+      const matched = data.items.find((item) => item.symbol.toUpperCase() === symbol)
+      if (matched?.id) {
+        ensuredSymbolsRef.current.add(symbol)
+        setBackendAssetIdBySymbol((prev) => ({ ...prev, [symbol]: matched.id }))
+        return matched.id
+      }
+    } catch {
+      // Ignore and try ensure fallback.
+    }
+
+    try {
+      const created = await apiPost<AssetResponse>("/assets/ensure", {
+        symbol: asset.symbol,
+        name: asset.name,
+        category: asset.category || "General",
+        coingecko_id: asset.coingecko_id || null,
+        is_active: true,
+      })
+      if (created?.id) {
+        ensuredSymbolsRef.current.add(symbol)
+        setBackendAssetIdBySymbol((prev) => ({ ...prev, [symbol]: created.id }))
+        return created.id
+      }
+      throw new Error(`Ensure endpoint returned no id for ${asset.symbol}`)
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : `Failed to ensure ${asset.symbol} in backend`
+      throw new Error(message)
+    }
+  }
+
+  const createWatchlistList = async () => {
+    const name = newWatchlistName.trim()
+    if (!name) {
+      toast.error("Please enter a watchlist name")
+      return
+    }
+    setCreatingWatchlist(true)
+    try {
+      await apiPost<WatchlistListResponse>("/users/me/watchlists", { name })
+      await fetchWatchlistLists()
+      setCreateWatchlistDialogOpen(false)
+      setNewWatchlistName("")
+      toast.success("Watchlist created")
+    } catch {
+      toast.error("Failed to create watchlist")
+    } finally {
+      setCreatingWatchlist(false)
+    }
+  }
+
+  const addAssetToNamedWatchlist = async (asset: AssetResponse, listId: string) => {
+    try {
+      const backendId = await resolveBackendAssetId(asset)
+      await apiPut(`/users/me/watchlists/${listId}/assets/${backendId}`)
+      await apiPut(`/users/me/watchlist/${backendId}`)
+      await fetchWatchlist()
+      toast.success(`Added ${asset.symbol} to watchlist`)
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Unknown error"
+      toast.error(`Failed to add ${asset.symbol}: ${detail}`)
     }
   }
 
@@ -307,6 +644,15 @@ function AssetsPageClient() {
   }, [assets, search, sortConfig])
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
+  const trendingCoins = React.useMemo(
+    () => (trendingAssets.length > 0 ? trendingAssets : MOCK_ASSETS).slice(0, TRENDING_COINS_COUNT),
+    [trendingAssets],
+  )
+  const trendingSymbols = React.useMemo(
+    () => trendingCoins.map((asset) => `${asset.symbol.toUpperCase()}USDT`),
+    [trendingCoins],
+  )
+  const trendingTickers = useLiveTickers(trendingSymbols)
 
   return (
     <DashboardLayout
@@ -329,16 +675,38 @@ function AssetsPageClient() {
               </h3>
             </div>
             <div className="flex gap-4 overflow-x-auto p-3 scrollbar-none">
-              {MOCK_ASSETS.slice(0, 10).map((asset) => {
-                const stats = getAssetStats(asset.symbol)
+              {trendingCoins.map((asset) => {
+                const ticker = trendingTickers[`${asset.symbol.toUpperCase()}USDT`]
+                const changePct = ticker?.changePct
+                const isUp = Number.isFinite(changePct) ? (changePct as number) >= 0 : null
                 return (
                   <button
                     key={asset.id}
                     onClick={() => setSelectedAsset(asset)}
                     className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/30 p-4 transition-all hover:scale-[1.02] hover:bg-card/50 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.98]"
                   >
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-black text-primary ring-1 ring-primary/20">
-                      {asset.symbol.slice(0, 3)}
+                    <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20">
+                      <img
+                        src={`https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`}
+                        alt={`${asset.symbol} icon`}
+                        className="size-full object-cover"
+                        onError={(e) => {
+                          const img = e.currentTarget
+                          if (!img.dataset.fallbackTried) {
+                            img.dataset.fallbackTried = "1"
+                            img.src = `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
+                            return
+                          }
+                          img.style.display = "none"
+                          const fallback = img.nextElementSibling as HTMLSpanElement | null
+                          if (fallback) fallback.style.display = "flex"
+                        }}
+                      />
+                      <span
+                        className="hidden size-full items-center justify-center font-black text-primary"
+                      >
+                        {asset.symbol.slice(0, 3)}
+                      </span>
                     </div>
                     <div className="flex flex-col items-start overflow-hidden">
                       <span className="truncate font-black tracking-tight">{asset.name}</span>
@@ -347,9 +715,11 @@ function AssetsPageClient() {
                     <div className="ml-auto flex flex-col items-end">
                       <span className={cn(
                         "text-[10px] font-black",
-                        stats.isUp ? "text-green-500" : "text-red-500"
+                        isUp === null ? "text-muted-foreground" : isUp ? "text-green-500" : "text-red-500"
                       )}>
-                        {stats.change}
+                        {Number.isFinite(changePct)
+                          ? `${(changePct as number) >= 0 ? "+" : ""}${(changePct as number).toFixed(2)}%`
+                          : "—"}
                       </span>
                     </div>
                   </button>
@@ -365,6 +735,8 @@ function AssetsPageClient() {
             fetchAssets={() => void fetchAssets(page)}
             sortConfig={sortConfig}
             setSortConfig={setSortConfig}
+            quoteCurrency={normalizedQuoteCurrency}
+            setQuoteCurrency={setQuoteCurrency}
           />
 
           {error && (
@@ -385,6 +757,7 @@ function AssetsPageClient() {
                 sortConfig={sortConfig}
                 handleSort={handleSort}
                 setSelectedAsset={setSelectedAsset}
+                quoteCurrency={normalizedQuoteCurrency}
               />
               <AssetPagination
                 page={page}
@@ -409,15 +782,74 @@ function AssetsPageClient() {
             availableModels={availableModels}
             formatCurrency={formatCurrency}
             formatCompactCurrency={formatCompactCurrency}
+            quoteCurrency={normalizedQuoteCurrency}
             isWatched={selectedAsset ? watchedIds.has(selectedAsset.id) : false}
             onToggleWatchlist={(asset) => {
-              if (watchedIds.has(asset.id)) {
-                void handleRemove(asset.id, asset.symbol)
-              } else {
-                void handleAdd(asset)
-              }
+              void (async () => {
+                try {
+                  const backendId = await resolveBackendAssetId(asset)
+                  if (watchedIds.has(asset.id) || watchedIds.has(backendId)) {
+                    await handleRemove(backendId, asset.symbol)
+                  } else {
+                    await handleAdd({ ...asset, id: backendId })
+                  }
+                } catch (err) {
+                  const detail = err instanceof Error ? err.message : "Unknown error"
+                  toast.error(`Failed to resolve ${asset.symbol}: ${detail}`)
+                }
+              })()
+            }}
+            watchlistLists={watchlistLists}
+            onAddToWatchlistList={(asset, listId) => {
+              void addAssetToNamedWatchlist(asset, listId)
+            }}
+            onCreateWatchlistList={() => {
+              setCreateWatchlistDialogOpen(true)
             }}
           />
+
+          <Dialog
+            open={createWatchlistDialogOpen}
+            onOpenChange={(open) => {
+              setCreateWatchlistDialogOpen(open)
+              if (!open) {
+                setNewWatchlistName("")
+              }
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Watchlist</DialogTitle>
+                <DialogDescription>
+                  Enter a name to create a watchlist for this account.
+                </DialogDescription>
+              </DialogHeader>
+              <Input
+                value={newWatchlistName}
+                onChange={(e) => setNewWatchlistName(e.target.value)}
+                placeholder="e.g. Long Term, Scalps, AI Picks"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !creatingWatchlist) {
+                    e.preventDefault()
+                    void createWatchlistList()
+                  }
+                }}
+              />
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setCreateWatchlistDialogOpen(false)}
+                  disabled={creatingWatchlist}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={() => void createWatchlistList()} disabled={creatingWatchlist}>
+                  {creatingWatchlist ? "Creating..." : "Create"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </DashboardLayout>

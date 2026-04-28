@@ -25,6 +25,7 @@ from app.api.v1.routes import (
     predictions_router,
     scraper_logs_router,
     technical_indicators_router,
+    watchlist_lists_router,
     users_router,
     watchlists_router,
 )
@@ -75,6 +76,7 @@ app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])
 app.include_router(users_router, prefix="/api/v1", tags=["Users"])
 app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
+app.include_router(watchlist_lists_router, prefix="/api/v1", tags=["Watchlist Lists"])
 app.include_router(assets_router, prefix="/api/v1", tags=["Assets"])
 app.include_router(ml_models_router, prefix="/api/v1", tags=["ML models"])
 app.include_router(news_scrape_router, prefix="/api/v1", tags=["News"])

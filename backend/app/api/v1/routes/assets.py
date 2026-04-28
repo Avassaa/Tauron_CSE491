@@ -1,5 +1,7 @@
 """Tradable assets (read for users, write for admin)."""
 
+import logging
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,12 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import PaginationParams, get_pagination
 from app.core.security import get_current_user_id, require_admin_api_key
+from app.db.bootstrap import backfill_onchain_for_asset_detached
 from app.db.repositories.asset_repository import AssetRepository
 from app.db.session import get_db_session
-from app.models.request.table_requests import CreateAssetRequest, UpdateAssetRequest
+from app.models.request.table_requests import CreateAssetRequest, EnsureAssetRequest, UpdateAssetRequest
 from app.models.response.table_responses import AssetResponse, PaginatedResponse
 
 router = APIRouter(prefix="/assets")
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=PaginatedResponse[AssetResponse])
@@ -59,7 +63,8 @@ async def create_asset(
     session: AsyncSession = Depends(get_db_session),
     _admin: None = Depends(require_admin_api_key),
 ):
-    """Create an asset (admin)."""
+    """Create an asset (admin) and auto-backfill on-chain metrics."""
+    logger.info("create_asset request: symbol=%s name=%s", body.symbol, body.name)
     repository = AssetRepository(session)
     try:
         row = await repository.create(
@@ -74,6 +79,67 @@ async def create_asset(
             status_code=status.HTTP_409_CONFLICT,
             detail="Symbol already exists",
         ) from exc
+    logger.info("create_asset created: symbol=%s asset_id=%s", row.symbol, row.id)
+    asyncio.create_task(
+        backfill_onchain_for_asset_detached(
+            asset_id=str(row.id),
+            symbol=row.symbol,
+        )
+    )
+    logger.info("create_asset backfill queued: symbol=%s asset_id=%s", row.symbol, row.id)
+    return AssetResponse.model_validate(row)
+
+
+@router.post("/ensure", response_model=AssetResponse)
+async def ensure_asset(
+    body: EnsureAssetRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Ensure an asset exists by symbol and auto-backfill on-chain metrics."""
+    logger.info("ensure_asset request: symbol=%s name=%s", body.symbol, body.name)
+    repository = AssetRepository(session)
+    existing = await repository.get_by_symbol(body.symbol)
+    if existing is not None:
+        logger.info(
+            "ensure_asset hit existing: symbol=%s asset_id=%s",
+            existing.symbol,
+            existing.id,
+        )
+        return AssetResponse.model_validate(existing)
+
+    try:
+        row = await repository.create(
+            symbol=body.symbol,
+            name=body.name,
+            category=body.category,
+            coingecko_id=body.coingecko_id,
+            is_active=body.is_active,
+        )
+    except IntegrityError:
+        logger.warning("ensure_asset race/conflict while creating symbol=%s", body.symbol)
+        fallback = await repository.get_by_symbol(body.symbol)
+        if fallback is None:
+            logger.error("ensure_asset conflict but asset lookup failed: symbol=%s", body.symbol)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Symbol already exists",
+            )
+        logger.info(
+            "ensure_asset recovered existing after conflict: symbol=%s asset_id=%s",
+            fallback.symbol,
+            fallback.id,
+        )
+        return AssetResponse.model_validate(fallback)
+
+    logger.info("ensure_asset created: symbol=%s asset_id=%s", row.symbol, row.id)
+    asyncio.create_task(
+        backfill_onchain_for_asset_detached(
+            asset_id=str(row.id),
+            symbol=row.symbol,
+        )
+    )
+    logger.info("ensure_asset backfill queued: symbol=%s asset_id=%s", row.symbol, row.id)
     return AssetResponse.model_validate(row)
 
 

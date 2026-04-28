@@ -43,6 +43,7 @@ const FALLBACK_USD_BASE_RATES: Record<CurrencyCode, number> = {
 
 const CURRENCIES = Object.keys(CURRENCY_LABELS) as CurrencyCode[]
 const BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
+const MAX_CONVERT_AMOUNT = 1_000_000_000
 
 function convertAmount(
   amount: number,
@@ -99,6 +100,7 @@ export default function ToolsPage() {
   )
   const [ratesStatus, setRatesStatus] = React.useState<"loading" | "live" | "fallback">("loading")
   const [lastUpdatedAt, setLastUpdatedAt] = React.useState<Date | null>(null)
+  const [amountLimitError, setAmountLimitError] = React.useState<string | null>(null)
 
   const numericAmount = Number.parseFloat(amount)
   const converted = convertAmount(numericAmount, fromCurrency, toCurrency, usdBaseRates)
@@ -113,6 +115,22 @@ export default function ToolsPage() {
   const switchCurrencies = () => {
     setFromCurrency(toCurrency)
     setToCurrency(fromCurrency)
+  }
+
+  const handleAmountChange = (raw: string) => {
+    if (raw.trim() === "") {
+      setAmount(raw)
+      setAmountLimitError(null)
+      return
+    }
+    const parsed = Number.parseFloat(raw)
+    if (Number.isFinite(parsed) && parsed > MAX_CONVERT_AMOUNT) {
+      setAmount(String(MAX_CONVERT_AMOUNT))
+      setAmountLimitError(`Maximum amount is ${MAX_CONVERT_AMOUNT.toLocaleString()}.`)
+      return
+    }
+    setAmount(raw)
+    setAmountLimitError(null)
   }
 
   React.useEffect(() => {
@@ -195,11 +213,19 @@ export default function ToolsPage() {
                         id="amount"
                         type="number"
                         min="0"
+                        max={String(MAX_CONVERT_AMOUNT)}
                         step="any"
                         value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
+                        onChange={(event) => handleAmountChange(event.target.value)}
                         placeholder="Enter amount"
                       />
+                      {amountLimitError ? (
+                        <p className="text-xs font-medium text-destructive">{amountLimitError}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Max: {MAX_CONVERT_AMOUNT.toLocaleString()}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">

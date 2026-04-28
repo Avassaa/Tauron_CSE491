@@ -12,16 +12,19 @@ import {
 import { Separator } from "~/components/ui/separator"
 import { ScrollArea } from "~/components/ui/scroll-area"
 import { Button } from "~/components/ui/button"
+import { Skeleton } from "~/components/ui/skeleton"
 import { AssetDetailChart } from "~/components/dashboard/asset-detail-chart"
 import { cn } from "~/lib/utils"
 import { Check, ChevronDown } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuSeparator,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
-import type { AssetResponse, MlModelResponse } from "~/lib/api-client"
+import type { AssetResponse, MlModelResponse, WatchlistListResponse } from "~/lib/api-client"
+import { useLiveTickers } from "~/lib/live-price-stream"
 
 interface AssetDetailSheetProps {
   selectedAsset: AssetResponse | null
@@ -37,8 +40,12 @@ interface AssetDetailSheetProps {
   availableModels: MlModelResponse[]
   formatCurrency: (val?: number) => string
   formatCompactCurrency: (val?: number) => string
+  quoteCurrency?: string
   isWatched?: boolean
   onToggleWatchlist?: (asset: AssetResponse) => void
+  watchlistLists?: WatchlistListResponse[]
+  onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
+  onCreateWatchlistList?: () => void
 }
 
 export function AssetDetailSheet({
@@ -55,10 +62,124 @@ export function AssetDetailSheet({
   availableModels,
   formatCurrency,
   formatCompactCurrency,
+  quoteCurrency = "USDT",
   isWatched,
   onToggleWatchlist,
+  watchlistLists = [],
+  onAddToWatchlistList,
+  onCreateWatchlistList,
 }: AssetDetailSheetProps) {
+  const normalizedQuoteCurrency =
+    quoteCurrency === "TRY" ||
+    quoteCurrency === "EUR" ||
+    quoteCurrency === "GBP" ||
+    quoteCurrency === "USDC" ||
+    quoteCurrency === "BUSD"
+      ? quoteCurrency
+      : "USDT"
+  const isUsdPeggedQuote =
+    normalizedQuoteCurrency === "USDT" ||
+    normalizedQuoteCurrency === "USDC" ||
+    normalizedQuoteCurrency === "BUSD"
   const [activeTab, setActiveTab] = React.useState<"price" | "prediction">("price")
+  const [chartMode, setChartMode] = React.useState<"price" | "volume" | "both">("both")
+  const [liveTicker, setLiveTicker] = React.useState<{ price: number; changePct: number } | null>(null)
+  const [priceFlash, setPriceFlash] = React.useState<"up" | "down" | null>(null)
+  const [detailIconErrored, setDetailIconErrored] = React.useState(false)
+  const [detailIconFallbackTried, setDetailIconFallbackTried] = React.useState(false)
+  const previousPriceRef = React.useRef<number | null>(null)
+  const flashTimerRef = React.useRef<number | null>(null)
+  const streamSymbols = React.useMemo(() => {
+    if (!selectedAsset) return []
+    return [
+      `${selectedAsset.symbol.toUpperCase()}USDT`,
+      ...(isUsdPeggedQuote
+        ? []
+        : [
+            `${normalizedQuoteCurrency.toUpperCase()}USDT`,
+            `USDT${normalizedQuoteCurrency.toUpperCase()}`,
+          ]),
+    ]
+  }, [selectedAsset, isUsdPeggedQuote, normalizedQuoteCurrency])
+  const liveTickers = useLiveTickers(streamSymbols)
+
+  React.useEffect(() => {
+    if (!selectedAsset) {
+      setLiveTicker(null)
+      setPriceFlash(null)
+      previousPriceRef.current = null
+      return
+    }
+    setDetailIconErrored(false)
+    setDetailIconFallbackTried(false)
+    setLiveTicker(null)
+    setPriceFlash(null)
+    previousPriceRef.current = null
+  }, [selectedAsset?.id])
+
+  React.useEffect(() => {
+    if (!selectedAsset) return
+    const targetSymbol = `${selectedAsset.symbol.toUpperCase()}USDT`
+    const quoteUsdtSymbol = `${normalizedQuoteCurrency.toUpperCase()}USDT`
+    const usdtQuoteSymbol = `USDT${normalizedQuoteCurrency.toUpperCase()}`
+
+    const queueFlash = (direction: "up" | "down") => {
+      setPriceFlash(direction)
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+      flashTimerRef.current = window.setTimeout(() => setPriceFlash(null), 650)
+    }
+
+    const usdtPrice = liveTickers[targetSymbol]?.price
+    if (!Number.isFinite(usdtPrice)) return
+    const quotePerUsdt = (() => {
+      if (isUsdPeggedQuote) return 1
+      const quoteUsdt = liveTickers[quoteUsdtSymbol]?.price
+      if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
+      const usdtQuote = liveTickers[usdtQuoteSymbol]?.price
+      if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
+      return null
+    })()
+    if (!Number.isFinite(quotePerUsdt ?? NaN)) return
+    const convertedPrice = usdtPrice * (quotePerUsdt as number)
+
+    const prev = previousPriceRef.current
+    if (prev !== null && prev !== convertedPrice) {
+      queueFlash(convertedPrice > prev ? "up" : "down")
+    }
+    previousPriceRef.current = convertedPrice
+    const changePct = liveTickers[targetSymbol]?.changePct
+
+    const nextTicker = {
+      price: convertedPrice,
+      changePct: Number.isFinite(changePct) ? (changePct as number) : 0,
+    }
+    setLiveTicker((prevTicker) => {
+      if (
+        prevTicker &&
+        prevTicker.price === nextTicker.price &&
+        prevTicker.changePct === nextTicker.changePct
+      ) {
+        return prevTicker
+      }
+      return nextTicker
+    })
+  }, [selectedAsset, normalizedQuoteCurrency, liveTickers, isUsdPeggedQuote])
+
+  React.useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
+    }
+  }, [])
+
+  const displayedPrice = liveTicker?.price ?? marketStats?.price
+  const displayedChange24h = liveTicker?.changePct ?? marketStats?.change24h
+  const hasVolumeData = marketStats?.volume !== undefined
+  const hasChartData = chartData.length > 0
+  const iconUrl = selectedAsset
+    ? detailIconFallbackTried
+      ? `https://assets.coincap.io/assets/icons/${selectedAsset.symbol.toLowerCase()}@2x.png`
+      : `https://cryptoicons.org/api/icon/${selectedAsset.symbol.toLowerCase()}/200`
+    : ""
 
   return (
     <Sheet open={!!selectedAsset} onOpenChange={(open) => !open && setSelectedAsset(null)}>
@@ -68,17 +189,80 @@ export function AssetDetailSheet({
               <SheetHeader className="items-start text-left mb-8">
                 <div className="flex items-center gap-5">
                   <div className="relative">
-                    <div className="size-20 rounded-[28px] bg-muted flex items-center justify-center font-black text-2xl shadow-2xl ring-1 ring-border">
-                      {selectedAsset.symbol.slice(0, 3).toUpperCase()}
+                    <div className="size-20 overflow-hidden rounded-[28px] bg-muted flex items-center justify-center font-black text-2xl shadow-2xl ring-1 ring-border">
+                      {!detailIconErrored ? (
+                        <img
+                          src={iconUrl}
+                          alt={`${selectedAsset.symbol} icon`}
+                          className="size-full object-cover"
+                          onError={() => {
+                            if (!detailIconFallbackTried) {
+                              setDetailIconFallbackTried(true)
+                              return
+                            }
+                            setDetailIconErrored(true)
+                          }}
+                        />
+                      ) : (
+                        <span>
+                        {selectedAsset.symbol.slice(0, 3).toUpperCase()}
+                        </span>
+                      )}
                     </div>
                     <div className="absolute -bottom-0.5 -right-0.5 size-7 rounded-xl bg-background border-2 border-background flex items-center justify-center shadow-lg">
                       <Activity className="size-3.5 text-green-500" />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <SheetTitle className="text-4xl font-black tracking-tighter">
-                      {selectedAsset.name}
-                    </SheetTitle>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <SheetTitle className="text-4xl font-black tracking-tighter">
+                        {selectedAsset.name}
+                      </SheetTitle>
+                      {onToggleWatchlist ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant={isWatched ? "default" : "outline"}
+                              size="sm"
+                              className="ml-auto h-9 rounded-lg px-4 text-[10px] font-black uppercase tracking-wider shadow-sm"
+                            >
+                              <Star className={cn("mr-1.5 size-3", isWatched && "fill-current")} />
+                              {isWatched ? "Watchlists" : "Add"}
+                              <ChevronDown className="ml-1.5 size-3 opacity-70" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-[220px]">
+                            {watchlistLists.length > 0 ? (
+                              <>
+                                {watchlistLists.map((list) => (
+                                  <DropdownMenuItem
+                                    key={list.id}
+                                    onClick={() => onAddToWatchlistList?.(selectedAsset, list.id)}
+                                    className="flex items-center justify-between text-[10px] font-bold uppercase"
+                                  >
+                                    {list.name}
+                                  </DropdownMenuItem>
+                                ))}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => onCreateWatchlistList?.()}
+                                  className="text-[10px] font-bold uppercase"
+                                >
+                                  Create New Watchlist
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => onCreateWatchlistList?.()}
+                                className="text-[10px] font-bold uppercase"
+                              >
+                                Create New Watchlist
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </div>
                     <div className="flex items-center gap-2.5">
                       <Badge variant="secondary" className="px-2.5 py-0.5 bg-muted text-foreground font-black text-[10px] rounded-md border-none">
                         {selectedAsset.symbol}
@@ -111,7 +295,9 @@ export function AssetDetailSheet({
                 <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                     <span className="text-xs font-bold text-muted-foreground/80">Asset Identifier</span>
-                    <Badge className="bg-muted text-foreground font-black rounded-md border-none px-2 py-0 text-[10px]">1</Badge>
+                    <Badge className="bg-muted text-foreground font-black rounded-md border-none px-2 py-0 text-[10px]">
+                      {selectedAsset.id}
+                    </Badge>
                   </div>
                   <div className="flex items-center justify-between px-5 py-4">
                     <span className="text-xs font-bold text-muted-foreground/80">CoinGecko Ref</span>
@@ -129,21 +315,37 @@ export function AssetDetailSheet({
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 space-y-0.5">
                     <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Price</span>
-                    <div className="text-lg font-black tracking-tight">
-                      {formatCurrency(marketStats?.price)}
-                    </div>
+                    {displayedPrice === undefined ? (
+                      <Skeleton className="mt-1 h-6 w-20" />
+                    ) : (
+                      <div className={cn(
+                        "text-lg font-black tracking-tight transition-colors duration-300",
+                        priceFlash === "up" && "text-emerald-500",
+                        priceFlash === "down" && "text-red-500",
+                      )}>
+                        {formatCurrency(displayedPrice)}
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 space-y-0.5">
                     <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">24H Change</span>
-                    <div className={`text-lg font-black tracking-tight ${(marketStats?.change24h ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
-                      {(marketStats?.change24h ?? 0) >= 0 ? "+" : ""}{marketStats?.change24h?.toFixed(2)}%
-                    </div>
+                    {displayedChange24h === undefined ? (
+                      <Skeleton className="mt-1 h-6 w-16" />
+                    ) : (
+                      <div className={`text-lg font-black tracking-tight ${(displayedChange24h ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                        {(displayedChange24h ?? 0) >= 0 ? "+" : ""}{displayedChange24h?.toFixed(2)}%
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-2xl border border-border bg-card/50 px-4 py-3 space-y-0.5">
                     <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">24H Volume</span>
-                    <div className="text-lg font-black tracking-tight truncate">
-                      {formatCompactCurrency(marketStats?.volume)}
-                    </div>
+                    {hasVolumeData ? (
+                      <div className="text-lg font-black tracking-tight truncate">
+                        {formatCompactCurrency(marketStats?.volume)}
+                      </div>
+                    ) : (
+                      <Skeleton className="mt-1 h-6 w-24" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -155,7 +357,7 @@ export function AssetDetailSheet({
                     <button
                       onClick={() => setActiveTab("price")}
                       className={cn(
-                        "px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all",
+                        "px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all whitespace-nowrap",
                         activeTab === "price" ? "bg-foreground text-background shadow-lg" : "text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -164,7 +366,7 @@ export function AssetDetailSheet({
                     <button
                       onClick={() => setActiveTab("prediction")}
                       className={cn(
-                        "px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5",
+                        "px-4 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap",
                         activeTab === "prediction" ? "bg-foreground text-background shadow-lg" : "text-muted-foreground hover:text-foreground"
                       )}
                     >
@@ -173,19 +375,41 @@ export function AssetDetailSheet({
                   </div>
 
                   {activeTab === "price" && (
-                    <div className="flex items-center gap-0.5 rounded-xl bg-muted/30 border border-border p-0.5">
-                      {TIME_RANGES.map((range) => (
-                        <button
-                          key={range}
-                          onClick={() => setTimeRange(range)}
-                          className={cn(
-                            "px-2.5 py-1.5 text-[9px] font-black uppercase rounded-lg transition-all",
-                            timeRange === range ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-                          )}
-                        >
-                          {range}
-                        </button>
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5 rounded-xl bg-muted/30 border border-border p-0.5">
+                        {TIME_RANGES.map((range) => (
+                          <button
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={cn(
+                              "px-2.5 py-1.5 text-[9px] font-black uppercase rounded-lg transition-all",
+                              timeRange === range ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {range}
+                          </button>
+                        ))}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-8 bg-muted/30 border-border hover:bg-muted/50 rounded-lg text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
+                            {chartMode}
+                            <ChevronDown className="ml-1 size-3 opacity-70" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-[140px] bg-popover border-border">
+                          {(["price", "volume", "both"] as const).map((mode) => (
+                            <DropdownMenuItem
+                              key={mode}
+                              onClick={() => setChartMode(mode)}
+                              className="flex items-center justify-between text-[10px] font-bold py-2 cursor-pointer"
+                            >
+                              <span className="uppercase">{mode}</span>
+                              {chartMode === mode ? <Check className="size-3 text-primary" /> : null}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
                 </div>
@@ -197,11 +421,35 @@ export function AssetDetailSheet({
                         <RefreshCw className="size-6 animate-spin text-foreground" />
                       </div>
                     )}
-                    <AssetDetailChart
-                      data={chartData}
-                      config={{ price: { label: "Price", color: "#16a34a" } }}
-                      currentPrice={marketStats?.price || 0}
-                    />
+                    {hasChartData ? (
+                      <AssetDetailChart
+                        data={chartData}
+                        config={{ price: { label: "Price", color: "#16a34a" } }}
+                        currentPrice={marketStats?.price || 0}
+                        mode={chartMode}
+                      />
+                    ) : chartLoading ? (
+                      <div className="flex h-full flex-col justify-between">
+                        <Skeleton className="h-6 w-24" />
+                        <Skeleton className="h-44 w-full rounded-xl" />
+                        <div className="grid grid-cols-5 gap-3">
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-full" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-sm font-bold text-muted-foreground">No market data available</p>
+                          <p className="mt-1 text-xs text-muted-foreground/70">
+                            Try a different asset or time range.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-border bg-card/50 p-6 space-y-6">

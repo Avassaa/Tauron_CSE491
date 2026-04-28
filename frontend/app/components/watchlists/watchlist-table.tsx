@@ -20,6 +20,7 @@ interface WatchlistTableProps {
   timeRange: string
   onRemove: (assetId: string, symbol: string) => void
   onSelect: (asset: AssetResponse) => void
+  tickerBySymbol: Record<string, { price: number; changePct: number; quoteVolume: number }>
 }
 
 export function WatchlistTable({
@@ -27,51 +28,8 @@ export function WatchlistTable({
   timeRange,
   onRemove,
   onSelect,
+  tickerBySymbol,
 }: WatchlistTableProps) {
-  const [tickerBySymbol, setTickerBySymbol] = React.useState<
-    Record<string, { lastPrice: number; priceChangePercent: number; quoteVolume: number }>
-  >({})
-
-  React.useEffect(() => {
-    let cancelled = false
-    const loadTickers = async () => {
-      try {
-        const res = await fetch("https://api.binance.com/api/v3/ticker/24hr")
-        if (!res.ok) return
-        const rows = (await res.json()) as Array<{
-          symbol?: string
-          lastPrice?: string
-          priceChangePercent?: string
-          quoteVolume?: string
-        }>
-        const next: Record<string, { lastPrice: number; priceChangePercent: number; quoteVolume: number }> = {}
-        for (const row of rows) {
-          const symbol = (row.symbol || "").toUpperCase()
-          if (!symbol) continue
-          const lastPrice = Number.parseFloat(row.lastPrice || "")
-          const priceChangePercent = Number.parseFloat(row.priceChangePercent || "")
-          const quoteVolume = Number.parseFloat(row.quoteVolume || "")
-          if (!Number.isFinite(lastPrice) || !Number.isFinite(priceChangePercent)) continue
-          next[symbol] = {
-            lastPrice,
-            priceChangePercent,
-            quoteVolume: Number.isFinite(quoteVolume) ? quoteVolume : 0,
-          }
-        }
-        if (!cancelled) setTickerBySymbol(next)
-      } catch {
-        // Keep placeholders if Binance is unavailable.
-      }
-    }
-
-    void loadTickers()
-    const interval = window.setInterval(() => void loadTickers(), 30000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [])
-
   return (
     <div className="rounded-3xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl shadow-primary/5">
       <Table>
@@ -101,9 +59,9 @@ export function WatchlistTable({
         <TableBody>
           {watchlist.map(({ asset }) => {
             const ticker = tickerBySymbol[`${asset.symbol.toUpperCase()}USDT`]
-            const isUp = (ticker?.priceChangePercent ?? 0) >= 0
+            const isUp = (ticker?.changePct ?? 0) >= 0
             const change = ticker
-              ? `${ticker.priceChangePercent >= 0 ? "+" : ""}${ticker.priceChangePercent.toFixed(2)}%`
+              ? `${ticker.changePct >= 0 ? "+" : ""}${ticker.changePct.toFixed(2)}%`
               : "--"
 
             return (
@@ -114,8 +72,26 @@ export function WatchlistTable({
               >
                 <TableCell className="py-5 px-6">
                   <div className="flex items-center gap-4">
-                    <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-xs text-primary ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
-                      {asset.symbol.slice(0, 3).toUpperCase()}
+                    <div className="relative size-10 overflow-hidden rounded-xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
+                      <img
+                        src={`https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`}
+                        alt={`${asset.symbol} icon`}
+                        className="size-full object-cover"
+                        onError={(e) => {
+                          const img = e.currentTarget
+                          if (!img.dataset.fallbackTried) {
+                            img.dataset.fallbackTried = "1"
+                            img.src = `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
+                            return
+                          }
+                          img.style.display = "none"
+                          const fallback = img.nextElementSibling as HTMLSpanElement | null
+                          if (fallback) fallback.style.display = "flex"
+                        }}
+                      />
+                      <span className="hidden size-full items-center justify-center font-black text-xs text-primary">
+                        {asset.symbol.slice(0, 3).toUpperCase()}
+                      </span>
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="font-black tracking-tight text-foreground group-hover:text-primary transition-colors truncate">
@@ -135,7 +111,7 @@ export function WatchlistTable({
                 <TableCell className="py-5 text-center">
                   <span className="font-black text-sm tracking-tight text-foreground">
                     {ticker
-                      ? `$${ticker.lastPrice.toLocaleString(undefined, {
+                      ? `$${ticker.price.toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 6,
                         })}`

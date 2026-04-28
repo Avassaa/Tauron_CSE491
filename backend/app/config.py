@@ -117,7 +117,7 @@ class Settings(BaseSettings):
         ),
     )
     AUTO_POPULATE_ONCHAIN_SYMBOLS: str = Field(
-        default="BTC,ETH,SOL",
+        default="BTC,ETH,USDT,SOL,ADA,XRP,DOT,DOGE,AVAX,LINK,SHIB,MATIC,LTC,NEAR,UNI,ICP,DAI,BCH,STX,ATOM",
         description="Comma-separated symbols to backfill (must exist or be auto-seeded).",
     )
     AUTO_POPULATE_ONCHAIN_METRICS: str = Field(

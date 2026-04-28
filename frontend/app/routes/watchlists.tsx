@@ -3,16 +3,19 @@
 import * as React from "react"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
+import { useNavigate } from "react-router"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import {
   apiGet,
   apiPut,
   apiDelete,
+  apiPost,
   type AssetResponse,
   type WatchlistEntryResponse,
   type PaginatedResponse,
 } from "~/lib/api-client"
+import { useLiveTickers } from "~/lib/live-price-stream"
 import { MOCK_ASSETS } from "~/lib/mock-data"
 import {
   WatchlistCard,
@@ -27,6 +30,9 @@ import { type MarketDataResponse, type MlModelResponse } from "~/lib/api-client"
 
 type TimeRange = "1h" | "24h" | "7d" | "30d" | "1m" | "3m" | "1y" | "max"
 const TIME_RANGES: TimeRange[] = ["1h", "24h", "7d", "30d", "1m", "3m", "1y", "max"]
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const isUuid = (value: string) => UUID_REGEX.test(value)
 
 const formatCurrency = (val?: number) => {
   if (val === undefined) return "—"
@@ -47,6 +53,7 @@ const formatCompactCurrency = (val?: number) => {
 }
 
 function WatchlistPageClient() {
+  const navigate = useNavigate()
   const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
   const [allAssets, setAllAssets] = React.useState<AssetResponse[]>([])
   const [loadingWatchlist, setLoadingWatchlist] = React.useState(true)
@@ -118,8 +125,10 @@ function WatchlistPageClient() {
     }
   }, [allAssets.length])
 
-  const fetchChartData = React.useCallback(async (assetId: string, assetSymbol: string, range: TimeRange) => {
+  const fetchChartData = React.useCallback(async (assetId: string | undefined, assetSymbol: string, range: TimeRange) => {
     setChartLoading(true)
+    setMarketStats(null)
+    setChartData([])
     try {
       const now = new Date()
       let timeFrom = new Date()
@@ -152,37 +161,39 @@ function WatchlistPageClient() {
           break
       }
 
-      const data = await apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
-        asset_id: assetId,
-        time_from: timeFrom.toISOString(),
-        time_to: now.toISOString(),
-        resolution: resolution,
-        page_size: 100,
-      })
-
-      if (data.items.length > 0) {
-        const sortedItems = [...data.items].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
-        const latest = sortedItems[sortedItems.length - 1]
-        const first = sortedItems[0]
-        const currentPrice = latest.close
-        const currentVolume = latest.volume
-        const priceChange = first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : 0
-
-        setMarketStats({
-          price: currentPrice,
-          change24h: priceChange,
-          volume: currentVolume
+      if (assetId) {
+        const data = await apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
+          asset_id: assetId,
+          time_from: timeFrom.toISOString(),
+          time_to: now.toISOString(),
+          resolution: resolution,
+          page_size: 100,
         })
 
-        const formatted = sortedItems.map(item => ({
-          date: item.time,
-          price: item.close,
-          confidence: item.close * 0.95
-        }))
-        setChartData(formatted)
-      } else {
-        throw new Error("No backend market data for selected asset/range")
+        if (data.items.length > 0) {
+          const sortedItems = [...data.items].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+          const latest = sortedItems[sortedItems.length - 1]
+          const first = sortedItems[0]
+          const currentPrice = latest.close
+          const currentVolume = latest.volume
+          const priceChange = first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : 0
+
+          setMarketStats({
+            price: currentPrice,
+            change24h: priceChange,
+            volume: currentVolume
+          })
+
+          const formatted = sortedItems.map(item => ({
+            date: item.time,
+            price: item.close,
+            confidence: item.close * 0.95
+          }))
+          setChartData(formatted)
+          return
+        }
       }
+      throw new Error("No backend market data for selected asset/range")
     } catch (err) {
       console.error("Failed to fetch backend chart data, trying Binance:", err)
       try {
@@ -259,8 +270,14 @@ function WatchlistPageClient() {
 
   React.useEffect(() => {
     if (selectedAsset) {
-      void fetchChartData(selectedAsset.id, selectedAsset.symbol, timeRange)
-      apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", { asset_id: selectedAsset.id })
+      const backendAssetId = isUuid(selectedAsset.id) ? selectedAsset.id : undefined
+      void fetchChartData(backendAssetId, selectedAsset.symbol, timeRange)
+      if (!backendAssetId) {
+        setAvailableModels([])
+        setPredictionModel(null)
+        return
+      }
+      apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", { asset_id: backendAssetId })
         .then((data) => {
           if (data.items.length > 0) {
             setAvailableModels(data.items)
@@ -325,7 +342,19 @@ function WatchlistPageClient() {
     const previousWatchlist = [...watchlist]
     let added = false
     try {
-      await apiPut(`/users/me/watchlist/${asset.id}`)
+      let backendId = asset.id
+      if (!isUuid(backendId)) {
+        const ensured = await apiPost<AssetResponse>("/assets/ensure", {
+          symbol: asset.symbol,
+          name: asset.name,
+          category: asset.category || "General",
+          coingecko_id: asset.coingecko_id || null,
+          is_active: true,
+        })
+        backendId = ensured.id
+      }
+
+      await apiPut(`/users/me/watchlist/${backendId}`)
       const data = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
       setWatchlist(data)
       added = true
@@ -334,7 +363,7 @@ function WatchlistPageClient() {
           label: <span className="underline font-bold">Undo</span>,
           onClick: () => {
             setWatchlist(previousWatchlist)
-            void apiDelete(`/users/me/watchlist/${asset.id}`)
+            void apiDelete(`/users/me/watchlist/${backendId}`)
             toast.success(`Removed ${asset.symbol}`, {
               description: "The asset has been removed from your watchlist."
             })
@@ -366,6 +395,11 @@ function WatchlistPageClient() {
 
   const totalPages = Math.ceil(filteredWatchlist.length / PAGE_SIZE)
   const paginatedWatchlist = filteredWatchlist.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const watchlistTickerSymbols = React.useMemo(
+    () => filteredWatchlist.map(({ asset }) => `${asset.symbol.toUpperCase()}USDT`),
+    [filteredWatchlist],
+  )
+  const liveTickerBySymbol = useLiveTickers(watchlistTickerSymbols)
 
   return (
     <DashboardLayout title="Watchlist">
@@ -406,8 +440,7 @@ function WatchlistPageClient() {
                 <WatchlistEmptyState
                   search={search}
                   onBrowseAssets={() => {
-                    setShowAddPanel(true)
-                    void fetchAllAssets()
+                    navigate("/assets")
                   }}
                 />
               ) : (
@@ -431,6 +464,7 @@ function WatchlistPageClient() {
                               isWatched={watchedIds.has(asset.id)}
                               onRemove={handleRemove}
                               onSelect={setSelectedAsset}
+                              tickerBySymbol={liveTickerBySymbol}
                             />
                           ))}
                         </div>
@@ -440,6 +474,7 @@ function WatchlistPageClient() {
                           timeRange={watchlistTimeRange}
                           onRemove={handleRemove}
                           onSelect={setSelectedAsset}
+                          tickerBySymbol={liveTickerBySymbol}
                         />
                       )}
                     </motion.div>

@@ -11,6 +11,7 @@ interface WatchlistCardProps {
   isWatched?: boolean
   onRemove: (assetId: string, symbol: string) => void
   onSelect: (asset: AssetResponse) => void
+  tickerBySymbol: Record<string, { price: number; changePct: number; quoteVolume: number }>
 }
 
 export function WatchlistCard({
@@ -19,7 +20,10 @@ export function WatchlistCard({
   isWatched = true,
   onRemove,
   onSelect,
+  tickerBySymbol,
 }: WatchlistCardProps) {
+  const [iconErrored, setIconErrored] = React.useState(false)
+  const [iconFallbackTried, setIconFallbackTried] = React.useState(false)
   const [stats, setStats] = React.useState<{
     price: number | null
     change: string
@@ -39,66 +43,25 @@ export function WatchlistCard({
   })
 
   React.useEffect(() => {
-    let cancelled = false
-    const symbol = `${asset.symbol.toUpperCase()}USDT`
+    setIconErrored(false)
+    setIconFallbackTried(false)
+  }, [asset.symbol])
 
-    const run = async () => {
-      try {
-        const tickerRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`)
-        if (!tickerRes.ok) return
-        const ticker = (await tickerRes.json()) as {
-          lastPrice?: string
-          priceChangePercent?: string
-          quoteVolume?: string
-        }
+  React.useEffect(() => {
+    const ticker = tickerBySymbol[`${asset.symbol.toUpperCase()}USDT`]
+    if (!ticker) return
+    setStats((prev) => ({
+      ...prev,
+      price: ticker.price,
+      change: `${ticker.changePct >= 0 ? "+" : ""}${ticker.changePct.toFixed(2)}%`,
+      isUp: ticker.changePct >= 0,
+      volume: Number.isFinite(ticker.quoteVolume) ? `$${(ticker.quoteVolume / 1_000_000).toFixed(1)}M` : "—",
+    }))
+  }, [asset.symbol, tickerBySymbol, timeRange])
 
-        const price = Number.parseFloat(ticker.lastPrice || "")
-        const changePct = Number.parseFloat(ticker.priceChangePercent || "")
-        const quoteVolume = Number.parseFloat(ticker.quoteVolume || "")
-        const isUp = Number.isFinite(changePct) ? changePct >= 0 : false
-
-        const klinesRes = await fetch(
-          `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=4h&limit=25`
-        )
-        let sparkline = "0,25 L 25,23 L 50,24 L 75,22 L 100,24"
-        if (klinesRes.ok) {
-          const klines = (await klinesRes.json()) as Array<[number, string, string, string, string]>
-          const closes = klines
-            .map((k) => Number.parseFloat(k[4]))
-            .filter((v) => Number.isFinite(v))
-          if (closes.length > 1) {
-            const min = Math.min(...closes)
-            const max = Math.max(...closes)
-            const span = Math.max(max - min, 1e-9)
-            const points = closes.map((value, idx) => {
-              const x = (idx / (closes.length - 1)) * 100
-              const y = 32 - ((value - min) / span) * 24
-              return `${x},${y}`
-            })
-            sparkline = points.join(" L ")
-          }
-        }
-
-        if (cancelled) return
-        setStats({
-          price: Number.isFinite(price) ? price : null,
-          change: Number.isFinite(changePct) ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : "--",
-          isUp,
-          marketCap: "—",
-          volume: Number.isFinite(quoteVolume) ? `$${(quoteVolume / 1_000_000).toFixed(1)}M` : "—",
-          supply: "—",
-          sparkline,
-        })
-      } catch {
-        // Keep graceful placeholders.
-      }
-    }
-
-    void run()
-    return () => {
-      cancelled = true
-    }
-  }, [asset.symbol, timeRange])
+  const iconUrl = iconFallbackTried
+    ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
+    : `https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`
 
   return (
     <div
@@ -108,8 +71,23 @@ export function WatchlistCard({
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="size-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-xs text-primary">
-            {asset.symbol.slice(0, 1).toUpperCase()}
+          <div className="size-10 overflow-hidden rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-xs text-primary">
+            {!iconErrored ? (
+              <img
+                src={iconUrl}
+                alt={`${asset.symbol} icon`}
+                className="size-full object-cover"
+                onError={() => {
+                  if (!iconFallbackTried) {
+                    setIconFallbackTried(true)
+                    return
+                  }
+                  setIconErrored(true)
+                }}
+              />
+            ) : (
+              <span>{asset.symbol.slice(0, 1).toUpperCase()}</span>
+            )}
           </div>
           <div className="flex flex-col">
             <span className="font-black text-sm text-foreground tracking-tight leading-none">{asset.name}</span>

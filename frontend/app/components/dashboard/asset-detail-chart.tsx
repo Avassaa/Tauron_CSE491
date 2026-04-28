@@ -1,8 +1,9 @@
 "use client"
 
-import { Area, Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Customized } from "recharts"
+import * as React from "react"
+import { Area, Bar, ComposedChart, CartesianGrid, XAxis, YAxis, Tooltip, ReferenceLine, Customized } from "recharts"
 import type { ChartConfig } from "~/components/ui/chart"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "~/components/ui/chart"
+import { ChartContainer } from "~/components/ui/chart"
 
 const chartConfig = {
   price: {
@@ -19,14 +20,29 @@ export function AssetDetailChart({
   data,
   trend = "up",
   config,
-  currentPrice: externalCurrentPrice
+  currentPrice: externalCurrentPrice,
+  mode = "both",
 }: {
   data: any[],
   trend?: "up" | "down",
   config?: any,
-  currentPrice?: number
+  currentPrice?: number,
+  mode?: "price" | "volume" | "both",
 }) {
   if (!data || data.length === 0) return null
+  const [isDarkMode, setIsDarkMode] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    const sync = () => {
+      const hasDarkClass = document.documentElement.classList.contains("dark")
+      setIsDarkMode(hasDarkClass || media.matches)
+    }
+    sync()
+    media.addEventListener("change", sync)
+    return () => media.removeEventListener("change", sync)
+  }, [])
 
   const isUp = trend === "up"
   const strokeColor = isUp ? "#16a34a" : "#ef4444"
@@ -34,6 +50,14 @@ export function AssetDetailChart({
 
   const currentPrice = externalCurrentPrice ?? (data[data.length - 1]?.price || 0)
   const formattedCurrentPrice = currentPrice >= 1000 ? `$${(currentPrice / 1000).toFixed(2)}K` : `$${currentPrice.toFixed(2)}`
+  const showPrice = mode === "price" || mode === "both"
+  const showVolume = mode === "volume" || mode === "both"
+  const formatVolume = (value: number) => {
+    if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+    if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
+    return value.toFixed(2)
+  }
 
   return (
     <ChartContainer config={config || chartConfig} className="aspect-auto h-full w-full">
@@ -61,50 +85,86 @@ export function AssetDetailChart({
           }}
           tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
         />
-        <YAxis
-          yAxisId="price"
-          orientation="right"
-          domain={['auto', 'auto']}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
-          tickFormatter={(value) => {
-            if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
-            return `$${value}`
-          }}
-          width={45}
-        />
-        <YAxis yAxisId="volume" orientation="right" domain={[0, 'dataMax * 4']} hide />
+        {showPrice ? (
+          <YAxis
+            yAxisId="price"
+            orientation="right"
+            domain={["auto", "auto"]}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
+            tickFormatter={(value) => {
+              if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
+              return `$${Number(value).toFixed(2)}`
+            }}
+            width={60}
+          />
+        ) : null}
+        {showVolume ? (
+          <YAxis
+            yAxisId="volume"
+            orientation="left"
+            domain={["auto", "auto"]}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
+            tickFormatter={(value) => formatVolume(Number(value))}
+            width={55}
+          />
+        ) : null}
 
-        <Bar yAxisId="volume" dataKey="volume" fill="var(--color-volume)" opacity={0.2} radius={[2, 2, 0, 0]} />
-        <Area
-          yAxisId="price"
-          dataKey="price"
-          type="monotone"
-          fill={`url(#${gradientId})`}
-          stroke={strokeColor}
-          strokeWidth={2}
-          animationDuration={800}
-          animationEasing="ease-in-out"
-        />
+        {showVolume ? (
+          <Bar
+            yAxisId="volume"
+            dataKey="volume"
+            fill={isDarkMode ? "#ffffff" : "#000000"}
+            opacity={0.25}
+            radius={[2, 2, 0, 0]}
+          />
+        ) : null}
+        {showPrice ? (
+          <Area
+            yAxisId="price"
+            dataKey="price"
+            type="monotone"
+            fill={`url(#${gradientId})`}
+            stroke={strokeColor}
+            strokeWidth={2}
+            animationDuration={800}
+            animationEasing="ease-in-out"
+          />
+        ) : null}
 
-        <ChartTooltip
+        <Tooltip
           cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeDasharray: "3 3", opacity: 0.5 }}
-          content={
-            <ChartTooltipContent
-              labelFormatter={(value) => new Date(value as string).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              indicator="dot"
-            />
-          }
+          content={({ active, payload, label }) => {
+            if (!active || !payload || payload.length === 0) return null
+            const dateText = new Date(String(label)).toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+            const priceRow = payload.find((entry) => entry.dataKey === "price")
+            const volumeRow = payload.find((entry) => entry.dataKey === "volume")
+            return (
+              <div className="rounded-lg border border-border bg-popover p-2 text-xs shadow-md">
+                <p className="mb-1 font-semibold">{dateText}</p>
+                {priceRow ? <p>Price: ${Number(priceRow.value).toLocaleString(undefined, { maximumFractionDigits: 6 })}</p> : null}
+                {volumeRow ? <p>Volume: {formatVolume(Number(volumeRow.value))}</p> : null}
+              </div>
+            )
+          }}
         />
 
-        <ReferenceLine
-          y={currentPrice}
-          yAxisId="price"
-          stroke={strokeColor}
-          strokeDasharray="3 3"
-          opacity={0.4}
-        />
+        {showPrice ? (
+          <ReferenceLine
+            y={currentPrice}
+            yAxisId="price"
+            stroke={strokeColor}
+            strokeDasharray="3 3"
+            opacity={0.4}
+          />
+        ) : null}
 
         {/* 
           Customized is the ultimate way to draw on top of everything. 
@@ -112,7 +172,7 @@ export function AssetDetailChart({
         */}
         <Customized component={(props: any) => {
           const { viewBox, yAxisMap } = props;
-          if (!viewBox || !yAxisMap?.price) return null;
+          if (!showPrice || !viewBox || !yAxisMap?.price) return null;
 
           const y = yAxisMap.price.scale(currentPrice);
           const { width, x } = viewBox;

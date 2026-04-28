@@ -51,6 +51,24 @@ class WatchlistEntryResponse(BaseModel):
     asset: AssetResponse
 
 
+class WatchlistListResponse(BaseModel):
+    """Named watchlist container."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    created_at: datetime
+
+
+class WatchlistListEntryResponse(BaseModel):
+    """One asset entry in a named watchlist."""
+
+    list_id: uuid.UUID
+    asset: AssetResponse
+
+
 class MlModelResponse(BaseModel):
     """ML model metadata."""
 

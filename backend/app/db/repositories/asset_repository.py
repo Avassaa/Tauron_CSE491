@@ -42,6 +42,14 @@ class AssetRepository:
         result = await self._session.execute(select(Asset).where(Asset.id == asset_id))
         return result.scalar_one_or_none()
 
+    async def get_by_symbol(self, symbol: str) -> Optional[Asset]:
+        """Load an asset by symbol (case-insensitive)."""
+        normalized = symbol.strip().upper()
+        result = await self._session.execute(
+            select(Asset).where(func.upper(Asset.symbol) == normalized)
+        )
+        return result.scalar_one_or_none()
+
     async def create(
         self,
         symbol: str,

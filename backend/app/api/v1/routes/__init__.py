@@ -17,6 +17,7 @@ from .scraper_logs import router as scraper_logs_router
 from .technical_indicators import router as technical_indicators_router
 from .users import router as users_router
 from .watchlists import router as watchlists_router
+from .watchlist_lists import router as watchlist_lists_router
 
 __all__ = [
     "assets_router",
@@ -36,4 +37,5 @@ __all__ = [
     "technical_indicators_router",
     "users_router",
     "watchlists_router",
+    "watchlist_lists_router",
 ]

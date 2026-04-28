@@ -9,6 +9,9 @@ export const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   DEFAULT_API_BASE_URL
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 function getToken(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem("access_token")
@@ -54,6 +57,13 @@ export async function apiGet<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
+  if ((path === "/market-data" || path === "/ml-models") && params?.asset_id !== undefined) {
+    const assetId = String(params.asset_id)
+    if (!UUID_REGEX.test(assetId)) {
+      throw new Error(`Invalid asset_id for ${path}: ${assetId}`)
+    }
+  }
+
   let url = `${apiBaseUrl}${path}`
   if (params) {
     const qs = new URLSearchParams()
@@ -165,6 +175,13 @@ export interface AssetResponse {
 export interface WatchlistEntryResponse {
   user_id: string
   asset: AssetResponse
+}
+
+export interface WatchlistListResponse {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
 }
 
 

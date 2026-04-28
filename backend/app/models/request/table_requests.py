@@ -32,6 +32,16 @@ class CreateAssetRequest(BaseModel):
     is_active: bool = True
 
 
+class EnsureAssetRequest(BaseModel):
+    """Ensure a tradable asset exists (authenticated user)."""
+
+    symbol: str = Field(max_length=10)
+    name: str = Field(max_length=100)
+    category: Optional[str] = Field(default=None, max_length=50)
+    coingecko_id: Optional[str] = Field(default=None, max_length=100)
+    is_active: bool = True
+
+
 class UpdateAssetRequest(BaseModel):
     """Patch an asset (admin)."""
 
@@ -161,6 +171,12 @@ class UpdateOnChainMetricRequest(BaseModel):
     """Patch one metric value (admin)."""
 
     value: float
+
+
+class CreateWatchlistListRequest(BaseModel):
+    """Create a named watchlist list for the current user."""
+
+    name: str = Field(min_length=1, max_length=64)
 
 
 class CreateCuratedNewsRequest(BaseModel):
