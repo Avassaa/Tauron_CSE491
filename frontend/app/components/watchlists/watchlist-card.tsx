@@ -12,6 +12,8 @@ interface WatchlistCardProps {
   onRemove: (assetId: string, symbol: string) => void
   onSelect: (asset: AssetResponse) => void
   tickerBySymbol: Record<string, { price: number; changePct: number; quoteVolume: number }>
+  rangeStatsBySymbol?: Record<string, { changePct: number; volume: number; sparkline: string }>
+  rangeStatsLoading?: boolean
 }
 
 export function WatchlistCard({
@@ -21,6 +23,8 @@ export function WatchlistCard({
   onRemove,
   onSelect,
   tickerBySymbol,
+  rangeStatsBySymbol = {},
+  rangeStatsLoading = false,
 }: WatchlistCardProps) {
   const [iconErrored, setIconErrored] = React.useState(false)
   const [iconFallbackTried, setIconFallbackTried] = React.useState(false)
@@ -48,16 +52,24 @@ export function WatchlistCard({
   }, [asset.symbol])
 
   React.useEffect(() => {
-    const ticker = tickerBySymbol[`${asset.symbol.toUpperCase()}USDT`]
-    if (!ticker) return
+    const key = `${asset.symbol.toUpperCase()}USDT`
+    const ticker = tickerBySymbol[key]
+    const rangeStats = rangeStatsBySymbol[key]
+    if (!ticker && !rangeStats) return
+    const changePct = rangeStats?.changePct ?? ticker?.changePct ?? 0
     setStats((prev) => ({
       ...prev,
-      price: ticker.price,
-      change: `${ticker.changePct >= 0 ? "+" : ""}${ticker.changePct.toFixed(2)}%`,
-      isUp: ticker.changePct >= 0,
-      volume: Number.isFinite(ticker.quoteVolume) ? `$${(ticker.quoteVolume / 1_000_000).toFixed(1)}M` : "—",
+      price: ticker?.price ?? prev.price,
+      change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`,
+      isUp: changePct >= 0,
+      volume: Number.isFinite(rangeStats?.volume)
+        ? `$${((rangeStats?.volume ?? 0) / 1_000_000).toFixed(1)}M`
+        : Number.isFinite(ticker?.quoteVolume)
+          ? `$${((ticker?.quoteVolume ?? 0) / 1_000_000).toFixed(1)}M`
+          : "—",
+      sparkline: rangeStats?.sparkline ?? prev.sparkline,
     }))
-  }, [asset.symbol, tickerBySymbol, timeRange])
+  }, [asset.symbol, tickerBySymbol, timeRange, rangeStatsBySymbol])
 
   const iconUrl = iconFallbackTried
     ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
@@ -66,7 +78,7 @@ export function WatchlistCard({
   return (
     <div
       onClick={() => onSelect(asset)}
-      className="group relative flex flex-col gap-5 p-5 rounded-[28px] border border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-card cursor-pointer shadow-2xl"
+      className="group relative flex flex-col gap-5 p-5 rounded-[28px] border border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-card cursor-pointer shadow-[0_16px_34px_rgba(15,23,42,0.08)] hover:shadow-[0_20px_42px_rgba(15,23,42,0.12)] dark:shadow-2xl dark:shadow-primary/5"
     >
       {/* Top Header */}
       <div className="flex items-center justify-between">
@@ -121,13 +133,17 @@ export function WatchlistCard({
               : `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </div>
           <div className="flex items-center gap-2">
-            <div className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black",
-              stats.isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-            )}>
-              {stats.isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-              {stats.change}
-            </div>
+            {rangeStatsLoading ? (
+              <div className="h-6 w-20 animate-pulse rounded-lg bg-muted" />
+            ) : (
+              <div className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black",
+                stats.isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+              )}>
+                {stats.isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                {stats.change}
+              </div>
+            )}
             <span className={cn(
               "text-[9px] font-black uppercase tracking-widest",
               stats.isUp ? "text-green-500/60" : "text-red-500/60"

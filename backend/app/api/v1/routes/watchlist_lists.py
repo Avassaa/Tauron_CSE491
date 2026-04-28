@@ -9,7 +9,7 @@ from app.core.security import get_current_user_id
 from app.db.repositories.asset_repository import AssetRepository
 from app.db.repositories.watchlist_lists_repository import WatchlistListsRepository
 from app.db.session import get_db_session
-from app.models.request.table_requests import CreateWatchlistListRequest
+from app.models.request.table_requests import CreateWatchlistListRequest, UpdateWatchlistListRequest
 from app.models.response.table_responses import (
     AssetResponse,
     WatchlistListEntryResponse,
@@ -36,6 +36,33 @@ async def create_my_watchlist(
 ):
     repo = WatchlistListsRepository(session)
     return await repo.create_list(user_id, body.name.strip())
+
+
+@router.patch("/{list_id}", response_model=WatchlistListResponse)
+async def rename_my_watchlist(
+    list_id: uuid.UUID,
+    body: UpdateWatchlistListRequest,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db_session),
+):
+    repo = WatchlistListsRepository(session)
+    row = await repo.rename_list(list_id, user_id, body.name.strip())
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Watchlist not found")
+    return row
+
+
+@router.delete("/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_watchlist(
+    list_id: uuid.UUID,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db_session),
+):
+    repo = WatchlistListsRepository(session)
+    deleted = await repo.delete_list(list_id, user_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Watchlist not found")
+    return None
 
 
 @router.get("/{list_id}/assets", response_model=list[WatchlistListEntryResponse])

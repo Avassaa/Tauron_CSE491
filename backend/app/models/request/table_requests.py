@@ -180,6 +180,12 @@ class CreateWatchlistListRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64)
 
 
+class UpdateWatchlistListRequest(BaseModel):
+    """Rename a named watchlist list for the current user."""
+
+    name: str = Field(min_length=1, max_length=64)
+
+
 class CreateCuratedNewsRequest(BaseModel):
     """Create curated news (admin)."""
 

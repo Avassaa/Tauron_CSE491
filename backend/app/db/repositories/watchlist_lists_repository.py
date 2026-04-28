@@ -34,6 +34,24 @@ class WatchlistListsRepository:
         )
         return result.scalar_one_or_none()
 
+    async def rename_list(self, list_id: uuid.UUID, user_id: uuid.UUID, name: str) -> WatchlistList | None:
+        row = await self.get_list(list_id, user_id)
+        if row is None:
+            return None
+        row.name = name
+        await self._session.commit()
+        await self._session.refresh(row)
+        return row
+
+    async def delete_list(self, list_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+        row = await self.get_list(list_id, user_id)
+        if row is None:
+            return False
+        await self._session.execute(delete(WatchlistListItem).where(WatchlistListItem.list_id == list_id))
+        await self._session.delete(row)
+        await self._session.commit()
+        return True
+
     async def list_items_with_assets(self, list_id: uuid.UUID) -> list[tuple[WatchlistListItem, Asset]]:
         result = await self._session.execute(
             select(WatchlistListItem, Asset)

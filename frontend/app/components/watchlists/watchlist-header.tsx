@@ -24,6 +24,7 @@ interface WatchlistHeaderProps {
   setSearch: (val: string) => void
   watchlistTimeRange: string
   setWatchlistTimeRange: (val: any) => void
+  timeRangeLoading?: boolean
   viewMode: "grid" | "list"
   setViewMode: (val: "grid" | "list") => void
   allAssets: AssetResponse[]
@@ -45,6 +46,7 @@ export function WatchlistHeader({
   setSearch,
   watchlistTimeRange,
   setWatchlistTimeRange,
+  timeRangeLoading = false,
   viewMode,
   setViewMode,
   allAssets,
@@ -95,17 +97,30 @@ export function WatchlistHeader({
           {/* Time Range Selector */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-11 px-4 rounded-[14px] gap-2 border-border/50 bg-card/30 hover:bg-card/50 text-foreground">
+              <Button
+                variant="outline"
+                disabled={timeRangeLoading}
+                className={cn(
+                  "h-11 px-4 rounded-[14px] gap-2 border-border/50 bg-card/30 hover:bg-card/50 text-foreground",
+                  timeRangeLoading && "cursor-not-allowed bg-muted/40 text-muted-foreground opacity-60",
+                )}
+              >
                 <span className="text-sm font-bold uppercase">{watchlistTimeRange}</span>
-                <ChevronDown className="size-3.5 opacity-50" />
+                <ChevronDown className={cn("size-3.5 opacity-50", timeRangeLoading && "animate-pulse")} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-24 bg-card border-border/50 p-1 rounded-xl">
               {["1h", "24h", "7d", "30d"].map((range) => (
                 <DropdownMenuItem
                   key={range}
-                  onClick={() => setWatchlistTimeRange(range)}
-                  className="rounded-lg text-[10px] font-black uppercase tracking-widest focus:bg-muted"
+                  disabled={timeRangeLoading}
+                  onClick={() => {
+                    if (!timeRangeLoading) setWatchlistTimeRange(range)
+                  }}
+                  className={cn(
+                    "cursor-pointer rounded-lg text-[10px] font-black uppercase tracking-widest focus:bg-muted",
+                    timeRangeLoading && "cursor-not-allowed opacity-50",
+                  )}
                 >
                   {range}
                   {watchlistTimeRange === range && <Check className="size-3 ml-auto text-primary" />}

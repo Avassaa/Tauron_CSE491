@@ -89,6 +89,7 @@ function AssetsPageClient() {
   } | null>(null)
   const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
   const [watchlistLists, setWatchlistLists] = React.useState<WatchlistListResponse[]>([])
+  const [watchlistAssetsByListId, setWatchlistAssetsByListId] = React.useState<Record<string, AssetResponse[]>>({})
   const [addingId, setAddingId] = React.useState<string | null>(null)
   const [trendingAssets, setTrendingAssets] = React.useState<AssetResponse[]>([])
   const [backendAssetIdBySymbol, setBackendAssetIdBySymbol] = React.useState<Record<string, string>>({})
@@ -489,8 +490,25 @@ function AssetsPageClient() {
     try {
       const data = await apiGet<WatchlistListResponse[]>("/users/me/watchlists")
       setWatchlistLists(data)
+      const assetResults = await Promise.allSettled(
+        data.map(async (list) => {
+          const entries = await apiGet<Array<{ list_id: string; asset: AssetResponse }>>(
+            `/users/me/watchlists/${list.id}/assets`,
+          )
+          return [list.id, entries.map((entry) => entry.asset)] as const
+        }),
+      )
+      const nextAssetsByListId: Record<string, AssetResponse[]> = {}
+      for (const result of assetResults) {
+        if (result.status === "fulfilled") {
+          const [listId, assets] = result.value
+          nextAssetsByListId[listId] = assets
+        }
+      }
+      setWatchlistAssetsByListId(nextAssetsByListId)
     } catch {
       setWatchlistLists([])
+      setWatchlistAssetsByListId({})
     }
   }, [])
 
@@ -585,6 +603,38 @@ function AssetsPageClient() {
     }
   }
 
+  const toggleAssetInNamedWatchlist = async (asset: AssetResponse, listId: string, currentlyInList: boolean) => {
+    const list = watchlistLists.find((item) => item.id === listId)
+    try {
+      const backendId = await resolveBackendAssetId(asset)
+      if (currentlyInList) {
+        await apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
+        setWatchlistAssetsByListId((prev) => ({
+          ...prev,
+          [listId]: (prev[listId] || []).filter(
+            (item) => item.id !== backendId && item.symbol.toUpperCase() !== asset.symbol.toUpperCase(),
+          ),
+        }))
+        await fetchWatchlist()
+        toast.success(`Removed ${asset.symbol} from ${list?.name || "watchlist"}`)
+      } else {
+        await apiPut(`/users/me/watchlists/${listId}/assets/${backendId}`)
+        setWatchlistAssetsByListId((prev) => ({
+          ...prev,
+          [listId]: [
+            ...(prev[listId] || []).filter((item) => item.symbol.toUpperCase() !== asset.symbol.toUpperCase()),
+            { ...asset, id: backendId },
+          ],
+        }))
+        await fetchWatchlist()
+        toast.success(`Added ${asset.symbol} to ${list?.name || "watchlist"}`)
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Unknown error"
+      toast.error(`Failed to update ${asset.symbol}: ${detail}`)
+    }
+  }
+
   const handleRemove = async (assetId: string, symbol: string) => {
     try {
       await apiDelete(`/users/me/watchlist/${assetId}`)
@@ -596,6 +646,19 @@ function AssetsPageClient() {
   }
 
   const watchedIds = new Set(watchlist.map((w) => w.asset.id))
+  const selectedAssetWatchlistMembership = React.useMemo(() => {
+    if (!selectedAsset) return {}
+    const selectedSymbol = selectedAsset.symbol.toUpperCase()
+    return Object.fromEntries(
+      watchlistLists.map((list) => [
+        list.id,
+        (watchlistAssetsByListId[list.id] || []).some(
+          (asset) => asset.id === selectedAsset.id || asset.symbol.toUpperCase() === selectedSymbol,
+        ),
+      ]),
+    )
+  }, [selectedAsset, watchlistAssetsByListId, watchlistLists])
+  const selectedAssetIsInNamedWatchlist = Object.values(selectedAssetWatchlistMembership).some(Boolean)
 
   const sortedAndFiltered = React.useMemo(() => {
     let result = assets
@@ -666,10 +729,10 @@ function AssetsPageClient() {
       }
     >
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
+        <div className="flex flex-1 flex-col gap-6 px-4 pb-4 pt-8 md:px-8 md:pb-8 md:pt-10">
           {/* Trending Assets Row */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
+            <div className="flex items-center justify-between px-3">
               <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground/80 flex items-center gap-2">
                 Trending Coins
               </h3>
@@ -783,7 +846,7 @@ function AssetsPageClient() {
             formatCurrency={formatCurrency}
             formatCompactCurrency={formatCompactCurrency}
             quoteCurrency={normalizedQuoteCurrency}
-            isWatched={selectedAsset ? watchedIds.has(selectedAsset.id) : false}
+            isWatched={selectedAsset ? watchedIds.has(selectedAsset.id) || selectedAssetIsInNamedWatchlist : false}
             onToggleWatchlist={(asset) => {
               void (async () => {
                 try {
@@ -800,8 +863,12 @@ function AssetsPageClient() {
               })()
             }}
             watchlistLists={watchlistLists}
+            watchlistMembershipByListId={selectedAssetWatchlistMembership}
             onAddToWatchlistList={(asset, listId) => {
               void addAssetToNamedWatchlist(asset, listId)
+            }}
+            onToggleWatchlistList={(asset, listId, currentlyInList) => {
+              void toggleAssetInNamedWatchlist(asset, listId, currentlyInList)
             }}
             onCreateWatchlistList={() => {
               setCreateWatchlistDialogOpen(true)

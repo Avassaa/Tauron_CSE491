@@ -21,6 +21,8 @@ interface WatchlistTableProps {
   onRemove: (assetId: string, symbol: string) => void
   onSelect: (asset: AssetResponse) => void
   tickerBySymbol: Record<string, { price: number; changePct: number; quoteVolume: number }>
+  rangeStatsBySymbol?: Record<string, { changePct: number; volume: number; sparkline: string }>
+  rangeStatsLoading?: boolean
 }
 
 export function WatchlistTable({
@@ -29,6 +31,8 @@ export function WatchlistTable({
   onRemove,
   onSelect,
   tickerBySymbol,
+  rangeStatsBySymbol = {},
+  rangeStatsLoading = false,
 }: WatchlistTableProps) {
   return (
     <div className="rounded-3xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl shadow-primary/5">
@@ -58,10 +62,13 @@ export function WatchlistTable({
         </TableHeader>
         <TableBody>
           {watchlist.map(({ asset }) => {
-            const ticker = tickerBySymbol[`${asset.symbol.toUpperCase()}USDT`]
-            const isUp = (ticker?.changePct ?? 0) >= 0
-            const change = ticker
-              ? `${ticker.changePct >= 0 ? "+" : ""}${ticker.changePct.toFixed(2)}%`
+            const key = `${asset.symbol.toUpperCase()}USDT`
+            const ticker = tickerBySymbol[key]
+            const rangeStats = rangeStatsBySymbol[key]
+            const changePct = rangeStats?.changePct ?? ticker?.changePct
+            const isUp = (changePct ?? 0) >= 0
+            const change = changePct !== undefined
+              ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`
               : "--"
 
             return (
@@ -119,15 +126,19 @@ export function WatchlistTable({
                   </span>
                 </TableCell>
                 <TableCell className="py-5 text-center">
-                  <div className={cn(
-                    "inline-flex items-center gap-1 px-2 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest",
-                    ticker == null
-                      ? "bg-muted/30 text-muted-foreground"
-                      : isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-                  )}>
-                    {ticker == null ? null : isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-                    {change}
-                  </div>
+                  {rangeStatsLoading ? (
+                    <div className="mx-auto h-7 w-20 animate-pulse rounded-lg bg-muted" />
+                  ) : (
+                    <div className={cn(
+                      "inline-flex items-center gap-1 px-2 py-1 rounded-lg font-black text-[10px] uppercase tracking-widest",
+                      changePct === undefined
+                        ? "bg-muted/30 text-muted-foreground"
+                        : isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+                    )}>
+                      {changePct === undefined ? null : isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                      {change}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">
@@ -136,7 +147,9 @@ export function WatchlistTable({
                 </TableCell>
                 <TableCell className="py-5 text-center">
                   <span className="text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                    {ticker
+                    {rangeStats
+                      ? `$${(rangeStats.volume / 1_000_000).toFixed(1)}M`
+                      : ticker
                       ? `$${(ticker.quoteVolume / 1_000_000).toFixed(1)}M`
                       : "—"}
                   </span>
@@ -146,11 +159,9 @@ export function WatchlistTable({
                     <div className="w-16 h-8">
                       <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
                         <path
-                          d={
-                            isUp
-                              ? "M 0,28 L 20,26 L 40,24 L 60,22 L 80,20 L 100,18"
-                              : "M 0,18 L 20,20 L 40,22 L 60,24 L 80,26 L 100,28"
-                          }
+                          d={rangeStats ? `M ${rangeStats.sparkline}` : isUp
+                            ? "M 0,28 L 20,26 L 40,24 L 60,22 L 80,20 L 100,18"
+                            : "M 0,18 L 20,20 L 40,22 L 60,24 L 80,26 L 100,28"}
                           fill="none"
                           stroke={ticker == null ? "var(--muted-foreground)" : isUp ? "#22c55e" : "#ef4444"}
                           strokeWidth="2.5"

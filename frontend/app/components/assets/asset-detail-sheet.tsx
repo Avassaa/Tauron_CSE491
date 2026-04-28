@@ -45,6 +45,8 @@ interface AssetDetailSheetProps {
   onToggleWatchlist?: (asset: AssetResponse) => void
   watchlistLists?: WatchlistListResponse[]
   onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
+  onToggleWatchlistList?: (asset: AssetResponse, listId: string, currentlyInList: boolean) => void
+  watchlistMembershipByListId?: Record<string, boolean>
   onCreateWatchlistList?: () => void
 }
 
@@ -67,6 +69,8 @@ export function AssetDetailSheet({
   onToggleWatchlist,
   watchlistLists = [],
   onAddToWatchlistList,
+  onToggleWatchlistList,
+  watchlistMembershipByListId = {},
   onCreateWatchlistList,
 }: AssetDetailSheetProps) {
   const normalizedQuoteCurrency =
@@ -218,7 +222,7 @@ export function AssetDetailSheet({
                       <SheetTitle className="text-4xl font-black tracking-tighter">
                         {selectedAsset.name}
                       </SheetTitle>
-                      {onToggleWatchlist ? (
+                      {onToggleWatchlist || onToggleWatchlistList ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -227,36 +231,54 @@ export function AssetDetailSheet({
                               className="ml-auto h-9 rounded-lg px-4 text-[10px] font-black uppercase tracking-wider shadow-sm"
                             >
                               <Star className={cn("mr-1.5 size-3", isWatched && "fill-current")} />
-                              {isWatched ? "Watchlists" : "Add"}
+                              Watchlists
                               <ChevronDown className="ml-1.5 size-3 opacity-70" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-[220px]">
                             {watchlistLists.length > 0 ? (
                               <>
-                                {watchlistLists.map((list) => (
+                                {watchlistLists.map((list) => {
+                                  const isInList = !!watchlistMembershipByListId[list.id]
+                                  return (
                                   <DropdownMenuItem
                                     key={list.id}
-                                    onClick={() => onAddToWatchlistList?.(selectedAsset, list.id)}
-                                    className="flex items-center justify-between text-[10px] font-bold uppercase"
+                                    onSelect={(event) => {
+                                      event.preventDefault()
+                                      if (onToggleWatchlistList) {
+                                        onToggleWatchlistList(selectedAsset, list.id, isInList)
+                                      } else if (!isInList) {
+                                        onAddToWatchlistList?.(selectedAsset, list.id)
+                                      }
+                                    }}
+                                    className="flex cursor-pointer items-center justify-between text-[10px] font-bold uppercase"
                                   >
-                                    {list.name}
+                                    <span className="truncate">{list.name}</span>
+                                    {isInList ? <Check className="ml-2 size-3 text-primary" /> : null}
                                   </DropdownMenuItem>
-                                ))}
+                                  )
+                                })}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => onCreateWatchlistList?.()}
-                                  className="text-[10px] font-bold uppercase"
+                                  className="cursor-pointer text-[10px] font-bold uppercase"
                                 >
                                   Create New Watchlist
                                 </DropdownMenuItem>
                               </>
-                            ) : (
+                            ) : onCreateWatchlistList ? (
                               <DropdownMenuItem
                                 onClick={() => onCreateWatchlistList?.()}
-                                className="text-[10px] font-bold uppercase"
+                                className="cursor-pointer text-[10px] font-bold uppercase"
                               >
                                 Create New Watchlist
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => onToggleWatchlist?.(selectedAsset)}
+                                className="cursor-pointer text-[10px] font-bold uppercase"
+                              >
+                                {isWatched ? "Remove From Watchlist" : "Add To Watchlist"}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
