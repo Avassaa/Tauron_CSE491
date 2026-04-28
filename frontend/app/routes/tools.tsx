@@ -1,13 +1,23 @@
 "use client"
 
 import * as React from "react"
-import { ArrowRightLeft } from "lucide-react"
+import {
+  ArrowRightLeft,
+  Activity,
+  Bell,
+  Gauge,
+  Newspaper,
+  TrendingDown,
+  TrendingUp,
+  WalletCards,
+} from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Separator } from "~/components/ui/separator"
+import { Skeleton } from "~/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -16,6 +26,14 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import {
+  apiGet,
+  type AssetResponse,
+  type MarketDataResponse,
+  type PaginatedResponse,
+  type WatchlistEntryResponse,
+} from "~/lib/api-client"
+import { useLiveTickers } from "~/lib/live-price-stream"
 
 type CurrencyCode = "USD" | "EUR" | "TRY" | "GBP" | "JPY" | "CAD" | "AUD" | "CHF"
 
@@ -43,7 +61,310 @@ const FALLBACK_USD_BASE_RATES: Record<CurrencyCode, number> = {
 
 const CURRENCIES = Object.keys(CURRENCY_LABELS) as CurrencyCode[]
 const BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
+const BINANCE_24HR_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
 const MAX_CONVERT_AMOUNT = 1_000_000_000
+type SentimentRange = "24h" | "7d" | "30d"
+const SENTIMENT_RANGES: SentimentRange[] = ["24h", "7d", "30d"]
+
+type CuratedNewsResponse = {
+  id: string
+  asset_id: string | null
+  summary: string
+  sentiment_score: number | null
+  created_at: string
+}
+
+type WatchlistInsightRow = {
+  asset: AssetResponse
+  tickerSymbol: string | null
+  price: number | null
+  changePct: number | null
+  quoteVolume: number | null
+  news?: CuratedNewsResponse
+}
+
+type MarketSentimentResult = {
+  asset: AssetResponse
+  range: SentimentRange
+  score: number
+  label: "Bullish" | "Neutral" | "Bearish"
+  priceChangePct: number | null
+  volumeChangePct: number | null
+  volumeUsd: number | null
+  avgNewsSentiment: number | null
+  newsCount: number
+  priceDataSource: "market-data" | "binance-live" | "none"
+  explanation: string
+}
+
+type TickerFallback = {
+  price: number
+  changePct: number
+  quoteVolume: number
+}
+
+function formatUsd(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 2 : 4,
+  }).format(value)
+}
+
+function formatCompactUsd(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatPct(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—"
+  const sign = value > 0 ? "+" : ""
+  return `${sign}${value.toFixed(2)}%`
+}
+
+function getTickerSymbol(symbol: string): string | null {
+  const normalized = symbol.trim().toUpperCase()
+  if (!normalized || normalized === "USDT") return null
+  return `${normalized}USDT`
+}
+
+async function fetchBinance24hTicker(symbol: string): Promise<TickerFallback | null> {
+  try {
+    const response = await fetch(`${BINANCE_24HR_TICKER_URL}?symbol=${symbol}`)
+    if (!response.ok) return null
+    const row = (await response.json()) as {
+      lastPrice?: string
+      priceChangePercent?: string
+      quoteVolume?: string
+    }
+    const price = Number.parseFloat(row.lastPrice ?? "")
+    const changePct = Number.parseFloat(row.priceChangePercent ?? "")
+    const quoteVolume = Number.parseFloat(row.quoteVolume ?? "")
+    if (!Number.isFinite(price) || !Number.isFinite(changePct)) return null
+    return {
+      price,
+      changePct,
+      quoteVolume: Number.isFinite(quoteVolume) ? quoteVolume : 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+function getSentimentLabel(score: number | null | undefined): "Bullish" | "Neutral" | "Bearish" {
+  if (score == null || !Number.isFinite(score)) return "Neutral"
+  if (score > 0.15) return "Bullish"
+  if (score < -0.15) return "Bearish"
+  return "Neutral"
+}
+
+function getAttentionLabel(row: WatchlistInsightRow): string {
+  const change = row.changePct ?? 0
+  const newsCount = row.news ? "New curated news available" : "No curated news yet"
+  if (change >= 5) return `${row.asset.symbol} is up ${formatPct(change)} in 24h`
+  if (change <= -5) return `${row.asset.symbol} is down ${formatPct(change)} in 24h`
+  if (row.quoteVolume != null && row.quoteVolume > 1_000_000_000) {
+    return `${row.asset.symbol} has high 24h trading volume`
+  }
+  return newsCount
+}
+
+function clampScore(score: number): number {
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
+function getScoreLabel(score: number): MarketSentimentResult["label"] {
+  if (score >= 65) return "Bullish"
+  if (score <= 40) return "Bearish"
+  return "Neutral"
+}
+
+function getSentimentColorClass(label: MarketSentimentResult["label"]): string {
+  if (label === "Bullish") return "text-emerald-500"
+  if (label === "Bearish") return "text-red-500"
+  return "text-yellow-500"
+}
+
+function getSignedValueColorClass(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "text-yellow-500"
+  if (value > 0) return "text-emerald-500"
+  if (value < 0) return "text-red-500"
+  return "text-yellow-500"
+}
+
+function getNewsValueColorClass(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "text-yellow-500"
+  if (value > 0.05) return "text-emerald-500"
+  if (value < -0.05) return "text-red-500"
+  return "text-yellow-500"
+}
+
+function getSentimentWindow(range: SentimentRange): { timeFrom: Date; resolution: string } {
+  const now = new Date()
+  const hoursByRange: Record<SentimentRange, number> = {
+    "24h": 24,
+    "7d": 7 * 24,
+    "30d": 30 * 24,
+  }
+  const timeFrom = new Date(now.getTime() - hoursByRange[range] * 60 * 60 * 1000)
+  return {
+    timeFrom,
+    resolution: range === "24h" ? "1h" : "1d",
+  }
+}
+
+function average(values: number[]): number | null {
+  const finite = values.filter((value) => Number.isFinite(value))
+  if (finite.length === 0) return null
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length
+}
+
+function calculateVolumeChangePct(rows: MarketDataResponse[]): number | null {
+  if (rows.length < 4) return null
+  const midpoint = Math.floor(rows.length / 2)
+  const firstAverage = average(rows.slice(0, midpoint).map((row) => row.volume))
+  const secondAverage = average(rows.slice(midpoint).map((row) => row.volume))
+  if (firstAverage == null || secondAverage == null || firstAverage <= 0) return null
+  return ((secondAverage - firstAverage) / firstAverage) * 100
+}
+
+function buildMarketSentimentResult(
+  asset: AssetResponse,
+  range: SentimentRange,
+  marketRows: MarketDataResponse[],
+  newsRows: CuratedNewsResponse[],
+  tickerFallback?: TickerFallback | null
+): MarketSentimentResult {
+  const sortedMarketRows = [...marketRows].sort(
+    (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+  )
+  const first = sortedMarketRows[0]
+  const latest = sortedMarketRows[sortedMarketRows.length - 1]
+  const marketDataPriceChangePct =
+    first && latest && first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : null
+  const priceChangePct = marketDataPriceChangePct ?? tickerFallback?.changePct ?? null
+  const priceDataSource =
+    marketDataPriceChangePct != null
+      ? "market-data"
+      : tickerFallback
+        ? "binance-live"
+        : "none"
+  const volumeChangePct = calculateVolumeChangePct(sortedMarketRows)
+  const volumeUsd = tickerFallback?.quoteVolume ?? null
+  const avgNewsSentiment = average(
+    newsRows
+      .map((row) => row.sentiment_score)
+      .filter((score): score is number => score != null && Number.isFinite(score))
+  )
+
+  let score = 50
+  const reasons: string[] = []
+  const hasNewsSignal = avgNewsSentiment != null
+  const priceWeight = hasNewsSignal ? 1 : 1.25
+
+  if (priceChangePct != null) {
+    if (priceChangePct >= 5) {
+      score += 24 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "strong positive live price momentum"
+          : "strong positive price momentum"
+      )
+    } else if (priceChangePct >= 3) {
+      score += 18 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "clear positive live price movement"
+          : "clear positive price movement"
+      )
+    } else if (priceChangePct >= 1) {
+      score += 10 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "mild positive live price movement"
+          : "mild positive price movement"
+      )
+    } else if (priceChangePct <= -5) {
+      score -= 24 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "negative live price momentum"
+          : "negative price momentum"
+      )
+    } else if (priceChangePct <= -3) {
+      score -= 18 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "clear negative live price movement"
+          : "clear negative price movement"
+      )
+    } else if (priceChangePct <= -1) {
+      score -= 10 * priceWeight
+      reasons.push(
+        priceDataSource === "binance-live"
+          ? "mild negative live price movement"
+          : "mild negative price movement"
+      )
+    }
+  }
+
+  if (avgNewsSentiment != null) {
+    if (avgNewsSentiment > 0.2) {
+      score += 18
+      reasons.push("positive curated news sentiment")
+    } else if (avgNewsSentiment < -0.2) {
+      score -= 18
+      reasons.push("negative curated news sentiment")
+    } else if (avgNewsSentiment > 0.05) {
+      score += 9
+      reasons.push("slightly positive news tone")
+    } else if (avgNewsSentiment < -0.05) {
+      score -= 9
+      reasons.push("slightly negative news tone")
+    }
+  }
+
+  if (volumeChangePct != null) {
+    if (volumeChangePct > 20 && priceChangePct != null) {
+      const volumeBoost = priceChangePct >= 0 ? 6 : -6
+      score += volumeBoost
+      reasons.push("rising trading volume")
+    } else if (volumeChangePct < -20) {
+      score -= 4
+      reasons.push("cooling trading volume")
+    }
+  } else if (volumeUsd != null && volumeUsd > 100_000_000 && priceChangePct != null) {
+    score += priceChangePct >= 0 ? 4 : -4
+    reasons.push("high live trading volume")
+  }
+
+  const finalScore = clampScore(score)
+  const label = getScoreLabel(finalScore)
+  const explanation =
+    reasons.length > 0
+      ? `${asset.symbol} looks ${label.toLowerCase()} because of ${reasons.join(", ")}.`
+      : `${asset.symbol} looks neutral because available market and news signals are limited.`
+
+  return {
+    asset,
+    range,
+    score: finalScore,
+    label,
+    priceChangePct,
+    volumeChangePct,
+    volumeUsd,
+    avgNewsSentiment,
+    newsCount: newsRows.length,
+    priceDataSource,
+    explanation,
+  }
+}
 
 function convertAmount(
   amount: number,
@@ -101,9 +422,63 @@ export default function ToolsPage() {
   const [ratesStatus, setRatesStatus] = React.useState<"loading" | "live" | "fallback">("loading")
   const [lastUpdatedAt, setLastUpdatedAt] = React.useState<Date | null>(null)
   const [amountLimitError, setAmountLimitError] = React.useState<string | null>(null)
+  const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
+  const [watchlistLoading, setWatchlistLoading] = React.useState(true)
+  const [watchlistError, setWatchlistError] = React.useState<string | null>(null)
+  const [curatedNewsByAssetId, setCuratedNewsByAssetId] = React.useState<
+    Record<string, CuratedNewsResponse>
+  >({})
+  const [assets, setAssets] = React.useState<AssetResponse[]>([])
+  const [assetsLoading, setAssetsLoading] = React.useState(true)
+  const [selectedSentimentAssetId, setSelectedSentimentAssetId] = React.useState("")
+  const [sentimentRange, setSentimentRange] = React.useState<SentimentRange>("7d")
+  const [sentimentLoading, setSentimentLoading] = React.useState(false)
+  const [sentimentError, setSentimentError] = React.useState<string | null>(null)
+  const [sentimentResult, setSentimentResult] = React.useState<MarketSentimentResult | null>(null)
+  const selectedSentimentAsset = assets.find((asset) => asset.id === selectedSentimentAssetId)
+
+  const watchlistTickerSymbols = React.useMemo(
+    () => {
+      const selectedTickerSymbol = selectedSentimentAsset
+        ? getTickerSymbol(selectedSentimentAsset.symbol)
+        : null
+      return watchlist
+        .map((entry) => getTickerSymbol(entry.asset.symbol))
+        .concat(selectedTickerSymbol)
+        .filter((symbol): symbol is string => Boolean(symbol))
+    },
+    [selectedSentimentAsset, watchlist]
+  )
+  const liveTickers = useLiveTickers(watchlistTickerSymbols)
 
   const numericAmount = Number.parseFloat(amount)
   const converted = convertAmount(numericAmount, fromCurrency, toCurrency, usdBaseRates)
+
+  const insightRows = React.useMemo<WatchlistInsightRow[]>(() => {
+    return watchlist.map((entry) => {
+      const tickerSymbol = getTickerSymbol(entry.asset.symbol)
+      const ticker = tickerSymbol ? liveTickers[tickerSymbol] : null
+      const isStableUsdt = entry.asset.symbol.toUpperCase() === "USDT"
+      return {
+        asset: entry.asset,
+        tickerSymbol,
+        price: isStableUsdt ? 1 : ticker?.price ?? null,
+        changePct: isStableUsdt ? 0 : ticker?.changePct ?? null,
+        quoteVolume: ticker?.quoteVolume ?? null,
+        news: curatedNewsByAssetId[entry.asset.id],
+      }
+    })
+  }, [curatedNewsByAssetId, liveTickers, watchlist])
+
+  const sortedInsightRows = React.useMemo(() => {
+    return [...insightRows].sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0))
+  }, [insightRows])
+
+  const topMover = sortedInsightRows[0]
+  const strongest = insightRows
+    .filter((row) => row.changePct != null)
+    .sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0))[0]
+  const newsCount = insightRows.filter((row) => row.news).length
 
   const formattedResult = Number.isFinite(converted)
     ? converted.toLocaleString(undefined, {
@@ -132,6 +507,86 @@ export default function ToolsPage() {
     setAmount(raw)
     setAmountLimitError(null)
   }
+
+  const handleAnalyzeSentiment = async () => {
+    if (!selectedSentimentAsset) {
+      setSentimentError("Select an asset to analyze.")
+      return
+    }
+
+    setSentimentLoading(true)
+    setSentimentError(null)
+    try {
+      const { timeFrom, resolution } = getSentimentWindow(sentimentRange)
+      const now = new Date()
+      const marketData = await apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
+        asset_id: selectedSentimentAsset.id,
+        time_from: timeFrom.toISOString(),
+        time_to: now.toISOString(),
+        resolution,
+        page_size: 200,
+      })
+
+      let curatedNews: CuratedNewsResponse[] = []
+      try {
+        const news = await apiGet<PaginatedResponse<CuratedNewsResponse>>("/curated-news", {
+          asset_id: selectedSentimentAsset.id,
+          page_size: 10,
+        })
+        curatedNews = news.items
+      } catch {
+        curatedNews = []
+      }
+
+      const selectedTickerSymbol = getTickerSymbol(selectedSentimentAsset.symbol)
+      const liveTicker = selectedTickerSymbol ? liveTickers[selectedTickerSymbol] : null
+      const tickerFallback =
+        liveTicker ?? (selectedTickerSymbol ? await fetchBinance24hTicker(selectedTickerSymbol) : null)
+
+      setSentimentResult(
+        buildMarketSentimentResult(
+          selectedSentimentAsset,
+          sentimentRange,
+          marketData.items,
+          curatedNews,
+          tickerFallback
+        )
+      )
+    } catch {
+      setSentimentResult(null)
+      setSentimentError("Could not analyze market sentiment for this asset.")
+    } finally {
+      setSentimentLoading(false)
+    }
+  }
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    const fetchAssets = async () => {
+      setAssetsLoading(true)
+      try {
+        const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 100 })
+        if (cancelled) return
+        setAssets(data.items)
+        const defaultAsset =
+          data.items.find((asset) => asset.symbol.toUpperCase() === "BTC") ?? data.items[0]
+        if (defaultAsset) {
+          setSelectedSentimentAssetId((current) => current || defaultAsset.id)
+        }
+      } catch {
+        if (!cancelled) setAssets([])
+      } finally {
+        if (!cancelled) setAssetsLoading(false)
+      }
+    }
+
+    void fetchAssets()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   React.useEffect(() => {
     let cancelled = false
@@ -171,6 +626,52 @@ export default function ToolsPage() {
     }
   }, [])
 
+  React.useEffect(() => {
+    let cancelled = false
+
+    const fetchWatchlistInsights = async () => {
+      setWatchlistLoading(true)
+      setWatchlistError(null)
+      try {
+        const entries = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
+        if (cancelled) return
+        setWatchlist(entries)
+
+        const newsPairs = await Promise.all(
+          entries.slice(0, 8).map(async (entry) => {
+            try {
+              const news = await apiGet<PaginatedResponse<CuratedNewsResponse>>("/curated-news", {
+                asset_id: entry.asset.id,
+                page_size: 1,
+              })
+              return [entry.asset.id, news.items[0]] as const
+            } catch {
+              return [entry.asset.id, undefined] as const
+            }
+          })
+        )
+        if (cancelled) return
+        const nextNews: Record<string, CuratedNewsResponse> = {}
+        for (const [assetId, news] of newsPairs) {
+          if (news) nextNews[assetId] = news
+        }
+        setCuratedNewsByAssetId(nextNews)
+      } catch {
+        if (cancelled) return
+        setWatchlist([])
+        setWatchlistError("Could not load your watchlist insights.")
+      } finally {
+        if (!cancelled) setWatchlistLoading(false)
+      }
+    }
+
+    void fetchWatchlistInsights()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -193,6 +694,18 @@ export default function ToolsPage() {
                 className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
               >
                 Currency Converter
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Watchlist Insights
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Market Sentiment
               </button>
             </aside>
             <section className="space-y-5">
@@ -292,6 +805,338 @@ export default function ToolsPage() {
                           : "Rate basis: Binance unavailable, using fallback rates."}
                     </p>
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border">
+                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-xl font-semibold">
+                      <Gauge className="size-5 text-primary" />
+                      Market Sentiment Tool
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Analyze price momentum and curated news tone for a selected asset.
+                    </p>
+                  </div>
+                  {sentimentResult ? (
+                    <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                      {sentimentResult.range}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="space-y-4 px-5 py-4">
+                  <div className="grid gap-4 md:grid-cols-[1fr_180px_auto] md:items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Asset</label>
+                      <Select
+                        value={selectedSentimentAssetId}
+                        onValueChange={setSelectedSentimentAssetId}
+                        disabled={assetsLoading || sentimentLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={assetsLoading ? "Loading assets..." : "Select asset"}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {assets.map((asset) => (
+                            <SelectItem key={asset.id} value={asset.id}>
+                              {asset.symbol} - {asset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Range</label>
+                      <Select
+                        value={sentimentRange}
+                        onValueChange={(value) => setSentimentRange(value as SentimentRange)}
+                        disabled={sentimentLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SENTIMENT_RANGES.map((range) => (
+                            <SelectItem key={range} value={range}>
+                              {range}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleAnalyzeSentiment}
+                      disabled={assetsLoading || sentimentLoading || !selectedSentimentAssetId}
+                    >
+                      {sentimentLoading ? "Analyzing..." : "Analyze"}
+                    </Button>
+                  </div>
+
+                  {sentimentLoading ? (
+                    <div className="grid gap-3 md:grid-cols-4">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <div key={index} className="rounded-lg border bg-muted/30 p-4">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="mt-3 h-7 w-20" />
+                          <Skeleton className="mt-2 h-3 w-32" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : sentimentError ? (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                      {sentimentError}
+                    </div>
+                  ) : sentimentResult ? (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-4">
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="text-sm text-muted-foreground">Overall sentiment</div>
+                          <div
+                            className={`mt-2 text-2xl font-semibold ${getSentimentColorClass(
+                              sentimentResult.label
+                            )}`}
+                          >
+                            {sentimentResult.label}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Score {sentimentResult.score}/100
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <TrendingUp className="size-4" />
+                            Price signal
+                          </div>
+                          <div
+                            className={`mt-2 text-2xl font-semibold ${getSignedValueColorClass(
+                              sentimentResult.priceChangePct
+                            )}`}
+                          >
+                            {formatPct(sentimentResult.priceChangePct)}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {sentimentResult.priceDataSource === "market-data"
+                              ? `Close-to-close over ${sentimentResult.range}`
+                              : sentimentResult.priceDataSource === "binance-live"
+                                ? "Live Binance 24h fallback"
+                                : "No price data available"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Newspaper className="size-4" />
+                            News signal
+                          </div>
+                          <div
+                            className={`mt-2 text-2xl font-semibold ${getNewsValueColorClass(
+                              sentimentResult.avgNewsSentiment
+                            )}`}
+                          >
+                            {sentimentResult.avgNewsSentiment == null
+                              ? "No news"
+                              : sentimentResult.avgNewsSentiment.toFixed(2)}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {sentimentResult.newsCount} curated news items
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Activity className="size-4" />
+                            Volume signal
+                          </div>
+                          <div
+                            className={`mt-2 text-2xl font-semibold ${
+                              sentimentResult.volumeChangePct != null
+                                ? getSignedValueColorClass(sentimentResult.volumeChangePct)
+                                : "text-yellow-500"
+                            }`}
+                          >
+                            {sentimentResult.volumeChangePct != null
+                              ? formatPct(sentimentResult.volumeChangePct)
+                              : formatCompactUsd(sentimentResult.volumeUsd)}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {sentimentResult.volumeChangePct != null
+                              ? "Recent volume vs earlier window"
+                              : sentimentResult.volumeUsd != null
+                                ? "Live Binance 24h quote volume"
+                                : "No volume data available"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-muted/50 p-4">
+                        <div className="text-sm font-medium">
+                          {sentimentResult.asset.symbol} sentiment summary
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {sentimentResult.explanation}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/40 p-5">
+                      <div className="font-medium">Select an asset and run analysis</div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        The tool combines market data and curated news into a simple sentiment score.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border">
+                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-xl font-semibold">
+                      <WalletCards className="size-5 text-primary" />
+                      Watchlist Insights
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Live movement, volume, and curated news signals from your watchlist.
+                    </p>
+                  </div>
+                  <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                    {watchlistLoading ? "Loading" : `${watchlist.length} assets`}
+                  </div>
+                </div>
+
+                <div className="space-y-4 px-5 py-4">
+                  {watchlistLoading ? (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <div key={index} className="rounded-lg border bg-muted/30 p-4">
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="mt-3 h-7 w-28" />
+                            <Skeleton className="mt-2 h-3 w-36" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <Skeleton key={index} className="h-20 w-full rounded-lg" />
+                        ))}
+                      </div>
+                    </>
+                  ) : watchlistError ? (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                      {watchlistError}
+                    </div>
+                  ) : watchlist.length === 0 ? (
+                    <div className="rounded-lg border bg-muted/40 p-5">
+                      <div className="font-medium">Your watchlist is empty</div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Add assets to your watchlist to see live attention cards here.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Bell className="size-4" />
+                            Needs attention
+                          </div>
+                          <div className="mt-2 text-lg font-semibold">
+                            {topMover ? topMover.asset.symbol : "—"}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {topMover ? getAttentionLabel(topMover) : "Waiting for live data."}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <TrendingUp className="size-4 text-emerald-500" />
+                            Strongest 24h
+                          </div>
+                          <div className="mt-2 text-lg font-semibold">
+                            {strongest ? strongest.asset.symbol : "—"}
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {strongest
+                              ? `${formatPct(strongest.changePct)} at ${formatUsd(strongest.price)}`
+                              : "No live change yet."}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg border bg-muted/30 p-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Newspaper className="size-4" />
+                            Curated news
+                          </div>
+                          <div className="mt-2 text-lg font-semibold">{newsCount}</div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Latest summaries matched to watchlist assets.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {sortedInsightRows.slice(0, 6).map((row) => {
+                          const sentiment = getSentimentLabel(row.news?.sentiment_score)
+                          const isPositive = (row.changePct ?? 0) >= 0
+                          return (
+                            <div
+                              key={row.asset.id}
+                              className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto] md:items-center"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold">{row.asset.symbol}</span>
+                                  <span className="text-sm text-muted-foreground">{row.asset.name}</span>
+                                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                    {sentiment}
+                                  </span>
+                                </div>
+                                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                                  {row.news?.summary ?? getAttentionLabel(row)}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-6 md:justify-end">
+                                <div className="text-right">
+                                  <div className="text-sm font-medium">{formatUsd(row.price)}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    Vol {formatCompactUsd(row.quoteVolume)}
+                                  </div>
+                                </div>
+                                <div
+                                  className={`flex min-w-20 items-center justify-end gap-1 text-sm font-semibold ${
+                                    isPositive ? "text-emerald-500" : "text-red-500"
+                                  }`}
+                                >
+                                  {isPositive ? (
+                                    <TrendingUp className="size-4" />
+                                  ) : (
+                                    <TrendingDown className="size-4" />
+                                  )}
+                                  {formatPct(row.changePct)}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Live price data comes from Binance ticker streams. Curated news is pulled from
+                        Tauron&apos;s backend when available.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </section>
