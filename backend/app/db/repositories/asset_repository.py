@@ -16,11 +16,18 @@ class AssetRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def count(self, is_active: Optional[bool] = None) -> int:
-        """Return total assets optionally filtered by ``is_active``."""
+    async def count(self, is_active: Optional[bool] = None, search: Optional[str] = None) -> int:
+        """Return total assets optionally filtered by ``is_active`` and ``search``."""
         statement = select(func.count()).select_from(Asset)
         if is_active is not None:
             statement = statement.where(Asset.is_active == is_active)
+        if search:
+            q = f"%{search.strip().lower()}%"
+            statement = statement.where(
+                (func.lower(Asset.symbol).like(q)) |
+                (func.lower(Asset.name).like(q)) |
+                (func.lower(Asset.category).like(q))
+            )
         result = await self._session.execute(statement)
         return int(result.scalar_one() or 0)
 
@@ -29,11 +36,19 @@ class AssetRepository:
         offset: int,
         limit: int,
         is_active: Optional[bool] = None,
+        search: Optional[str] = None,
     ) -> list[Asset]:
-        """Return a page of assets ordered by symbol."""
+        """Return a page of assets ordered by symbol, optionally filtered."""
         statement = select(Asset).order_by(Asset.symbol).offset(offset).limit(limit)
         if is_active is not None:
             statement = statement.where(Asset.is_active == is_active)
+        if search:
+            q = f"%{search.strip().lower()}%"
+            statement = statement.where(
+                (func.lower(Asset.symbol).like(q)) |
+                (func.lower(Asset.name).like(q)) |
+                (func.lower(Asset.category).like(q))
+            )
         result = await self._session.execute(statement)
         return list(result.scalars().all())
 

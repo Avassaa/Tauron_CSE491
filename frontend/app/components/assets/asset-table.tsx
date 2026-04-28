@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, TrendingDown, ChevronUp, ChevronDown, Activity } from "lucide-react"
+import { Star, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Search } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -10,39 +10,40 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table"
-import { Badge } from "~/components/ui/badge"
 import type { AssetResponse } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
 import { cn } from "~/lib/utils"
-import { Skeleton } from "~/components/ui/skeleton"
+import { Sparkline } from "./sparkline"
+import {
+  type CurrencyCode,
+  CURRENCY_SYMBOLS,
+  FALLBACK_USD_BASE_RATES,
+  getUsdtPerCurrency
+} from "~/lib/currency"
 
-type CoinGeckoMarket = {
-  id: string
-  current_price: number | null
-  market_cap: number | null
-  total_volume: number | null
-  price_change_percentage_1h_in_currency: number | null
-  price_change_percentage_24h_in_currency: number | null
-  price_change_percentage_7d_in_currency: number | null
-  sparkline_in_7d?: { price?: number[] }
+/**
+ * Type for market data received from the parent component.
+ */
+export interface MarketData {
+  price: number
+  price_change_1h: number
+  price_change_24h: number
+  price_change_7d: number
+  price_change_14d?: number
+  price_change_30d?: number
+  price_change_1y?: number
+  volume: number
+  market_cap: number
+  rank: number
+  sparkline: number[]
 }
 
-const CURRENCY_SYMBOLS = {
-  USD: "$",
-  TRY: "₺",
-  EUR: "€",
-  GBP: "£",
-  JPY: "¥",
-  RUB: "₽",
-  CAD: "C$",
-  AUD: "A$",
-  CHF: "CHF ",
-  CNY: "¥",
-} as const
-
+/**
+ * Currency formatting: Shortens values using compact notation (K, M, B).
+ */
 function formatCompactCurrency(
   value: number | null | undefined,
-  currencyCode: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY",
+  currencyCode: CurrencyCode,
 ) {
   if (!Number.isFinite(value ?? NaN)) return "—"
   const formatted = new Intl.NumberFormat("en-US", {
@@ -53,45 +54,75 @@ function formatCompactCurrency(
   return `${CURRENCY_SYMBOLS[currencyCode]}${formatted}`
 }
 
-function formatPercent(value?: number | null) {
+/**
+ * Number formatting: Shortens large numbers like Volume and Market Cap.
+ */
+function formatCompact(value?: number | null) {
   if (!Number.isFinite(value ?? NaN)) return "—"
-  return `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(1)}%`
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value as number)
 }
 
-function sparklinePath(values?: number[]) {
-  const points = (values || []).filter((value) => Number.isFinite(value))
-  if (points.length < 2) return null
-  const min = Math.min(...points)
-  const max = Math.max(...points)
-  const span = Math.max(max - min, 1e-9)
-  return points
-    .map((value, index) => {
-      const x = (index / (points.length - 1)) * 100
-      const y = 34 - ((value - min) / span) * 28
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`
-    })
-    .join(" ")
+/**
+ * Price Change Component: Displays color and icon (up/down arrow) based on percentage change.
+ */
+function PriceChange({ value }: { value?: number | null }) {
+  if (!Number.isFinite(value ?? NaN)) return <span className="text-muted-foreground">—</span>
+  const isPositive = (value as number) >= 0
+  return (
+    <div className={cn("flex items-center justify-end gap-1 font-mono text-xs font-bold tabular-nums", isPositive ? "text-green-500" : "text-red-500")}>
+      {isPositive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+      {isPositive ? "+" : ""}{value?.toFixed(2)}%
+    </div>
+  )
+}
+
+/**
+ * Resilient Icon component that falls back to text if image fails
+ */
+function AssetIcon({ symbol }: { symbol: string }) {
+  const [error, setError] = React.useState(false)
+
+  if (error) {
+    return (
+      <span className="text-[10px] font-black text-primary uppercase">
+        {symbol.slice(0, 3)}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={`https://cryptoicons.org/api/icon/${symbol.toLowerCase()}/64`}
+      alt={symbol}
+      className="size-full object-cover"
+      onError={() => setError(true)}
+    />
+  )
 }
 
 interface AssetTableProps {
-  assets: AssetResponse[]
-  search: string
+  assets: AssetResponse[] // Assets to display in the table
+  marketDataMap: Record<string, MarketData> // Market data indexed by asset ID
   currentPage: number
   pageSize: number
   sortConfig: {
-    key: "name" | "symbol" | "category" | "is_active" | "activity"
+    key: string
     direction: "asc" | "desc"
   } | null
-  handleSort: (key: "name" | "symbol" | "category" | "is_active" | "activity") => void
-  setSelectedAsset: (asset: AssetResponse) => void
-  quoteCurrency: string
+  handleSort: (key: any) => void
+  setSelectedAsset: (asset: AssetResponse) => void // Opens detail view on row click
+  quoteCurrency: string // Currency to display (USD, TRY, etc.)
   quotePerUsd?: number
-  marketAssets?: AssetResponse[]
+  onToggleWatchlist: (asset: AssetResponse) => void // Add/Remove from watchlist
+  watchlistIds: Set<string> // Set of asset IDs in the user's watchlist
 }
 
 export function AssetTable({
   assets,
-  search,
+  marketDataMap,
   currentPage,
   pageSize,
   sortConfig,
@@ -99,77 +130,48 @@ export function AssetTable({
   setSelectedAsset,
   quoteCurrency,
   quotePerUsd: externalQuotePerUsd,
-  marketAssets,
+  onToggleWatchlist,
+  watchlistIds,
 }: AssetTableProps) {
+  // --- HELPER VARIABLES & STATE ---
   const isUsdPeggedQuote = (value: string) => value === "USD" || value === "USDT" || value === "USDC" || value === "BUSD"
-  const normalizedQuoteCurrency =
-    quoteCurrency === "USD" ||
-    quoteCurrency === "TRY" ||
-    quoteCurrency === "EUR" ||
-    quoteCurrency === "GBP" ||
-    quoteCurrency === "JPY" ||
-    quoteCurrency === "RUB" ||
-    quoteCurrency === "CAD" ||
-    quoteCurrency === "AUD" ||
-    quoteCurrency === "CHF" ||
-    quoteCurrency === "CNY"
-      ? quoteCurrency
-      : "USD"
+
+  // Normalize the quote currency code (default to USD)
+  const normalizedQuoteCurrency = ["USD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"].includes(quoteCurrency)
+    ? quoteCurrency
+    : "USD"
+
   const [flashBySymbol, setFlashBySymbol] = React.useState<Record<string, "up" | "down">>({})
-  const [marketById, setMarketById] = React.useState<Record<string, CoinGeckoMarket>>({})
-  const [loadingMarketIds, setLoadingMarketIds] = React.useState<Set<string>>(new Set())
-  const requestedMarketIdsRef = React.useRef<Set<string>>(new Set())
-  const marketByIdRef = React.useRef<Record<string, CoinGeckoMarket>>({})
   const lastPriceBySymbolRef = React.useRef<Record<string, number>>({})
   const flashTimersRef = React.useRef<Record<string, number>>({})
-  const currencyCode: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY" =
-    normalizedQuoteCurrency === "TRY"
-      ? "TRY"
-      : normalizedQuoteCurrency === "EUR"
-        ? "EUR"
-        : normalizedQuoteCurrency === "GBP"
-          ? "GBP"
-          : normalizedQuoteCurrency === "JPY"
-            ? "JPY"
-            : normalizedQuoteCurrency === "RUB"
-              ? "RUB"
-              : normalizedQuoteCurrency === "CAD"
-                ? "CAD"
-                : normalizedQuoteCurrency === "AUD"
-                  ? "AUD"
-                  : normalizedQuoteCurrency === "CHF"
-                    ? "CHF"
-                    : normalizedQuoteCurrency === "CNY"
-                      ? "CNY"
-                      : "USD"
+  const currencyCode = (normalizedQuoteCurrency as CurrencyCode) || "USD"
+
+  // --- LIVE DATA (WEBSOCKET) ---
+  // Determine which symbols to subscribe to for live updates
   const streamSymbols = React.useMemo(() => {
-    const assetUsdtSymbols = assets
-      .map((asset) => `${asset.symbol.toUpperCase()}USDT`)
-      .filter((symbol) => /^[A-Z0-9]+$/.test(symbol))
-    const conversionSymbols =
-      isUsdPeggedQuote(normalizedQuoteCurrency)
-        ? []
-        : [
-            `${normalizedQuoteCurrency.toUpperCase()}USDT`,
-            `USDT${normalizedQuoteCurrency.toUpperCase()}`,
-          ]
+    const assetUsdtSymbols = assets.map((asset) => `${asset.symbol.toUpperCase()}USDT`)
+    const conversionSymbols = isUsdPeggedQuote(normalizedQuoteCurrency)
+      ? []
+      : [`${normalizedQuoteCurrency.toUpperCase()}USDT`, `USDT${normalizedQuoteCurrency.toUpperCase()}`]
     return Array.from(new Set([...assetUsdtSymbols, ...conversionSymbols]))
   }, [assets, normalizedQuoteCurrency])
+
   const liveTickers = useLiveTickers(streamSymbols)
+
+  // Calculate the exchange rate for the selected quote currency
   const quotePerUsd = React.useMemo(() => {
     if (isUsdPeggedQuote(normalizedQuoteCurrency)) return 1
     if (Number.isFinite(externalQuotePerUsd)) return externalQuotePerUsd as number
-    const quoteUsdt = liveTickers[`${normalizedQuoteCurrency.toUpperCase()}USDT`]?.price
-    if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
-    const usdtQuote = liveTickers[`USDT${normalizedQuoteCurrency.toUpperCase()}`]?.price
-    if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
-    return null
-  }, [externalQuotePerUsd, liveTickers, normalizedQuoteCurrency])
-  const formatSelectedCompactCurrency = React.useCallback((value?: number | null) => {
-    if (!Number.isFinite(value ?? NaN) || !Number.isFinite(quotePerUsd ?? NaN)) return "—"
-    return formatCompactCurrency((value as number) * (quotePerUsd as number), currencyCode)
-  }, [currencyCode, quotePerUsd])
 
+    const usdtPerCurrency = getUsdtPerCurrency(normalizedQuoteCurrency, Object.fromEntries(
+      Object.entries(liveTickers).map(([k, v]) => [k, v.price])
+    ))
+
+    if (Number.isFinite(usdtPerCurrency) && usdtPerCurrency! > 0) return 1 / usdtPerCurrency!
+    return FALLBACK_USD_BASE_RATES[normalizedQuoteCurrency] || 1
+  }, [externalQuotePerUsd, liveTickers, normalizedQuoteCurrency])
+
+  // --- PRICE FLASH EFFECT (TICKERS) ---
   const queuePriceFlash = React.useCallback((symbol: string, direction: "up" | "down") => {
     setFlashBySymbol((prev) => ({ ...prev, [symbol]: direction }))
     const existing = flashTimersRef.current[symbol]
@@ -180,19 +182,10 @@ export function AssetTable({
         delete next[symbol]
         return next
       })
-      delete flashTimersRef.current[symbol]
     }, 650)
   }, [])
 
-  React.useEffect(() => {
-    return () => {
-      for (const timer of Object.values(flashTimersRef.current)) {
-        window.clearTimeout(timer)
-      }
-      flashTimersRef.current = {}
-    }
-  }, [])
-
+  // Trigger flash effect when live price changes
   React.useEffect(() => {
     for (const [symbol, row] of Object.entries(liveTickers)) {
       const nextPrice = row.price
@@ -205,82 +198,7 @@ export function AssetTable({
     }
   }, [liveTickers, queuePriceFlash])
 
-  React.useEffect(() => {
-    marketByIdRef.current = marketById
-  }, [marketById])
-
-  React.useEffect(() => {
-    const sourceAssets = marketAssets && marketAssets.length > 0 ? marketAssets : assets
-    const ids = Array.from(
-      new Set(
-        sourceAssets
-          .map((asset) => asset.coingecko_id)
-          .filter((id): id is string => {
-            if (!id) return false
-            return !marketByIdRef.current[id] && !requestedMarketIdsRef.current.has(id)
-          }),
-      ),
-    )
-    if (ids.length === 0) return
-
-    const loadMarkets = async () => {
-      ids.forEach((id) => requestedMarketIdsRef.current.add(id))
-      setLoadingMarketIds((prev) => {
-        const next = new Set(prev)
-        ids.forEach((id) => next.add(id))
-        return next
-      })
-      try {
-        const chunks = Array.from({ length: Math.ceil(ids.length / 50) }, (_, index) =>
-          ids.slice(index * 50, index * 50 + 50),
-        )
-        const settled = await Promise.allSettled(
-          chunks.map(async (chunk) => {
-            const controller = new AbortController()
-            const timeout = window.setTimeout(() => controller.abort(), 8000)
-            const params = new URLSearchParams({
-              vs_currency: "usd",
-              ids: chunk.join(","),
-              order: "market_cap_desc",
-              per_page: String(chunk.length),
-              page: "1",
-              sparkline: "true",
-              price_change_percentage: "1h,24h,7d",
-            })
-            try {
-              const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`, {
-                signal: controller.signal,
-              })
-              if (!response.ok) throw new Error(`CoinGecko markets failed: ${response.status}`)
-              return (await response.json()) as CoinGeckoMarket[]
-            } finally {
-              window.clearTimeout(timeout)
-            }
-          }),
-        )
-        const rows = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
-        setMarketById((prev) => {
-          const next = { ...prev }
-          for (const row of rows) {
-            next[row.id] = row
-          }
-          return next
-        })
-      } catch {
-        // Keep Binance live values and placeholders if CoinGecko rate-limits.
-      } finally {
-        setLoadingMarketIds((prev) => {
-          const next = new Set(prev)
-          ids.forEach((id) => next.delete(id))
-          return next
-        })
-        ids.forEach((id) => requestedMarketIdsRef.current.delete(id))
-      }
-    }
-
-    void loadMarkets()
-  }, [assets, marketAssets])
-
+  // --- SORTING ICON ---
   const SortIcon = ({ column }: { column: string }) => {
     if (sortConfig?.key !== column) return null
     return sortConfig.direction === "asc" ? (
@@ -290,275 +208,122 @@ export function AssetTable({
     )
   }
 
+  // --- RENDER ---
   return (
-    <div className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl shadow-primary/5">
+    <div className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden">
       <div className="overflow-x-auto scrollbar-thin">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/20">
-              <TableHead className="w-[40px] font-black text-foreground/70 py-4 px-2 uppercase tracking-widest text-[10px] text-center">
-                #
+              <TableHead className="w-[32px] px-1 text-center"></TableHead>
+              <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("rank")}>
+                <div className="flex items-center justify-center gap-0.5"># <SortIcon column="rank" /></div>
               </TableHead>
-              <TableHead
-                className="font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[10px] cursor-pointer hover:text-primary transition-colors flex items-center whitespace-nowrap"
-                onClick={() => handleSort("name")}
-              >
-                Coin <SortIcon column="name" />
+              <TableHead className="min-w-[180px] font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px] cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("name")}>
+                <div className="flex items-center gap-1">Coin <SortIcon column="name" /></div>
               </TableHead>
-              <TableHead
-                className="hidden md:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] cursor-pointer hover:text-primary transition-colors text-center whitespace-nowrap"
-                onClick={() => handleSort("symbol")}
-              >
-                <div className="flex items-center justify-center">
-                  Symbol <SortIcon column="symbol" />
-                </div>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("price")}>
+                <div className="flex items-center justify-end gap-1">Price <SortIcon column="price" /></div>
               </TableHead>
-              <TableHead
-                className="hidden sm:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] cursor-pointer hover:text-primary transition-colors text-center whitespace-nowrap"
-                onClick={() => handleSort("category")}
-              >
-                <div className="flex items-center justify-center">
-                  Category <SortIcon column="category" />
-                </div>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("change1h")}>
+                <div className="flex items-center justify-center gap-1">1h <SortIcon column="change1h" /></div>
               </TableHead>
-              <TableHead className="hidden lg:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                Price
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("change24h")}>
+                <div className="flex items-center justify-center gap-1">24h <SortIcon column="change24h" /></div>
               </TableHead>
-              <TableHead className="hidden xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                1H
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("change7d")}>
+                <div className="flex items-center justify-center gap-1">7d <SortIcon column="change7d" /></div>
               </TableHead>
-              <TableHead className="hidden xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                24H
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("volume")}>
+                <div className="flex items-center justify-end gap-1">24h Volume <SortIcon column="volume" /></div>
               </TableHead>
-              <TableHead className="hidden xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                7D
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("market_cap")}>
+                <div className="flex items-center justify-end gap-1">Market Cap <SortIcon column="market_cap" /></div>
               </TableHead>
-              <TableHead className="hidden 2xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                24H Volume
-              </TableHead>
-              <TableHead className="hidden 2xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                Market Cap
-              </TableHead>
-              <TableHead className="hidden 2xl:table-cell font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center whitespace-nowrap">
-                Last 7 Days
-              </TableHead>
-              <TableHead
-                className="font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
-                onClick={() => handleSort("is_active")}
-              >
-                <div className="flex items-center justify-center">
-                  Status <SortIcon column="is_active" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="font-black text-foreground/70 py-4 uppercase tracking-widest text-[10px] text-center cursor-pointer hover:text-primary transition-colors whitespace-nowrap"
-                onClick={() => handleSort("activity")}
-              >
-                <div className="flex items-center justify-center">
-                  Activity <SortIcon column="activity" />
-                </div>
-              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px] text-center">Last 7 Days</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assets.map((asset, index) => {
-              const liveTicker = liveTickers[`${asset.symbol.toUpperCase()}USDT`]
-              const liveTickerSymbol = `${asset.symbol.toUpperCase()}USDT`
-              const market = asset.coingecko_id ? marketById[asset.coingecko_id] : undefined
-              const isMarketLoading = asset.coingecko_id ? loadingMarketIds.has(asset.coingecko_id) : false
-              const oneHourChange = market?.price_change_percentage_1h_in_currency
-              const dayChange = market?.price_change_percentage_24h_in_currency ?? liveTicker?.changePct
-              const weekChange = market?.price_change_percentage_7d_in_currency
-              const volume = market?.total_volume ?? liveTicker?.quoteVolume
-              const sparkPath = sparklinePath(market?.sparkline_in_7d?.price)
-              const sparkIsUp = (weekChange ?? dayChange ?? 0) >= 0
+            {assets.length === 0 ? (
+              // --- EMPTY STATE ---
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={10} className="h-72 text-center">
+                  <div className="flex flex-col items-center justify-center gap-3 animate-in fade-in zoom-in duration-500">
+                    <div className="rounded-full bg-muted/50 p-4 ring-1 ring-border">
+                      <Search className="size-8 text-muted-foreground/60" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xl font-bold tracking-tight">No results found</p>
+                      <p className="text-sm text-muted-foreground">Try adjusting your search to find what you're looking for.</p>
+                    </div>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              // --- ASSET LIST ---
+              assets.map((asset, index) => {
+                const mData = marketDataMap[asset.id];
+                const isWatched = watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase());
+                const liveTickerSymbol = `${asset.symbol.toUpperCase()}USDT`
 
-              return (
-                <TableRow
-                  key={asset.id}
-                  className="group cursor-pointer border-border/40 transition-all hover:bg-primary/[0.03]"
-                  onClick={() => setSelectedAsset(asset)}
-                >
-                  <TableCell className="py-4 px-2 text-center">
-                    <span className="text-[10px] font-black text-muted-foreground/60">
-                      {(currentPage - 1) * pageSize + index + 1}
-                    </span>
-                  </TableCell>
-                  <TableCell className="py-4 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
-                        <img
-                          src={`https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`}
-                          alt={`${asset.symbol} icon`}
-                          className="size-full object-cover"
-                          onError={(e) => {
-                            const img = e.currentTarget
-                            if (!img.dataset.fallbackTried) {
-                              img.dataset.fallbackTried = "1"
-                              img.src = `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
-                              return
-                            }
-                            img.style.display = "none"
-                            const fallback = img.nextElementSibling as HTMLSpanElement | null
-                            if (fallback) fallback.style.display = "flex"
-                          }}
-                        />
-                        <span className="hidden size-full items-center justify-center font-black text-primary">
-                          {asset.symbol.slice(0, 3).toUpperCase()}
-                        </span>
+                return (
+                  <TableRow key={asset.id} className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/30" onClick={() => setSelectedAsset(asset)}>
+                    {/* Watchlist Toggle */}
+                    <TableCell className="py-4 px-0 w-[40px] text-center" onClick={(e) => { e.stopPropagation(); onToggleWatchlist(asset); }}>
+                      <div className="flex items-center justify-center h-full">
+                        <Star className={cn("size-4 transition-all duration-300", isWatched ? "fill-primary text-primary scale-110" : "text-muted-foreground/40 hover:text-primary/70 opacity-0 group-hover:opacity-100")} />
                       </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-bold tracking-tight text-foreground group-hover:text-primary transition-colors truncate">
-                          {asset.name}
-                        </span>
+                    </TableCell>
+                    {/* Row Number */}
+                    <TableCell className="py-4 px-1 text-center">
+                      <span className="text-[10px] font-black text-muted-foreground/60">{(currentPage - 1) * pageSize + index + 1}</span>
+                    </TableCell>
+                    {/* Coin Identity */}
+                    <TableCell className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
+                          <AssetIcon symbol={asset.symbol} />
+                        </div>
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          <span className="font-bold tracking-tight truncate">{asset.name}</span>
+                          <span className="text-[10px] font-black text-muted-foreground uppercase opacity-60">{asset.symbol}</span>
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell py-4 text-center">
-                    <Badge variant="secondary" className="font-mono font-bold text-xs bg-muted/50 text-muted-foreground border-none">
-                      {asset.symbol}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell py-4 text-center">
-                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest whitespace-nowrap">
-                      {asset.category || "General"}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell py-4 text-center">
-                    <span
-                      className={`inline-block min-w-[12ch] rounded px-1 text-right font-mono text-xs font-black tabular-nums whitespace-nowrap transition-colors duration-300 ${
-                        flashBySymbol[liveTickerSymbol] === "up"
-                          ? "text-emerald-500"
-                          : flashBySymbol[liveTickerSymbol] === "down"
-                            ? "text-red-500"
-                            : "text-foreground"
-                      }`}
-                    >
-                      {(() => {
-                        const usdtPrice = liveTickers[`${asset.symbol.toUpperCase()}USDT`]?.price
-                        if (!Number.isFinite(usdtPrice)) return "—"
-                        const quotePerUsdt = (() => {
-                          if (isUsdPeggedQuote(normalizedQuoteCurrency)) return 1
-                          const quoteUsdt = liveTickers[`${normalizedQuoteCurrency.toUpperCase()}USDT`]?.price
-                          if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
-                          const usdtQuote = liveTickers[`USDT${normalizedQuoteCurrency.toUpperCase()}`]?.price
-                          if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
-                          return Number.isFinite(quotePerUsd) ? quotePerUsd : null
-                        })()
-                        if (!Number.isFinite(quotePerUsdt ?? NaN)) return "—"
-                        const livePrice = usdtPrice * (quotePerUsdt as number)
-                        const formattedPrice = new Intl.NumberFormat("en-US", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: livePrice >= 1 ? 2 : 6,
-                        }).format(livePrice)
-                        return `${CURRENCY_SYMBOLS[currencyCode]}${formattedPrice}`
-                      })()}
-                    </span>
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell py-4 text-center">
-                    {isMarketLoading ? (
-                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
-                    ) : (
+                    </TableCell>
+                    {/* Live Price with Currency Conversion */}
+                    <TableCell className="py-4 px-4 text-right">
                       <span className={cn(
-                        "text-xs font-black tabular-nums",
-                        Number.isFinite(oneHourChange ?? NaN)
-                          ? (oneHourChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                          : "text-muted-foreground"
+                        "inline-block rounded px-1 font-mono text-xs font-bold tabular-nums transition-colors duration-300",
+                        flashBySymbol[liveTickerSymbol] === "up" ? "text-green-500" : flashBySymbol[liveTickerSymbol] === "down" ? "text-red-500" : "text-foreground"
                       )}>
-                        {formatPercent(oneHourChange)}
+                        {(() => {
+                          const usdtPrice = liveTickers[liveTickerSymbol]?.price || mData?.price
+                          if (!Number.isFinite(usdtPrice)) return "—"
+                          const livePrice = (usdtPrice as number) * (quotePerUsd as number)
+                          return `${CURRENCY_SYMBOLS[currencyCode]}${new Intl.NumberFormat("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: livePrice >= 1 ? 2 : 6,
+                          }).format(livePrice)}`
+                        })()}
                       </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell py-4 text-center">
-                    {isMarketLoading && !liveTicker ? (
-                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
-                    ) : (
-                      <span className={cn(
-                        "text-xs font-black tabular-nums",
-                        Number.isFinite(dayChange ?? NaN)
-                          ? (dayChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                          : "text-muted-foreground"
-                      )}>
-                        {formatPercent(dayChange)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell py-4 text-center">
-                    {isMarketLoading ? (
-                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
-                    ) : (
-                      <span className={cn(
-                        "text-xs font-black tabular-nums",
-                        Number.isFinite(weekChange ?? NaN)
-                          ? (weekChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                          : "text-muted-foreground"
-                      )}>
-                        {formatPercent(weekChange)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden 2xl:table-cell py-4 text-center">
-                    {isMarketLoading && !liveTicker ? (
-                      <Skeleton className="mx-auto h-4 w-16 rounded-md" />
-                    ) : (
-                      <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                        {formatSelectedCompactCurrency(volume)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden 2xl:table-cell py-4 text-center">
-                    {isMarketLoading ? (
-                      <Skeleton className="mx-auto h-4 w-16 rounded-md" />
-                    ) : (
-                      <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                        {formatSelectedCompactCurrency(market?.market_cap)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden 2xl:table-cell py-4 text-center">
-                    <div className="mx-auto h-10 w-28">
-                      {isMarketLoading ? (
-                        <Skeleton className="h-10 w-28 rounded-lg" />
-                      ) : sparkPath ? (
-                        <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
-                          <path
-                            d={sparkPath}
-                            fill="none"
-                            stroke={sparkIsUp ? "#22c55e" : "#ef4444"}
-                            strokeWidth="2.25"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      ) : (
-                        <span className="text-xs font-black text-muted-foreground">—</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-4 text-center">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <div className={`size-1.5 rounded-full ${asset.is_active ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" : "bg-muted-foreground/30"}`} />
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${asset.is_active ? "text-green-500" : "text-muted-foreground"}`}>
-                        {asset.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-4 text-center">
-                    <div className="flex min-w-[80px] items-center justify-center">
-                      {(dayChange ?? 0) >= 0 ? (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-green-500/10 border border-green-500/20">
-                          <span className="text-[10px] font-black text-green-500 uppercase">Bullish</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-500/10 border border-red-500/20">
-                          <span className="text-[10px] font-black text-red-500 uppercase">Bearish</span>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                    </TableCell>
+                    {/* Market Performance Metrics */}
+                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_1h} /></TableCell>
+                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_24h} /></TableCell>
+                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_7d} /></TableCell>
+                    {/* Financial Figures */}
+                    <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
+                    <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.market_cap)}</span></TableCell>
+                    {/* 7-Day Trend Visualization */}
+                    <TableCell className="py-4 px-6">
+                      <div className="flex justify-center">
+                        <Sparkline data={mData?.sparkline || []} isUp={(mData?.price_change_7d || 0) >= 0} />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
           </TableBody>
         </Table>
       </div>

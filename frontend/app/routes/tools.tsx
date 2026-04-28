@@ -35,32 +35,16 @@ import {
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
 
-type CurrencyCode = "USD" | "EUR" | "TRY" | "GBP" | "JPY" | "CAD" | "AUD" | "CHF"
+import {
+  type CurrencyCode,
+  CURRENCY_LABELS,
+  FALLBACK_USD_BASE_RATES,
+  CURRENCIES,
+  BINANCE_TICKER_URL,
+  convertAmount,
+  getUsdtPerCurrency
+} from "~/lib/currency"
 
-const CURRENCY_LABELS: Record<CurrencyCode, string> = {
-  USD: "US Dollar",
-  EUR: "Euro",
-  TRY: "Turkish Lira",
-  GBP: "British Pound",
-  JPY: "Japanese Yen",
-  CAD: "Canadian Dollar",
-  AUD: "Australian Dollar",
-  CHF: "Swiss Franc",
-}
-
-const FALLBACK_USD_BASE_RATES: Record<CurrencyCode, number> = {
-  USD: 1,
-  EUR: 0.93,
-  TRY: 38.65,
-  GBP: 0.8,
-  JPY: 154.2,
-  CAD: 1.37,
-  AUD: 1.52,
-  CHF: 0.91,
-}
-
-const CURRENCIES = Object.keys(CURRENCY_LABELS) as CurrencyCode[]
-const BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
 const BINANCE_24HR_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
 const MAX_CONVERT_AMOUNT = 1_000_000_000
 type SentimentRange = "24h" | "7d" | "30d"
@@ -366,46 +350,17 @@ function buildMarketSentimentResult(
   }
 }
 
-function convertAmount(
-  amount: number,
-  from: CurrencyCode,
-  to: CurrencyCode,
-  rates: Record<CurrencyCode, number>
-): number {
-  if (!Number.isFinite(amount)) return 0
-  const amountInUsd = amount / rates[from]
-  return amountInUsd * rates[to]
-}
-
-function toNumber(value: string | undefined): number | null {
-  if (!value) return null
-  const n = Number.parseFloat(value)
-  return Number.isFinite(n) ? n : null
-}
-
-function getUsdtPerCurrency(
-  currency: CurrencyCode,
-  tickerBySymbol: Record<string, string>
-): number | null {
-  if (currency === "USD") return 1
-
-  const direct = toNumber(tickerBySymbol[`${currency}USDT`])
-  if (direct && direct > 0) return direct
-
-  const inverse = toNumber(tickerBySymbol[`USDT${currency}`])
-  if (inverse && inverse > 0) return 1 / inverse
-
-  return null
-}
 
 function buildUsdBaseRatesFromBinance(
   tickerBySymbol: Record<string, string>
-): Record<CurrencyCode, number> {
+): Record<string, number> {
   const next = { ...FALLBACK_USD_BASE_RATES }
   for (const currency of CURRENCIES) {
-    const usdtPerCurrency = getUsdtPerCurrency(currency, tickerBySymbol)
+    const rawPrice = tickerBySymbol[`${currency}USDT`] || tickerBySymbol[`USDT${currency}`]
+    const usdtPerCurrency = getUsdtPerCurrency(currency, Object.fromEntries(
+      Object.entries(tickerBySymbol).map(([k, v]) => [k, parseFloat(v)])
+    ))
     if (usdtPerCurrency == null || usdtPerCurrency <= 0) continue
-    // Approximate USD with USDT for converter use.
     next[currency] = 1 / usdtPerCurrency
   }
   next.USD = 1
@@ -482,9 +437,9 @@ export default function ToolsPage() {
 
   const formattedResult = Number.isFinite(converted)
     ? converted.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 4,
-      })
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })
     : "0.00"
 
   const switchCurrencies = () => {
@@ -956,11 +911,10 @@ export default function ToolsPage() {
                             Volume signal
                           </div>
                           <div
-                            className={`mt-2 text-2xl font-semibold ${
-                              sentimentResult.volumeChangePct != null
+                            className={`mt-2 text-2xl font-semibold ${sentimentResult.volumeChangePct != null
                                 ? getSignedValueColorClass(sentimentResult.volumeChangePct)
                                 : "text-yellow-500"
-                            }`}
+                              }`}
                           >
                             {sentimentResult.volumeChangePct != null
                               ? formatPct(sentimentResult.volumeChangePct)
@@ -1114,9 +1068,8 @@ export default function ToolsPage() {
                                   </div>
                                 </div>
                                 <div
-                                  className={`flex min-w-20 items-center justify-end gap-1 text-sm font-semibold ${
-                                    isPositive ? "text-emerald-500" : "text-red-500"
-                                  }`}
+                                  className={`flex min-w-20 items-center justify-end gap-1 text-sm font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"
+                                    }`}
                                 >
                                   {isPositive ? (
                                     <TrendingUp className="size-4" />

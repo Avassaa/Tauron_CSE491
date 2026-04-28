@@ -1,9 +1,11 @@
 /**
  * Centralized API client for Tauron backend.
  * Reads access_token from localStorage and attaches Bearer header.
+ * All requests time out after REQUEST_TIMEOUT_MS milliseconds.
  */
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
+const REQUEST_TIMEOUT_MS = 8000
 
 export const apiBaseUrl =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
@@ -40,6 +42,11 @@ function adminHeaders(): HeadersInit {
   return headers
 }
 
+/** Returns an AbortSignal that fires after REQUEST_TIMEOUT_MS. */
+function timeoutSignal(): AbortSignal {
+  return AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `Request failed: ${res.status}`
@@ -53,10 +60,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function apiGet<T>(
+function buildUrl(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
-): Promise<T> {
+): string {
   if ((path === "/market-data" || path === "/ml-models") && params?.asset_id !== undefined) {
     const assetId = String(params.asset_id)
     if (!UUID_REGEX.test(assetId)) {
@@ -64,16 +71,26 @@ export async function apiGet<T>(
     }
   }
 
-  let url = `${apiBaseUrl}${path}`
-  if (params) {
-    const qs = new URLSearchParams()
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) qs.append(k, String(v))
-    }
-    const qsStr = qs.toString()
-    if (qsStr) url += `?${qsStr}`
+  const url = `${apiBaseUrl}${path}`
+  if (!params) return url
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.append(k, String(v))
   }
-  const res = await fetch(url, { headers: authHeaders() })
+  const qsStr = qs.toString()
+  return qsStr ? `${url}?${qsStr}` : url
+}
+
+// ─── User-facing (JWT) ────────────────────────────────────────────────────────
+
+export async function apiGet<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): Promise<T> {
+  const res = await fetch(buildUrl(path, params), {
+    headers: authHeaders(),
+    signal: timeoutSignal(),
+  })
   return handleResponse<T>(res)
 }
 
@@ -82,6 +99,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     method: "POST",
     headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
@@ -91,9 +109,11 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
     method: "PUT",
     headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
+
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${apiBaseUrl}${path}`, {
@@ -108,25 +128,21 @@ export async function apiDelete<T = void>(path: string): Promise<T> {
   const res = await fetch(`${apiBaseUrl}${path}`, {
     method: "DELETE",
     headers: authHeaders(),
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
 
-/** Admin-only calls — uses X-Admin-Key header (no JWT needed) */
+// ─── Admin (X-Admin-Key) ──────────────────────────────────────────────────────
+
 export async function adminGet<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
-  let url = `${apiBaseUrl}${path}`
-  if (params) {
-    const qs = new URLSearchParams()
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) qs.append(k, String(v))
-    }
-    const qsStr = qs.toString()
-    if (qsStr) url += `?${qsStr}`
-  }
-  const res = await fetch(url, { headers: adminHeaders() })
+  const res = await fetch(buildUrl(path, params), {
+    headers: adminHeaders(),
+    signal: timeoutSignal(),
+  })
   return handleResponse<T>(res)
 }
 
@@ -135,6 +151,7 @@ export async function adminPost<T>(path: string, body?: unknown): Promise<T> {
     method: "POST",
     headers: adminHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
@@ -144,6 +161,7 @@ export async function adminPatch<T>(path: string, body?: unknown): Promise<T> {
     method: "PATCH",
     headers: adminHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
@@ -152,11 +170,12 @@ export async function adminDelete<T = void>(path: string): Promise<T> {
   const res = await fetch(`${apiBaseUrl}${path}`, {
     method: "DELETE",
     headers: adminHeaders(),
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
 
-// ─── Shared types ────────────────────────────────────────────────────────────
+// ─── Shared types ─────────────────────────────────────────────────────────────
 
 export interface UserProfile {
   id: string
@@ -218,6 +237,7 @@ export interface MlModelResponse {
   is_active: boolean
   created_at: string
 }
+
 export interface MarketDataResponse {
   time: string
   asset_id: string
@@ -227,4 +247,53 @@ export interface MarketDataResponse {
   close: number
   volume: number
   resolution: string
+}
+
+export interface CuratedNewsResponse {
+  id: string
+  asset_id: string | null
+  summary: string
+  sentiment_score: number | null
+  data_points_used: number | null
+  created_at: string
+}
+
+export interface PredictionResponse {
+  time: string
+  asset_id: string
+  model_id: string
+  predicted_value: number
+  confidence_interval_high: number | null
+  confidence_interval_low: number | null
+}
+
+export interface TechnicalIndicatorResponse {
+  time: string
+  asset_id: string
+  indicator_name: string
+  value: number
+}
+
+export interface OnChainMetricResponse {
+  time: string
+  asset_id: string
+  metric_name: string
+  value: number
+}
+
+export interface ChatHistoryResponse {
+  id: string
+  user_id: string
+  session_id: string | null
+  role: string
+  content: string
+  ui_payload: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface UserPublicResponse {
+  id: string
+  username: string
+  email: string
+  created_at: string
 }

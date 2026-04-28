@@ -41,7 +41,7 @@ class PaginationParams:
     def __init__(
         self,
         page: int = Query(default=1, ge=1, description="Page number"),
-        page_size: int = Query(default=20, ge=1, le=500, description="Items per page"),
+        page_size: int = Query(default=20, ge=1, le=1000, description="Items per page"),
     ):
         self.page = page
         self.page_size = page_size
@@ -57,7 +57,7 @@ class PaginationParams:
 
 def get_pagination(
     page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=20, ge=1, le=500, description="Items per page"),
+    page_size: int = Query(default=20, ge=1, le=1000, description="Items per page"),
 ) -> PaginationParams:
     """
     Get pagination parameters.

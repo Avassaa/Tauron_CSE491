@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
+import { type CurrencyCode, CURRENCIES } from "~/lib/currency"
 
 interface AssetControlsProps {
   search: string
@@ -20,8 +21,8 @@ interface AssetControlsProps {
     direction: "asc" | "desc"
   } | null
   setSortConfig: (config: any) => void
-  quoteCurrency: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY"
-  setQuoteCurrency: (currency: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY") => void
+  quoteCurrency: CurrencyCode
+  setQuoteCurrency: (currency: CurrencyCode) => void
 }
 
 export function AssetControls({
@@ -54,7 +55,7 @@ export function AssetControls({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[110px]">
-            {(["USD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"] as const).map((currency) => (
+            {CURRENCIES.map((currency) => (
               <DropdownMenuItem
                 key={currency}
                 onSelect={() => setQuoteCurrency(currency)}

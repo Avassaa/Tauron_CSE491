@@ -24,16 +24,18 @@ logger = logging.getLogger(__name__)
 async def list_assets(
     pagination: PaginationParams = Depends(get_pagination),
     is_active: bool | None = Query(default=None),
+    search: str | None = Query(default=None),
     session: AsyncSession = Depends(get_db_session),
     _user_id: uuid.UUID = Depends(get_current_user_id),
 ):
-    """List assets with pagination."""
+    """List assets with pagination and optional search."""
     repository = AssetRepository(session)
-    total = await repository.count(is_active=is_active)
+    total = await repository.count(is_active=is_active, search=search)
     rows = await repository.list_page(
         offset=pagination.offset,
         limit=pagination.page_size,
         is_active=is_active,
+        search=search,
     )
     return PaginatedResponse(
         items=[AssetResponse.model_validate(r) for r in rows],

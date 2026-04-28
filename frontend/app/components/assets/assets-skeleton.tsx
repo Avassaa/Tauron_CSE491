@@ -12,54 +12,101 @@ import {
 
 export function AssetsSkeleton() {
   return (
-    <div className="rounded-2xl border bg-card/50 overflow-hidden backdrop-blur-sm">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent border-b bg-muted/20">
-            <TableHead className="py-4 px-6">Coin</TableHead>
-            <TableHead className="py-4 text-center">Symbol</TableHead>
-            <TableHead className="py-4 text-center">Category</TableHead>
-            <TableHead className="py-4 text-center">Status</TableHead>
-            <TableHead className="py-4 text-center">Activity</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <TableRow key={i} className="border-border/40">
-              <TableCell className="py-4 px-6">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-xl" />
-                  <div className="space-y-1.5">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex justify-center">
-                  <Skeleton className="h-5 w-12 rounded-full" />
-                </div>
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex justify-center">
-                  <Skeleton className="h-4 w-20" />
-                </div>
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex justify-center items-center gap-1.5">
-                  <Skeleton className="h-1.5 w-1.5 rounded-full" />
-                  <Skeleton className="h-3 w-12" />
-                </div>
-              </TableCell>
-              <TableCell className="py-4">
-                <div className="flex flex-col items-center gap-1">
-                  <Skeleton className="h-5 w-16 rounded-md" />
-                </div>
-              </TableCell>
+    <div className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/20">
+              <TableHead className="w-[32px] px-1 text-center"></TableHead>
+              <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center">
+                #
+              </TableHead>
+              <TableHead className="min-w-[180px] font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px]">
+                Coin
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right">
+                Price
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center">
+                1h
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center">
+                24h
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-center">
+                7d
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right">
+                24h Volume
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right">
+                Market Cap
+              </TableHead>
+              <TableHead className="font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px] text-center">
+                Last 7 Days
+              </TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 10 }).map((_, i) => (
+              <TableRow key={i} className="border-border/40">
+                <TableCell className="py-4 px-0 w-[40px] text-center">
+                  <div className="flex items-center justify-center">
+                    <Skeleton className="h-4 w-4 rounded" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-1 text-center">
+                  <Skeleton className="h-3 w-4 mx-auto" />
+                </TableCell>
+                <TableCell className="py-4 px-6">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-xl" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-10" />
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-end">
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-4 w-12" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-4 w-12" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-4 w-12" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-end">
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-4">
+                  <div className="flex justify-end">
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </TableCell>
+                <TableCell className="py-4 px-6">
+                  <div className="flex justify-center">
+                    <Skeleton className="h-8 w-24 rounded-md" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   )
 }

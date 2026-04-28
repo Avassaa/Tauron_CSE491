@@ -6,6 +6,10 @@ import {
   Coins,
   Star,
   Wrench,
+  Newspaper,
+  BrainCircuit,
+  FlaskConical,
+  MessageSquare,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
@@ -29,7 +33,13 @@ const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Assets", url: "/assets", icon: Coins },
   { title: "Watchlist", url: "/watchlists", icon: Star },
-  { title: "Tools", url: "/tools", icon: Wrench },
+]
+
+const navAI = [
+  { title: "Predictions", url: "/predictions", icon: BrainCircuit },
+  { title: "News Feed", url: "/news", icon: Newspaper },
+  { title: "Backtests", url: "/backtests", icon: FlaskConical },
+  { title: "AI Chat", url: "/chat", icon: MessageSquare },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -70,6 +80,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>AI &amp; Analysis</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navAI.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={pathname === item.url}>
+                    <Link to={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Utilities</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/tools"}>
+                  <Link to="/tools">
+                    <Wrench />
+                    <span>Tools</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

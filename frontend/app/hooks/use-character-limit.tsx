@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { type ChangeEvent, useState } from "react";
 
 type UseCharacterLimitProps = {
   maxLength: number;

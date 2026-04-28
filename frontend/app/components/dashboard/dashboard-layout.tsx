@@ -42,7 +42,7 @@ export function DashboardLayout({
               </div>
               {actions && <div className="flex items-center gap-2">{actions}</div>}
             </header>
-            <main className="flex flex-1 flex-col overflow-hidden">
+            <main className="flex flex-1 flex-col overflow-hidden pt-10">
               {children}
             </main>
           </div>
