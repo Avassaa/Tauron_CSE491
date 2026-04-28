@@ -11,6 +11,7 @@ class PatchMeRequest(BaseModel):
     """Partial update for the authenticated user profile."""
 
     username: Optional[str] = None
+    full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     preferences: Optional[dict[str, Any]] = None
 

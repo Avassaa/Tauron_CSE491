@@ -15,6 +15,24 @@ from app.models.response.table_responses import UserPublicResponse
 router = APIRouter(prefix="/users")
 
 
+def _to_user_public_response(user) -> UserPublicResponse:
+    """Project ORM user into API response, including full_name from preferences."""
+    full_name = None
+    if isinstance(user.preferences, dict):
+        value = user.preferences.get("full_name")
+        if isinstance(value, str):
+            trimmed = value.strip()
+            full_name = trimmed or None
+    return UserPublicResponse(
+        id=user.id,
+        username=user.username,
+        full_name=full_name,
+        email=user.email,
+        preferences=user.preferences,
+        created_at=user.created_at,
+    )
+
+
 @router.get("/me", response_model=UserPublicResponse)
 async def get_me(
     user_id: uuid.UUID = Depends(get_current_user_id),
@@ -25,7 +43,7 @@ async def get_me(
     user = await repository.get_by_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserPublicResponse.model_validate(user)
+    return _to_user_public_response(user)
 
 
 @router.patch("/me", response_model=UserPublicResponse)
@@ -41,9 +59,24 @@ async def patch_me(
         user = await repository.get_by_id(user_id)
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return UserPublicResponse.model_validate(user)
+        return _to_user_public_response(user)
+    full_name = data.pop("full_name", None)
+    if full_name is not None:
+        base_preferences = data.get("preferences")
+        if not isinstance(base_preferences, dict):
+            existing = await repository.get_by_id(user_id)
+            if existing is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            base_preferences = (
+                dict(existing.preferences) if isinstance(existing.preferences, dict) else {}
+            )
+        normalized_full_name = full_name.strip()
+        base_preferences["full_name"] = normalized_full_name
+        data["preferences"] = base_preferences
     if "email" in data and data["email"] is not None:
         data["email"] = str(data["email"]).lower()
+    if "username" in data and data["username"] is not None:
+        data["username"] = str(data["username"]).strip()
     try:
         user = await repository.update_profile(user_id, **data)
     except IntegrityError as exc:
@@ -53,7 +86,7 @@ async def patch_me(
         ) from exc
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserPublicResponse.model_validate(user)
+    return _to_user_public_response(user)
 
 
 @router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)

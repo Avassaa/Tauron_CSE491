@@ -25,6 +25,7 @@ class UserPublicResponse(BaseModel):
 
     id: uuid.UUID
     username: str
+    full_name: Optional[str] = None
     email: str
     preferences: dict[str, Any]
     created_at: datetime

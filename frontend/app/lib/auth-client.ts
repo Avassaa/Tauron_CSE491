@@ -28,7 +28,13 @@ export type RegisterSuccess = AuthSuccess & {
 export type UserProfile = {
   id: string
   username: string
+  full_name?: string | null
   email: string
+}
+
+export type UpdateProfilePayload = {
+  username?: string
+  full_name?: string
 }
 
 async function parseErrorMessage(response: Response): Promise<string> {
@@ -71,6 +77,27 @@ export async function getMe(token: string): Promise<UserProfile> {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+  })
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearSession()
+      throw new Error("Session expired. Please sign in again.")
+    }
+    throw new Error(await parseErrorMessage(response))
+  }
+
+  return (await response.json()) as UserProfile
+}
+
+export async function patchMe(token: string, payload: UpdateProfilePayload): Promise<UserProfile> {
+  const response = await fetch(`${apiBaseUrl}/users/me`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {
