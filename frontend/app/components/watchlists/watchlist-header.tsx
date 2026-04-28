@@ -16,6 +16,7 @@ import {
 } from "~/components/ui/dropdown-menu"
 
 interface WatchlistHeaderProps {
+  title?: string
   lastUpdate: Date
   loadingWatchlist: boolean
   onRefresh: () => void
@@ -36,6 +37,7 @@ interface WatchlistHeaderProps {
 }
 
 export function WatchlistHeader({
+  title = "Watchlist",
   lastUpdate,
   loadingWatchlist,
   onRefresh,
@@ -69,7 +71,7 @@ export function WatchlistHeader({
     <div className="flex flex-col gap-8 mb-6">
       <div className="flex items-end justify-between">
         <div className="space-y-1">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">Main Watchlist</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">{title}</h1>
           <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
             Updated {format(lastUpdate, "MMM dd, HH:mm")}
             <button onClick={onRefresh} className="hover:text-white transition-colors">

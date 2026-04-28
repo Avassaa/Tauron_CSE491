@@ -4,6 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router"
+import { ListChecks } from "lucide-react"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import {
@@ -13,6 +14,7 @@ import {
   apiPost,
   type AssetResponse,
   type WatchlistEntryResponse,
+  type WatchlistListResponse,
   type PaginatedResponse,
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
@@ -27,12 +29,67 @@ import {
 import { AssetDetailSheet } from "~/components/assets/asset-detail-sheet"
 import { AssetPagination } from "~/components/assets/asset-pagination"
 import { type MarketDataResponse, type MlModelResponse } from "~/lib/api-client"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "~/components/ui/breadcrumb"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+} from "~/components/ui/avatar"
 
 type TimeRange = "1h" | "24h" | "7d" | "30d" | "1m" | "3m" | "1y" | "max"
 const TIME_RANGES: TimeRange[] = ["1h", "24h", "7d", "30d", "1m", "3m", "1y", "max"]
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const isUuid = (value: string) => UUID_REGEX.test(value)
+
+type WatchlistListEntryResponse = {
+  list_id: string
+  asset: AssetResponse
+}
+
+function WatchlistCoinAvatar({ asset }: { asset: AssetResponse }) {
+  const [fallbackTried, setFallbackTried] = React.useState(false)
+  const [errored, setErrored] = React.useState(false)
+
+  React.useEffect(() => {
+    setFallbackTried(false)
+    setErrored(false)
+  }, [asset.symbol])
+
+  const iconUrl = fallbackTried
+    ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
+    : `https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`
+
+  return (
+    <Avatar size="sm">
+      {!errored ? (
+        <img
+          src={iconUrl}
+          alt={`${asset.symbol} icon`}
+          className="size-full object-cover"
+          onError={() => {
+            if (!fallbackTried) {
+              setFallbackTried(true)
+              return
+            }
+            setErrored(true)
+          }}
+        />
+      ) : null}
+      <AvatarFallback className="text-[9px] font-black">
+        {asset.symbol.slice(0, 3).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
 
 const formatCurrency = (val?: number) => {
   if (val === undefined) return "—"
@@ -55,8 +112,12 @@ const formatCompactCurrency = (val?: number) => {
 function WatchlistPageClient() {
   const navigate = useNavigate()
   const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
+  const [watchlistLists, setWatchlistLists] = React.useState<WatchlistListResponse[]>([])
+  const [watchlistAssetsByListId, setWatchlistAssetsByListId] = React.useState<Record<string, AssetResponse[]>>({})
+  const [selectedWatchlistList, setSelectedWatchlistList] = React.useState<WatchlistListResponse | null>(null)
   const [allAssets, setAllAssets] = React.useState<AssetResponse[]>([])
   const [loadingWatchlist, setLoadingWatchlist] = React.useState(true)
+  const [loadingLists, setLoadingLists] = React.useState(true)
   const [loadingAssets, setLoadingAssets] = React.useState(false)
   const [removingId, setRemovingId] = React.useState<string | null>(null)
   const [addingId, setAddingId] = React.useState<string | null>(null)
@@ -92,12 +153,53 @@ function WatchlistPageClient() {
   const [timeRange, setTimeRange] = React.useState<TimeRange>("7d")
   const [watchlistTimeRange, setWatchlistTimeRange] = React.useState<TimeRange>("24h")
 
+  const fetchWatchlistLists = React.useCallback(async () => {
+    setLoadingLists(true)
+    try {
+      const data = await apiGet<WatchlistListResponse[]>("/users/me/watchlists")
+      setWatchlistLists(data)
+      setSelectedWatchlistList((prev) =>
+        prev ? data.find((list) => list.id === prev.id) ?? null : null,
+      )
+      const assetResults = await Promise.allSettled(
+        data.map(async (list) => {
+          const entries = await apiGet<WatchlistListEntryResponse[]>(
+            `/users/me/watchlists/${list.id}/assets`,
+          )
+          return [list.id, entries.map((entry) => entry.asset)] as const
+        }),
+      )
+      setWatchlistAssetsByListId((prev) => {
+        const next = { ...prev }
+        for (const result of assetResults) {
+          if (result.status === "fulfilled") {
+            const [listId, assets] = result.value
+            next[listId] = assets
+          }
+        }
+        return next
+      })
+    } catch (err) {
+      console.error("API failed to fetch named watchlists:", err)
+      setWatchlistLists([])
+    } finally {
+      setLoadingLists(false)
+    }
+  }, [])
+
   const fetchWatchlist = React.useCallback(async () => {
+    if (!selectedWatchlistList) {
+      setWatchlist([])
+      setLoadingWatchlist(false)
+      return
+    }
     setLoadingWatchlist(true)
     setError(null)
     try {
-      const data = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
-      setWatchlist(data)
+      const data = await apiGet<WatchlistListEntryResponse[]>(
+        `/users/me/watchlists/${selectedWatchlistList.id}/assets`,
+      )
+      setWatchlist(data.map((entry) => ({ user_id: "", asset: entry.asset })))
       setLastUpdate(new Date())
     } catch (err) {
       console.error("API failed to fetch watchlist:", err)
@@ -106,7 +208,7 @@ function WatchlistPageClient() {
     } finally {
       setLoadingWatchlist(false)
     }
-  }, [])
+  }, [selectedWatchlistList])
 
   const fetchAllAssets = React.useCallback(async () => {
     if (allAssets.length > 0) return
@@ -301,10 +403,15 @@ function WatchlistPageClient() {
   }, [selectedAsset, timeRange, fetchChartData])
 
   React.useEffect(() => {
+    void fetchWatchlistLists()
+  }, [fetchWatchlistLists])
+
+  React.useEffect(() => {
     void fetchWatchlist()
   }, [fetchWatchlist])
 
   const handleRemove = async (assetId: string, symbol: string) => {
+    if (!selectedWatchlistList) return
     const itemToRemove = watchlist.find(w => w.asset.id === assetId)
     if (!itemToRemove) return
 
@@ -321,7 +428,7 @@ function WatchlistPageClient() {
           label: <span className="underline font-bold">Undo</span>,
           onClick: () => {
             setWatchlist(previousWatchlist)
-            void apiPut(`/users/me/watchlist/${assetId}`)
+            void apiPut(`/users/me/watchlists/${selectedWatchlistList.id}/assets/${assetId}`)
             toast.success(`Restored ${symbol}`, {
               description: "The asset has been added back to your watchlist."
             })
@@ -329,7 +436,7 @@ function WatchlistPageClient() {
         },
       })
 
-      await apiDelete(`/users/me/watchlist/${assetId}`)
+      await apiDelete(`/users/me/watchlists/${selectedWatchlistList.id}/assets/${assetId}`)
     } catch (err) {
       console.warn("Backend sync failed during removal:", err)
     } finally {
@@ -338,6 +445,7 @@ function WatchlistPageClient() {
   }
 
   const handleAdd = async (asset: AssetResponse) => {
+    if (!selectedWatchlistList) return
     setAddingId(asset.id)
     const previousWatchlist = [...watchlist]
     let added = false
@@ -354,16 +462,15 @@ function WatchlistPageClient() {
         backendId = ensured.id
       }
 
-      await apiPut(`/users/me/watchlist/${backendId}`)
-      const data = await apiGet<WatchlistEntryResponse[]>("/users/me/watchlist")
-      setWatchlist(data)
+      await apiPut(`/users/me/watchlists/${selectedWatchlistList.id}/assets/${backendId}`)
+      await fetchWatchlist()
       added = true
       toast.success(`Added ${asset.symbol} to watchlist.`, {
         action: {
           label: <span className="underline font-bold">Undo</span>,
           onClick: () => {
             setWatchlist(previousWatchlist)
-            void apiDelete(`/users/me/watchlist/${backendId}`)
+            void apiDelete(`/users/me/watchlists/${selectedWatchlistList.id}/assets/${backendId}`)
             toast.success(`Removed ${asset.symbol}`, {
               description: "The asset has been removed from your watchlist."
             })
@@ -400,41 +507,158 @@ function WatchlistPageClient() {
     [filteredWatchlist],
   )
   const liveTickerBySymbol = useLiveTickers(watchlistTickerSymbols)
+  const showListOverview = selectedWatchlistList === null
 
   return (
-    <DashboardLayout title="Watchlist">
+    <DashboardLayout title={selectedWatchlistList?.name || "Watchlists"}>
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-1 flex-col gap-4 p-4 md:p-8">
 
-          <WatchlistHeader
-            lastUpdate={lastUpdate}
-            loadingWatchlist={loadingWatchlist}
-            onRefresh={() => void fetchWatchlist()}
-            search={search}
-            setSearch={setSearch}
-            watchlistTimeRange={watchlistTimeRange}
-            setWatchlistTimeRange={setWatchlistTimeRange}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            allAssets={allAssets}
-            loadingAssets={loadingAssets}
-            onFetchAllAssets={fetchAllAssets}
-            watchedIds={watchedIds}
-            addingId={addingId}
-            onAdd={handleAdd}
-            showAddPanel={showAddPanel}
-            setShowAddPanel={setShowAddPanel}
-          />
+          <Breadcrumb className="mt-4 mb-2">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                {showListOverview ? (
+                  <BreadcrumbPage>Watchlists</BreadcrumbPage>
+                ) : (
+                  <BreadcrumbLink
+                    asChild
+                    className="cursor-pointer"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedWatchlistList(null)
+                        setSearch("")
+                        setPage(1)
+                      }}
+                    >
+                      Watchlists
+                    </button>
+                  </BreadcrumbLink>
+                )}
+              </BreadcrumbItem>
+              {!showListOverview && selectedWatchlistList ? (
+                <>
+                  <BreadcrumbSeparator />
+                  <BreadcrumbItem>
+                    <BreadcrumbPage>{selectedWatchlistList.name}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </>
+              ) : null}
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          {showListOverview ? null : (
+            <WatchlistHeader
+              title={selectedWatchlistList?.name}
+              lastUpdate={lastUpdate}
+              loadingWatchlist={loadingWatchlist}
+              onRefresh={() => void fetchWatchlist()}
+              search={search}
+              setSearch={setSearch}
+              watchlistTimeRange={watchlistTimeRange}
+              setWatchlistTimeRange={setWatchlistTimeRange}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              allAssets={allAssets}
+              loadingAssets={loadingAssets}
+              onFetchAllAssets={fetchAllAssets}
+              watchedIds={watchedIds}
+              addingId={addingId}
+              onAdd={handleAdd}
+              showAddPanel={showAddPanel}
+              setShowAddPanel={setShowAddPanel}
+            />
+          )}
 
           <div className="flex flex-1 gap-4 overflow-hidden">
             <div className="flex min-w-0 flex-1 flex-col gap-4">
-              {error && (
+              {showListOverview ? (
+                loadingLists ? (
+                  <WatchlistSkeleton viewMode="grid" />
+                ) : watchlistLists.length === 0 ? (
+                  <div className="flex min-h-[360px] items-center justify-center rounded-3xl border border-dashed border-border bg-card/30 p-10 text-center">
+                    <div className="space-y-3">
+                      <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <ListChecks className="size-6" />
+                      </div>
+                      <h3 className="text-lg font-black tracking-tight">No watchlists yet</h3>
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        Create a watchlist from an asset drawer, then come back here to open it.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/assets")}
+                        className="rounded-xl bg-primary px-4 py-2 text-xs font-black uppercase tracking-wider text-primary-foreground"
+                      >
+                        Browse Assets
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {watchlistLists.map((list) => {
+                      const trackedAssets = watchlistAssetsByListId[list.id] || []
+                      const visibleAssets = trackedAssets.slice(0, 5)
+                      const remainingAssets = Math.max(trackedAssets.length - visibleAssets.length, 0)
+
+                      return (
+                        <button
+                          key={list.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedWatchlistList(list)
+                            setSearch("")
+                            setPage(1)
+                          }}
+                          className="group rounded-3xl border-2 border-border/50 bg-card/40 p-5 text-left shadow-2xl shadow-primary/5 transition-colors hover:border-primary/40 hover:bg-card"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <h3 className="truncate text-xl font-black tracking-tight text-foreground group-hover:text-primary">
+                              {list.name}
+                            </h3>
+                            <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                              Created {new Date(list.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="mt-3 space-y-1">
+                            <p className="text-xs font-bold text-muted-foreground">
+                              {trackedAssets.length} tracked asset{trackedAssets.length === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                          <div className="mt-5 flex items-center justify-between gap-3">
+                            {trackedAssets.length > 0 ? (
+                              <AvatarGroup>
+                                {visibleAssets.map((asset) => (
+                                  <WatchlistCoinAvatar key={asset.id} asset={asset} />
+                                ))}
+                                {remainingAssets > 0 ? (
+                                  <AvatarGroupCount className="text-[10px] font-black">
+                                    +{remainingAssets}
+                                  </AvatarGroupCount>
+                                ) : null}
+                              </AvatarGroup>
+                            ) : (
+                              <span className="text-xs font-bold text-muted-foreground">
+                                No tracked assets yet
+                              </span>
+                            )}
+                            <span className="text-[10px] font-black uppercase tracking-wider text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                              View Assets
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              ) : error && (
                 <div className="rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {error}
                 </div>
               )}
 
-              {loadingWatchlist ? (
+              {!showListOverview && (loadingWatchlist ? (
                 <WatchlistSkeleton viewMode={viewMode} />
               ) : filteredWatchlist.length === 0 ? (
                 <WatchlistEmptyState
@@ -488,7 +712,7 @@ function WatchlistPageClient() {
                     />
                   </div>
                 </>
-              )}
+              ))}
             </div>
           </div>
 
