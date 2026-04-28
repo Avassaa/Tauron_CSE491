@@ -27,17 +27,30 @@ type CoinGeckoMarket = {
   sparkline_in_7d?: { price?: number[] }
 }
 
+const CURRENCY_SYMBOLS = {
+  USD: "$",
+  TRY: "₺",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  RUB: "₽",
+  CAD: "C$",
+  AUD: "A$",
+  CHF: "CHF ",
+  CNY: "¥",
+} as const
+
 function formatCompactCurrency(
   value: number | null | undefined,
   currencyCode: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY",
 ) {
   if (!Number.isFinite(value ?? NaN)) return "—"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
+  const formatted = new Intl.NumberFormat("en-US", {
     currency: currencyCode,
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(value as number)
+  return `${CURRENCY_SYMBOLS[currencyCode]}${formatted}`
 }
 
 function formatPercent(value?: number | null) {
@@ -434,12 +447,11 @@ export function AssetTable({
                         })()
                         if (!Number.isFinite(quotePerUsdt ?? NaN)) return "—"
                         const livePrice = usdtPrice * (quotePerUsdt as number)
-                        return new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: currencyCode,
+                        const formattedPrice = new Intl.NumberFormat("en-US", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: livePrice >= 1 ? 2 : 6,
                         }).format(livePrice)
+                        return `${CURRENCY_SYMBOLS[currencyCode]}${formattedPrice}`
                       })()}
                     </span>
                   </TableCell>

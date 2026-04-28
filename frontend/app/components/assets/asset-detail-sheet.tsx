@@ -443,6 +443,8 @@ export function AssetDetailSheet({
                         config={chartConfig}
                         currentPrice={marketStats?.price || 0}
                         mode={chartMode}
+                        formatCurrency={formatCurrency}
+                        formatCompactCurrency={formatCompactCurrency}
                       />
                     ) : chartLoading ? (
                       <div className="flex h-full flex-col justify-between">

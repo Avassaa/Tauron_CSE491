@@ -35,6 +35,43 @@ const TIME_RANGES: TimeRange[] = ["24H", "7D", "1M", "3M", "1Y", "MAX"]
 
 const QUOTE_CURRENCIES = ["USD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"] as const
 const USD_PEGGED_QUOTES = new Set<string>(["USD", "USDT", "USDC", "BUSD"])
+const CURRENCY_SYMBOLS: Record<(typeof QUOTE_CURRENCIES)[number], string> = {
+  USD: "$",
+  TRY: "₺",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  RUB: "₽",
+  CAD: "C$",
+  AUD: "A$",
+  CHF: "CHF ",
+  CNY: "¥",
+}
+const FALLBACK_QUOTE_PER_USD: Record<(typeof QUOTE_CURRENCIES)[number], number> = {
+  USD: 1,
+  TRY: 38.5,
+  EUR: 0.93,
+  GBP: 0.8,
+  JPY: 155,
+  RUB: 92,
+  CAD: 1.37,
+  AUD: 1.52,
+  CHF: 0.91,
+  CNY: 7.24,
+}
+
+const formatWithCurrencySymbol = (
+  value: number,
+  currency: (typeof QUOTE_CURRENCIES)[number],
+  options?: Intl.NumberFormatOptions,
+) => {
+  const formatted = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    ...options,
+  }).format(value)
+  return `${CURRENCY_SYMBOLS[currency]}${formatted}`
+}
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -146,7 +183,7 @@ function AssetsPageClient() {
           setQuotePerUsd(nextRate)
         }
       } catch {
-        if (!cancelled) setQuotePerUsd(Number.NaN)
+        if (!cancelled) setQuotePerUsd(FALLBACK_QUOTE_PER_USD[normalizedQuoteCurrency])
       }
     }
     void loadFx()
@@ -157,63 +194,16 @@ function AssetsPageClient() {
 
   const formatCurrency = React.useCallback((val?: number) => {
     if (val === undefined) return "—"
-    if (!Number.isFinite(quotePerUsd)) return "—"
-    const intlCurrency =
-      normalizedQuoteCurrency === "TRY"
-        ? "TRY"
-        : normalizedQuoteCurrency === "EUR"
-          ? "EUR"
-          : normalizedQuoteCurrency === "GBP"
-            ? "GBP"
-            : normalizedQuoteCurrency === "JPY"
-              ? "JPY"
-              : normalizedQuoteCurrency === "RUB"
-                ? "RUB"
-                : normalizedQuoteCurrency === "CAD"
-                  ? "CAD"
-                  : normalizedQuoteCurrency === "AUD"
-                    ? "AUD"
-                    : normalizedQuoteCurrency === "CHF"
-                      ? "CHF"
-                      : normalizedQuoteCurrency === "CNY"
-                        ? "CNY"
-                        : "USD"
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: intlCurrency,
-    }).format(val * quotePerUsd)
-  }, [normalizedQuoteCurrency, quotePerUsd])
+    return formatWithCurrencySymbol(val, normalizedQuoteCurrency)
+  }, [normalizedQuoteCurrency])
 
   const formatCompactCurrency = React.useCallback((val?: number) => {
     if (val === undefined) return "—"
-    if (!Number.isFinite(quotePerUsd)) return "—"
-    const intlCurrency =
-      normalizedQuoteCurrency === "TRY"
-        ? "TRY"
-        : normalizedQuoteCurrency === "EUR"
-          ? "EUR"
-          : normalizedQuoteCurrency === "GBP"
-            ? "GBP"
-            : normalizedQuoteCurrency === "JPY"
-              ? "JPY"
-              : normalizedQuoteCurrency === "RUB"
-                ? "RUB"
-                : normalizedQuoteCurrency === "CAD"
-                  ? "CAD"
-                  : normalizedQuoteCurrency === "AUD"
-                    ? "AUD"
-                    : normalizedQuoteCurrency === "CHF"
-                      ? "CHF"
-                      : normalizedQuoteCurrency === "CNY"
-                        ? "CNY"
-                        : "USD"
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: intlCurrency,
+    return formatWithCurrencySymbol(val, normalizedQuoteCurrency, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(val * quotePerUsd)
-  }, [normalizedQuoteCurrency, quotePerUsd])
+    })
+  }, [normalizedQuoteCurrency])
 
   const handleSort = (key: "name" | "symbol" | "category" | "is_active" | "activity") => {
     setSortConfig((prev) => {
@@ -283,9 +273,11 @@ function AssetsPageClient() {
             const sortedItems = [...data.items].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
             const latest = sortedItems[sortedItems.length - 1]
             const first = sortedItems[0]
-            const currentPrice = latest.close
-            const currentVolume = latest.volume
-            const priceChange = first.close > 0 ? ((latest.close - first.close) / first.close) * 100 : 0
+            const fx = Number.isFinite(quotePerUsd) ? quotePerUsd : 1
+            const currentPrice = latest.close * fx
+            const currentVolume = latest.volume * fx
+            const firstClose = first.close * fx
+            const priceChange = firstClose > 0 ? ((currentPrice - firstClose) / firstClose) * 100 : 0
 
             setMarketStats({
               price: currentPrice,
@@ -295,9 +287,9 @@ function AssetsPageClient() {
 
             const formatted = sortedItems.map(item => ({
               date: item.time,
-              price: item.close,
-              volume: item.volume,
-              confidence: item.close * 0.95
+              price: item.close * fx,
+              volume: item.volume * fx,
+              confidence: item.close * fx * 0.95
             }))
             setChartData(formatted)
           }
@@ -307,61 +299,18 @@ function AssetsPageClient() {
       }
 
       if (!hasBackendData) {
-        // Binance market fallback for assets without backend historical rows.
-        const directPair = `${asset.symbol.toUpperCase()}${marketQuoteCurrency.toUpperCase()}`
+        // Binance market fallback always reads USDT history, then converts locally.
         const usdtPair = `${asset.symbol.toUpperCase()}USDT`
         const startTime = timeFrom.getTime()
-        let klines: Array<
-          [number, string, string, string, string, string, number, string, number, string, string, string]
-        > = []
-        let usedUsdtConversion = false
-
-        const directRes = await fetch(
-          `https://api.binance.com/api/v3/klines?symbol=${directPair}&interval=${binanceInterval}&startTime=${startTime}&endTime=${now.getTime()}&limit=1000`,
+        const usdtRes = await fetch(
+          `https://api.binance.com/api/v3/klines?symbol=${usdtPair}&interval=${binanceInterval}&startTime=${startTime}&endTime=${now.getTime()}&limit=1000`,
         )
-        if (directRes.ok) {
-          const directKlines = (await directRes.json()) as Array<
-            [number, string, string, string, string, string, number, string, number, string, string, string]
-          >
-          if (Array.isArray(directKlines) && directKlines.length > 0) {
-            klines = directKlines
-          }
-        }
-
-        if (klines.length === 0) {
-          const usdtRes = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${usdtPair}&interval=${binanceInterval}&startTime=${startTime}&endTime=${now.getTime()}&limit=1000`,
-          )
-          if (!usdtRes.ok) throw new Error("Failed to fetch Binance klines")
-          const usdtKlines = (await usdtRes.json()) as Array<
-            [number, string, string, string, string, string, number, string, number, string, string, string]
-          >
-          if (!Array.isArray(usdtKlines) || usdtKlines.length === 0) throw new Error("No Binance klines data")
-          klines = usdtKlines
-          usedUsdtConversion = marketQuoteCurrency !== "USDT"
-        }
-
-        const quotePerUsdt = async () => {
-          if (!usedUsdtConversion) return 1
-          const quoteUsdtRes = await fetch(
-            `https://api.binance.com/api/v3/ticker/price?symbol=${marketQuoteCurrency.toUpperCase()}USDT`,
-          )
-          if (quoteUsdtRes.ok) {
-            const row = (await quoteUsdtRes.json()) as { price?: string }
-            const price = Number.parseFloat(row.price || "")
-            if (Number.isFinite(price) && price > 0) return 1 / price
-          }
-          const usdtQuoteRes = await fetch(
-            `https://api.binance.com/api/v3/ticker/price?symbol=USDT${marketQuoteCurrency.toUpperCase()}`,
-          )
-          if (usdtQuoteRes.ok) {
-            const row = (await usdtQuoteRes.json()) as { price?: string }
-            const price = Number.parseFloat(row.price || "")
-            if (Number.isFinite(price) && price > 0) return price
-          }
-          return Number.isFinite(quotePerUsd) ? quotePerUsd : 1
-        }
-        const fx = await quotePerUsdt()
+        if (!usdtRes.ok) throw new Error("Failed to fetch Binance USDT klines")
+        const klines = (await usdtRes.json()) as Array<
+          [number, string, string, string, string, string, number, string, number, string, string, string]
+        >
+        if (!Array.isArray(klines) || klines.length === 0) throw new Error("No Binance USDT klines data")
+        const fx = Number.isFinite(quotePerUsd) ? quotePerUsd : 1
 
         const first = klines[0]
         const latest = klines[klines.length - 1]
@@ -389,8 +338,54 @@ function AssetsPageClient() {
       }
     } catch (err) {
       console.error("Failed to fetch chart data from all sources:", err)
-      setMarketStats(null)
-      setChartData([])
+      try {
+        if (!asset.coingecko_id) throw new Error("Asset has no CoinGecko id")
+        const days =
+          range === "24H" ? "1" :
+          range === "7D" ? "7" :
+          range === "1M" ? "30" :
+          range === "3M" ? "90" :
+          range === "1Y" ? "365" : "max"
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/coins/${asset.coingecko_id}/market_chart?vs_currency=usd&days=${days}`,
+        )
+        if (!response.ok) throw new Error("CoinGecko market chart unavailable")
+        const data = (await response.json()) as {
+          prices?: Array<[number, number]>
+          total_volumes?: Array<[number, number]>
+        }
+        const prices = Array.isArray(data.prices) ? data.prices : []
+        if (prices.length === 0) throw new Error("No CoinGecko price points")
+        const volumesByTime = new Map(
+          (Array.isArray(data.total_volumes) ? data.total_volumes : []).map(([time, volume]) => [time, volume]),
+        )
+        const fx = Number.isFinite(quotePerUsd) ? quotePerUsd : 1
+        const points = prices
+          .map(([time, price]) => {
+            if (!Number.isFinite(price)) return null
+            const volume = volumesByTime.get(time) ?? 0
+            return {
+              date: new Date(time).toISOString(),
+              price: price * fx,
+              volume: Number.isFinite(volume) ? volume * fx : 0,
+              confidence: price * fx * 0.95,
+            }
+          })
+          .filter((point): point is { date: string; price: number; volume: number; confidence: number } => point != null)
+        if (points.length === 0) throw new Error("No formatted CoinGecko chart points")
+        const first = points[0]
+        const latest = points[points.length - 1]
+        setMarketStats({
+          price: latest.price,
+          change24h: first.price > 0 ? ((latest.price - first.price) / first.price) * 100 : 0,
+          volume: latest.volume,
+        })
+        setChartData(points)
+      } catch (fallbackErr) {
+        console.error("CoinGecko chart fallback failed:", fallbackErr)
+        setMarketStats(null)
+        setChartData([])
+      }
     } finally {
       setChartLoading(false)
     }

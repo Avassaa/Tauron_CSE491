@@ -22,12 +22,16 @@ export function AssetDetailChart({
   config,
   currentPrice: externalCurrentPrice,
   mode = "both",
+  formatCurrency = (value) => `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })}`,
+  formatCompactCurrency,
 }: {
   data: any[],
   trend?: "up" | "down",
   config?: any,
   currentPrice?: number,
   mode?: "price" | "volume" | "both",
+  formatCurrency?: (value?: number) => string,
+  formatCompactCurrency?: (value?: number) => string,
 }) {
   if (!data || data.length === 0) return null
 
@@ -36,7 +40,9 @@ export function AssetDetailChart({
   const gradientId = isUp ? "fillPriceDetailUp" : "fillPriceDetailDown"
 
   const currentPrice = externalCurrentPrice ?? (data[data.length - 1]?.price || 0)
-  const formattedCurrentPrice = currentPrice >= 1000 ? `$${(currentPrice / 1000).toFixed(2)}K` : `$${currentPrice.toFixed(2)}`
+  const formattedCurrentPrice =
+    formatCompactCurrency?.(currentPrice) ??
+    (currentPrice >= 1000 ? formatCurrency(currentPrice / 1000) + "K" : formatCurrency(currentPrice))
   const showPrice = mode === "price" || mode === "both"
   const showVolume = mode === "volume" || mode === "both"
   const formatVolume = (value: number) => {
@@ -81,8 +87,9 @@ export function AssetDetailChart({
             axisLine={false}
             tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
             tickFormatter={(value) => {
-              if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
-              return `$${Number(value).toFixed(2)}`
+              const numeric = Number(value)
+              if (numeric >= 1000 && formatCompactCurrency) return formatCompactCurrency(numeric)
+              return formatCurrency(numeric)
             }}
             width={60}
           />
@@ -138,7 +145,7 @@ export function AssetDetailChart({
             return (
               <div className="rounded-lg border border-border bg-popover p-2 text-xs shadow-md">
                 <p className="mb-1 font-semibold">{dateText}</p>
-                {priceRow ? <p>Price: ${Number(priceRow.value).toLocaleString(undefined, { maximumFractionDigits: 6 })}</p> : null}
+                {priceRow ? <p>Price: {formatCurrency(Number(priceRow.value))}</p> : null}
                 {volumeRow ? <p>Volume: {formatVolume(Number(volumeRow.value))}</p> : null}
               </div>
             )
