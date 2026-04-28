@@ -860,6 +860,7 @@ source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "bcrypt" },
+    { name = "certifi" },
     { name = "email-validator" },
     { name = "fastapi" },
     { name = "pgvector" },
@@ -881,6 +882,7 @@ dev = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "bcrypt", specifier = ">=4.0" },
+    { name = "certifi", specifier = ">=2026.2.25" },
     { name = "email-validator", specifier = ">=2.0" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },

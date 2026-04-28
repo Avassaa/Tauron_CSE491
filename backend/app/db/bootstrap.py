@@ -4,14 +4,16 @@ import asyncio
 import json
 import logging
 import re
+import ssl
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 from urllib.parse import quote, urlparse, urlunparse
-from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
+import certifi
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -26,6 +28,7 @@ from app.db.session import _postgres_connect_args_for_url
 logger = logging.getLogger(__name__)
 _COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
 _COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
+_COINMETRICS_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _METRIC_BATCH_SIZE = 30
 _FALLBACK_METRICS = ["ReferenceRateUSD", "CapMrktCurUSD", "SplyCur", "TxCnt"]
 _DEFAULT_ONCHAIN_SYMBOLS = [
@@ -490,7 +493,7 @@ def _fetch_coinmetrics_rows_sync(
     )
     url = f"{_COINMETRICS_URL}?{params}"
     request = Request(url, headers={"User-Agent": "tauron-bootstrap/1.0"})
-    with urlopen(request, timeout=45) as response:
+    with urlopen(request, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
         payload = json.loads(response.read().decode("utf-8"))
     data = payload.get("data")
     if not isinstance(data, list):
@@ -513,7 +516,7 @@ def _fetch_available_metrics_for_symbol_sync(symbol: str) -> list[str]:
     for idx, url in enumerate(urls):
         request = Request(url, headers={"User-Agent": "tauron-bootstrap/1.0"})
         try:
-            with urlopen(request, timeout=45) as response:
+            with urlopen(request, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             break
         except HTTPError as exc:
