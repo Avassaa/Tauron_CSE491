@@ -33,8 +33,8 @@ const FIVE_YEARS_MS = 5 * 365 * 24 * 60 * 60 * 1000
 type TimeRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "MAX"
 const TIME_RANGES: TimeRange[] = ["24H", "7D", "1M", "3M", "1Y", "MAX"]
 
-const QUOTE_CURRENCIES = ["USDT", "TRY", "EUR", "GBP", "USDC", "BUSD"] as const
-const USD_PEGGED_QUOTES = new Set<(typeof QUOTE_CURRENCIES)[number]>(["USDT", "USDC", "BUSD"])
+const QUOTE_CURRENCIES = ["USD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"] as const
+const USD_PEGGED_QUOTES = new Set<string>(["USD", "USDT", "USDC", "BUSD"])
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -90,12 +90,14 @@ function AssetsPageClient() {
   const [newWatchlistName, setNewWatchlistName] = React.useState("")
   const [creatingWatchlist, setCreatingWatchlist] = React.useState(false)
   const [quoteCurrency, setQuoteCurrency] = React.useState<(typeof QUOTE_CURRENCIES)[number]>(() => {
-    if (typeof window === "undefined") return "USDT"
+    if (typeof window === "undefined") return "USD"
     const saved = localStorage.getItem("assets.quoteCurrency")
+    if (saved === "USDT" || saved === "USDC" || saved === "BUSD") return "USD"
     return QUOTE_CURRENCIES.includes(saved as (typeof QUOTE_CURRENCIES)[number])
       ? (saved as (typeof QUOTE_CURRENCIES)[number])
-      : "USDT"
+      : "USD"
   })
+  const [quotePerUsd, setQuotePerUsd] = React.useState(1)
 
   React.useEffect(() => {
     localStorage.setItem("assets.quoteCurrency", quoteCurrency)
@@ -106,13 +108,56 @@ function AssetsPageClient() {
   }, [backendAssetIdBySymbol])
 
   const normalizedQuoteCurrency: (typeof QUOTE_CURRENCIES)[number] =
-    QUOTE_CURRENCIES.includes(quoteCurrency) ? quoteCurrency : "USDT"
-  const marketQuoteCurrency: (typeof QUOTE_CURRENCIES)[number] = USD_PEGGED_QUOTES.has(normalizedQuoteCurrency)
+    QUOTE_CURRENCIES.includes(quoteCurrency) ? quoteCurrency : "USD"
+  const marketQuoteCurrency = USD_PEGGED_QUOTES.has(normalizedQuoteCurrency)
     ? "USDT"
     : normalizedQuoteCurrency
 
+  React.useEffect(() => {
+    if (normalizedQuoteCurrency === "USD") {
+      setQuotePerUsd(1)
+      return
+    }
+    let cancelled = false
+    const loadFx = async () => {
+      try {
+        let nextRate: number | null = null
+        const response = await fetch("https://api.coingecko.com/api/v3/exchange_rates")
+        if (response.ok) {
+          const data = (await response.json()) as {
+            rates?: Record<string, { value?: number }>
+          }
+          const usdRate = data.rates?.usd?.value
+          const targetRate = data.rates?.[normalizedQuoteCurrency.toLowerCase()]?.value
+          if (Number.isFinite(usdRate) && Number.isFinite(targetRate) && usdRate && targetRate) {
+            nextRate = targetRate / usdRate
+          }
+        }
+        if (nextRate === null) {
+          const fallbackResponse = await fetch("https://open.er-api.com/v6/latest/USD")
+          if (!fallbackResponse.ok) throw new Error("Fallback exchange rates unavailable")
+          const fallbackData = (await fallbackResponse.json()) as {
+            rates?: Record<string, number>
+          }
+          const targetRate = fallbackData.rates?.[normalizedQuoteCurrency]
+          if (Number.isFinite(targetRate) && targetRate) nextRate = targetRate
+        }
+        if (!cancelled && nextRate !== null) {
+          setQuotePerUsd(nextRate)
+        }
+      } catch {
+        if (!cancelled) setQuotePerUsd(Number.NaN)
+      }
+    }
+    void loadFx()
+    return () => {
+      cancelled = true
+    }
+  }, [normalizedQuoteCurrency])
+
   const formatCurrency = React.useCallback((val?: number) => {
     if (val === undefined) return "—"
+    if (!Number.isFinite(quotePerUsd)) return "—"
     const intlCurrency =
       normalizedQuoteCurrency === "TRY"
         ? "TRY"
@@ -120,15 +165,28 @@ function AssetsPageClient() {
           ? "EUR"
           : normalizedQuoteCurrency === "GBP"
             ? "GBP"
-            : "USD"
+            : normalizedQuoteCurrency === "JPY"
+              ? "JPY"
+              : normalizedQuoteCurrency === "RUB"
+                ? "RUB"
+                : normalizedQuoteCurrency === "CAD"
+                  ? "CAD"
+                  : normalizedQuoteCurrency === "AUD"
+                    ? "AUD"
+                    : normalizedQuoteCurrency === "CHF"
+                      ? "CHF"
+                      : normalizedQuoteCurrency === "CNY"
+                        ? "CNY"
+                        : "USD"
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: intlCurrency,
-    }).format(val)
-  }, [normalizedQuoteCurrency])
+    }).format(val * quotePerUsd)
+  }, [normalizedQuoteCurrency, quotePerUsd])
 
   const formatCompactCurrency = React.useCallback((val?: number) => {
     if (val === undefined) return "—"
+    if (!Number.isFinite(quotePerUsd)) return "—"
     const intlCurrency =
       normalizedQuoteCurrency === "TRY"
         ? "TRY"
@@ -136,14 +194,26 @@ function AssetsPageClient() {
           ? "EUR"
           : normalizedQuoteCurrency === "GBP"
             ? "GBP"
-            : "USD"
+            : normalizedQuoteCurrency === "JPY"
+              ? "JPY"
+              : normalizedQuoteCurrency === "RUB"
+                ? "RUB"
+                : normalizedQuoteCurrency === "CAD"
+                  ? "CAD"
+                  : normalizedQuoteCurrency === "AUD"
+                    ? "AUD"
+                    : normalizedQuoteCurrency === "CHF"
+                      ? "CHF"
+                      : normalizedQuoteCurrency === "CNY"
+                        ? "CNY"
+                        : "USD"
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: intlCurrency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(val)
-  }, [normalizedQuoteCurrency])
+    }).format(val * quotePerUsd)
+  }, [normalizedQuoteCurrency, quotePerUsd])
 
   const handleSort = (key: "name" | "symbol" | "category" | "is_active" | "activity") => {
     setSortConfig((prev) => {
@@ -289,7 +359,7 @@ function AssetsPageClient() {
             const price = Number.parseFloat(row.price || "")
             if (Number.isFinite(price) && price > 0) return price
           }
-          return 1
+          return Number.isFinite(quotePerUsd) ? quotePerUsd : 1
         }
         const fx = await quotePerUsdt()
 
@@ -324,7 +394,7 @@ function AssetsPageClient() {
     } finally {
       setChartLoading(false)
     }
-  }, [marketQuoteCurrency])
+  }, [marketQuoteCurrency, quotePerUsd])
 
   React.useEffect(() => {
     if (selectedAsset) {
@@ -809,6 +879,7 @@ function AssetsPageClient() {
                 handleSort={handleSort}
                 setSelectedAsset={setSelectedAsset}
                 quoteCurrency={normalizedQuoteCurrency}
+                quotePerUsd={quotePerUsd}
                 marketAssets={trendingAssets.length > 0 ? trendingAssets : assets}
               />
               <AssetPagination
@@ -835,6 +906,7 @@ function AssetsPageClient() {
             formatCurrency={formatCurrency}
             formatCompactCurrency={formatCompactCurrency}
             quoteCurrency={normalizedQuoteCurrency}
+            quotePerUsd={quotePerUsd}
             isWatched={selectedAsset ? watchedIds.has(selectedAsset.id) || selectedAssetIsInNamedWatchlist : false}
             onToggleWatchlist={(asset) => {
               void (async () => {

@@ -41,6 +41,7 @@ interface AssetDetailSheetProps {
   formatCurrency: (val?: number) => string
   formatCompactCurrency: (val?: number) => string
   quoteCurrency?: string
+  quotePerUsd?: number
   isWatched?: boolean
   onToggleWatchlist?: (asset: AssetResponse) => void
   watchlistLists?: WatchlistListResponse[]
@@ -64,7 +65,8 @@ export function AssetDetailSheet({
   availableModels,
   formatCurrency,
   formatCompactCurrency,
-  quoteCurrency = "USDT",
+  quoteCurrency = "USD",
+  quotePerUsd,
   isWatched,
   onToggleWatchlist,
   watchlistLists = [],
@@ -74,14 +76,23 @@ export function AssetDetailSheet({
   onCreateWatchlistList,
 }: AssetDetailSheetProps) {
   const normalizedQuoteCurrency =
+    quoteCurrency === "USD" ||
     quoteCurrency === "TRY" ||
     quoteCurrency === "EUR" ||
     quoteCurrency === "GBP" ||
+    quoteCurrency === "JPY" ||
+    quoteCurrency === "RUB" ||
+    quoteCurrency === "CAD" ||
+    quoteCurrency === "AUD" ||
+    quoteCurrency === "CHF" ||
+    quoteCurrency === "CNY" ||
+    quoteCurrency === "USDT" ||
     quoteCurrency === "USDC" ||
     quoteCurrency === "BUSD"
       ? quoteCurrency
-      : "USDT"
+      : "USD"
   const isUsdPeggedQuote =
+    normalizedQuoteCurrency === "USD" ||
     normalizedQuoteCurrency === "USDT" ||
     normalizedQuoteCurrency === "USDC" ||
     normalizedQuoteCurrency === "BUSD"
@@ -117,6 +128,7 @@ export function AssetDetailSheet({
     if (!Number.isFinite(usdtPrice)) return null
     const quotePerUsdt = (() => {
       if (isUsdPeggedQuote) return 1
+      if (Number.isFinite(quotePerUsd)) return quotePerUsd as number
       if (Number.isFinite(quoteUsdtPrice) && (quoteUsdtPrice ?? 0) > 0) return 1 / (quoteUsdtPrice as number)
       if (Number.isFinite(usdtQuotePrice) && (usdtQuotePrice ?? 0) > 0) return usdtQuotePrice as number
       return null
@@ -126,7 +138,7 @@ export function AssetDetailSheet({
       price: (usdtPrice as number) * (quotePerUsdt as number),
       changePct: Number.isFinite(targetChangePct) ? (targetChangePct as number) : 0,
     }
-  }, [isUsdPeggedQuote, quoteUsdtPrice, targetChangePct, usdtPrice, usdtQuotePrice])
+  }, [isUsdPeggedQuote, quotePerUsd, quoteUsdtPrice, targetChangePct, usdtPrice, usdtQuotePrice])
 
   React.useEffect(() => {
     if (!selectedAsset) {

@@ -20,8 +20,8 @@ interface AssetControlsProps {
     direction: "asc" | "desc"
   } | null
   setSortConfig: (config: any) => void
-  quoteCurrency: "USDT" | "TRY" | "EUR" | "GBP" | "USDC" | "BUSD"
-  setQuoteCurrency: (currency: "USDT" | "TRY" | "EUR" | "GBP" | "USDC" | "BUSD") => void
+  quoteCurrency: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY"
+  setQuoteCurrency: (currency: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY") => void
 }
 
 export function AssetControls({
@@ -54,11 +54,11 @@ export function AssetControls({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[110px]">
-            {(["USDT", "TRY", "EUR", "GBP", "USDC", "BUSD"] as const).map((currency) => (
+            {(["USD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"] as const).map((currency) => (
               <DropdownMenuItem
                 key={currency}
-                onClick={() => setQuoteCurrency(currency)}
-                className="flex items-center justify-between text-[10px] font-bold uppercase"
+                onSelect={() => setQuoteCurrency(currency)}
+                className="flex cursor-pointer items-center justify-between text-[10px] font-bold uppercase"
               >
                 {currency}
                 {currency === quoteCurrency ? <Check className="size-3 text-primary" /> : null}

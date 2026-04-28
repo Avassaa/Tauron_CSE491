@@ -40,7 +40,7 @@ export function AssetPagination({
           variant="ghost"
           size="sm"
           onClick={() => setPage(1)}
-          className="size-9 rounded-xl font-black text-[10px]"
+          className="size-9 cursor-pointer rounded-xl font-black text-[10px]"
         >
           1
         </Button>
@@ -62,7 +62,7 @@ export function AssetPagination({
           size="sm"
           onClick={() => setPage(i)}
           className={cn(
-            "size-9 rounded-xl font-black text-[10px] transition-all",
+            "size-9 cursor-pointer rounded-xl font-black text-[10px] transition-all",
             page === i
               ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -87,7 +87,7 @@ export function AssetPagination({
           variant="ghost"
           size="sm"
           onClick={() => setPage(totalPages)}
-          className="size-9 rounded-xl font-black text-[10px]"
+          className="size-9 cursor-pointer rounded-xl font-black text-[10px]"
         >
           {totalPages}
         </Button>
@@ -104,7 +104,7 @@ export function AssetPagination({
         size="sm"
         onClick={() => setPage(page - 1)}
         disabled={page === 1 || loading}
-        className="h-9 px-4 rounded-xl border-border/50 bg-card/30 hover:bg-card hover:text-primary disabled:opacity-30 transition-all font-black text-[10px] uppercase tracking-wider gap-2"
+        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/30 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft className="size-3.5" />
         Prev
@@ -119,7 +119,7 @@ export function AssetPagination({
         size="sm"
         onClick={() => setPage(page + 1)}
         disabled={page === totalPages || loading}
-        className="h-9 px-4 rounded-xl border-border/50 bg-card/30 hover:bg-card hover:text-primary disabled:opacity-30 transition-all font-black text-[10px] uppercase tracking-wider gap-2"
+        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/30 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         Next
         <ChevronRight className="size-3.5" />

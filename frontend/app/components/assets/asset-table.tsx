@@ -27,11 +27,14 @@ type CoinGeckoMarket = {
   sparkline_in_7d?: { price?: number[] }
 }
 
-function formatCompactUsd(value?: number | null) {
+function formatCompactCurrency(
+  value: number | null | undefined,
+  currencyCode: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY",
+) {
   if (!Number.isFinite(value ?? NaN)) return "—"
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: currencyCode,
     notation: "compact",
     maximumFractionDigits: 2,
   }).format(value as number)
@@ -69,6 +72,7 @@ interface AssetTableProps {
   handleSort: (key: "name" | "symbol" | "category" | "is_active" | "activity") => void
   setSelectedAsset: (asset: AssetResponse) => void
   quoteCurrency: string
+  quotePerUsd?: number
   marketAssets?: AssetResponse[]
 }
 
@@ -81,17 +85,23 @@ export function AssetTable({
   handleSort,
   setSelectedAsset,
   quoteCurrency,
+  quotePerUsd: externalQuotePerUsd,
   marketAssets,
 }: AssetTableProps) {
-  const isUsdPeggedQuote = (value: string) => value === "USDT" || value === "USDC" || value === "BUSD"
+  const isUsdPeggedQuote = (value: string) => value === "USD" || value === "USDT" || value === "USDC" || value === "BUSD"
   const normalizedQuoteCurrency =
+    quoteCurrency === "USD" ||
     quoteCurrency === "TRY" ||
     quoteCurrency === "EUR" ||
     quoteCurrency === "GBP" ||
-    quoteCurrency === "USDC" ||
-    quoteCurrency === "BUSD"
+    quoteCurrency === "JPY" ||
+    quoteCurrency === "RUB" ||
+    quoteCurrency === "CAD" ||
+    quoteCurrency === "AUD" ||
+    quoteCurrency === "CHF" ||
+    quoteCurrency === "CNY"
       ? quoteCurrency
-      : "USDT"
+      : "USD"
   const [flashBySymbol, setFlashBySymbol] = React.useState<Record<string, "up" | "down">>({})
   const [marketById, setMarketById] = React.useState<Record<string, CoinGeckoMarket>>({})
   const [loadingMarketIds, setLoadingMarketIds] = React.useState<Set<string>>(new Set())
@@ -99,6 +109,26 @@ export function AssetTable({
   const marketByIdRef = React.useRef<Record<string, CoinGeckoMarket>>({})
   const lastPriceBySymbolRef = React.useRef<Record<string, number>>({})
   const flashTimersRef = React.useRef<Record<string, number>>({})
+  const currencyCode: "USD" | "TRY" | "EUR" | "GBP" | "JPY" | "RUB" | "CAD" | "AUD" | "CHF" | "CNY" =
+    normalizedQuoteCurrency === "TRY"
+      ? "TRY"
+      : normalizedQuoteCurrency === "EUR"
+        ? "EUR"
+        : normalizedQuoteCurrency === "GBP"
+          ? "GBP"
+          : normalizedQuoteCurrency === "JPY"
+            ? "JPY"
+            : normalizedQuoteCurrency === "RUB"
+              ? "RUB"
+              : normalizedQuoteCurrency === "CAD"
+                ? "CAD"
+                : normalizedQuoteCurrency === "AUD"
+                  ? "AUD"
+                  : normalizedQuoteCurrency === "CHF"
+                    ? "CHF"
+                    : normalizedQuoteCurrency === "CNY"
+                      ? "CNY"
+                      : "USD"
   const streamSymbols = React.useMemo(() => {
     const assetUsdtSymbols = assets
       .map((asset) => `${asset.symbol.toUpperCase()}USDT`)
@@ -113,6 +143,19 @@ export function AssetTable({
     return Array.from(new Set([...assetUsdtSymbols, ...conversionSymbols]))
   }, [assets, normalizedQuoteCurrency])
   const liveTickers = useLiveTickers(streamSymbols)
+  const quotePerUsd = React.useMemo(() => {
+    if (isUsdPeggedQuote(normalizedQuoteCurrency)) return 1
+    if (Number.isFinite(externalQuotePerUsd)) return externalQuotePerUsd as number
+    const quoteUsdt = liveTickers[`${normalizedQuoteCurrency.toUpperCase()}USDT`]?.price
+    if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
+    const usdtQuote = liveTickers[`USDT${normalizedQuoteCurrency.toUpperCase()}`]?.price
+    if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
+    return null
+  }, [externalQuotePerUsd, liveTickers, normalizedQuoteCurrency])
+  const formatSelectedCompactCurrency = React.useCallback((value?: number | null) => {
+    if (!Number.isFinite(value ?? NaN) || !Number.isFinite(quotePerUsd ?? NaN)) return "—"
+    return formatCompactCurrency((value as number) * (quotePerUsd as number), currencyCode)
+  }, [currencyCode, quotePerUsd])
 
   const queuePriceFlash = React.useCallback((symbol: string, direction: "up" | "down") => {
     setFlashBySymbol((prev) => ({ ...prev, [symbol]: direction }))
@@ -167,7 +210,6 @@ export function AssetTable({
     )
     if (ids.length === 0) return
 
-    let cancelled = false
     const loadMarkets = async () => {
       ids.forEach((id) => requestedMarketIdsRef.current.add(id))
       setLoadingMarketIds((prev) => {
@@ -181,6 +223,8 @@ export function AssetTable({
         )
         const settled = await Promise.allSettled(
           chunks.map(async (chunk) => {
+            const controller = new AbortController()
+            const timeout = window.setTimeout(() => controller.abort(), 8000)
             const params = new URLSearchParams({
               vs_currency: "usd",
               ids: chunk.join(","),
@@ -190,12 +234,17 @@ export function AssetTable({
               sparkline: "true",
               price_change_percentage: "1h,24h,7d",
             })
-            const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`)
-            if (!response.ok) throw new Error(`CoinGecko markets failed: ${response.status}`)
-            return (await response.json()) as CoinGeckoMarket[]
+            try {
+              const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`, {
+                signal: controller.signal,
+              })
+              if (!response.ok) throw new Error(`CoinGecko markets failed: ${response.status}`)
+              return (await response.json()) as CoinGeckoMarket[]
+            } finally {
+              window.clearTimeout(timeout)
+            }
           }),
         )
-        if (cancelled) return
         const rows = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
         setMarketById((prev) => {
           const next = { ...prev }
@@ -207,21 +256,16 @@ export function AssetTable({
       } catch {
         // Keep Binance live values and placeholders if CoinGecko rate-limits.
       } finally {
-        if (!cancelled) {
-          setLoadingMarketIds((prev) => {
-            const next = new Set(prev)
-            ids.forEach((id) => next.delete(id))
-            return next
-          })
-        }
+        setLoadingMarketIds((prev) => {
+          const next = new Set(prev)
+          ids.forEach((id) => next.delete(id))
+          return next
+        })
         ids.forEach((id) => requestedMarketIdsRef.current.delete(id))
       }
     }
 
     void loadMarkets()
-    return () => {
-      cancelled = true
-    }
   }, [assets, marketAssets])
 
   const SortIcon = ({ column }: { column: string }) => {
@@ -306,6 +350,7 @@ export function AssetTable({
           <TableBody>
             {assets.map((asset, index) => {
               const liveTicker = liveTickers[`${asset.symbol.toUpperCase()}USDT`]
+              const liveTickerSymbol = `${asset.symbol.toUpperCase()}USDT`
               const market = asset.coingecko_id ? marketById[asset.coingecko_id] : undefined
               const isMarketLoading = asset.coingecko_id ? loadingMarketIds.has(asset.coingecko_id) : false
               const oneHourChange = market?.price_change_percentage_1h_in_currency
@@ -369,9 +414,9 @@ export function AssetTable({
                   <TableCell className="hidden lg:table-cell py-4 text-center">
                     <span
                       className={`inline-block min-w-[12ch] rounded px-1 text-right font-mono text-xs font-black tabular-nums whitespace-nowrap transition-colors duration-300 ${
-                        flashBySymbol[`${asset.symbol.toUpperCase()}${normalizedQuoteCurrency.toUpperCase()}`] === "up"
+                        flashBySymbol[liveTickerSymbol] === "up"
                           ? "text-emerald-500"
-                          : flashBySymbol[`${asset.symbol.toUpperCase()}${normalizedQuoteCurrency.toUpperCase()}`] === "down"
+                          : flashBySymbol[liveTickerSymbol] === "down"
                             ? "text-red-500"
                             : "text-foreground"
                       }`}
@@ -385,22 +430,16 @@ export function AssetTable({
                           if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
                           const usdtQuote = liveTickers[`USDT${normalizedQuoteCurrency.toUpperCase()}`]?.price
                           if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
-                          return null
+                          return Number.isFinite(quotePerUsd) ? quotePerUsd : null
                         })()
                         if (!Number.isFinite(quotePerUsdt ?? NaN)) return "—"
                         const livePrice = usdtPrice * (quotePerUsdt as number)
-                        const currencyPrefix =
-                          normalizedQuoteCurrency === "TRY"
-                            ? "₺"
-                            : normalizedQuoteCurrency === "EUR"
-                              ? "€"
-                              : normalizedQuoteCurrency === "GBP"
-                                ? "£"
-                                : "$"
-                        return `${currencyPrefix}${livePrice.toLocaleString(undefined, {
+                        return new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: currencyCode,
                           minimumFractionDigits: 2,
                           maximumFractionDigits: livePrice >= 1 ? 2 : 6,
-                        })}`
+                        }).format(livePrice)
                       })()}
                     </span>
                   </TableCell>
@@ -451,7 +490,7 @@ export function AssetTable({
                       <Skeleton className="mx-auto h-4 w-16 rounded-md" />
                     ) : (
                       <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                        {formatCompactUsd(volume)}
+                        {formatSelectedCompactCurrency(volume)}
                       </span>
                     )}
                   </TableCell>
@@ -460,7 +499,7 @@ export function AssetTable({
                       <Skeleton className="mx-auto h-4 w-16 rounded-md" />
                     ) : (
                       <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                        {formatCompactUsd(market?.market_cap)}
+                        {formatSelectedCompactCurrency(market?.market_cap)}
                       </span>
                     )}
                   </TableCell>
