@@ -4,7 +4,6 @@ import * as React from "react"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { apiGet, apiPut, apiDelete, apiPost, type AssetResponse, type PaginatedResponse, type MarketDataResponse, type MlModelResponse, type WatchlistEntryResponse, type WatchlistListResponse } from "~/lib/api-client"
 import { toast } from "sonner"
-import { MOCK_ASSETS } from "~/lib/mock-data"
 import { cn } from "~/lib/utils"
 import { Input } from "~/components/ui/input"
 import { Button } from "~/components/ui/button"
@@ -42,7 +41,7 @@ const UUID_REGEX =
 
 const isUuid = (value: string) => UUID_REGEX.test(value)
 
-const mergeWithMockAssets = (primary: AssetResponse[], targetCount: number) => {
+const uniqueAssets = (primary: AssetResponse[], targetCount: number) => {
   const seenSymbols = new Set<string>()
   const merged: AssetResponse[] = []
 
@@ -52,14 +51,6 @@ const mergeWithMockAssets = (primary: AssetResponse[], targetCount: number) => {
     seenSymbols.add(key)
     merged.push(asset)
     if (merged.length >= targetCount) return merged
-  }
-
-  for (const asset of MOCK_ASSETS) {
-    const key = asset.symbol.toUpperCase()
-    if (seenSymbols.has(key)) continue
-    seenSymbols.add(key)
-    merged.push(asset)
-    if (merged.length >= targetCount) break
   }
 
   return merged
@@ -306,7 +297,7 @@ function AssetsPageClient() {
         const latest = klines[klines.length - 1]
         const firstClose = Number.parseFloat(first[4]) * fx
         const latestClose = Number.parseFloat(latest[4]) * fx
-        const latestVolume = Number.parseFloat(latest[5])
+        const latestVolume = Number.parseFloat(latest[7]) * fx
         const priceChange = firstClose > 0 ? ((latestClose - firstClose) / firstClose) * 100 : 0
         setMarketStats({
           price: latestClose,
@@ -316,7 +307,7 @@ function AssetsPageClient() {
         setChartData(
           klines.map((kline) => {
             const close = Number.parseFloat(kline[4])
-            const volume = Number.parseFloat(kline[5])
+            const volume = Number.parseFloat(kline[7]) * fx
             return {
               date: new Date(kline[0]).toISOString(),
               price: close * fx,
@@ -426,18 +417,15 @@ function AssetsPageClient() {
         }
         return next
       })
-      const mergedItems = mergeWithMockAssets(data.items, PAGE_SIZE)
+      const mergedItems = uniqueAssets(data.items, PAGE_SIZE)
       setAssets(mergedItems)
       setTotal(Math.max(data.total, mergedItems.length))
       await ensureAssetsPersisted(mergedItems)
     } catch (err) {
-      console.error("API failed, using mock assets:", err)
-      const start = (currentPage - 1) * PAGE_SIZE
-      const end = start + PAGE_SIZE
-      const fallbackItems = MOCK_ASSETS.slice(start, end)
-      setAssets(fallbackItems)
-      setTotal(MOCK_ASSETS.length)
-      await ensureAssetsPersisted(fallbackItems)
+      console.error("API failed to fetch assets:", err)
+      setAssets([])
+      setTotal(0)
+      setError("Failed to load assets from the API.")
     } finally {
       setLoading(false)
     }
@@ -460,12 +448,12 @@ function AssetsPageClient() {
         }
         return next
       })
-      const merged = mergeWithMockAssets(data.items, TRENDING_PAGE_SIZE)
+      const merged = uniqueAssets(data.items, TRENDING_PAGE_SIZE)
       setTrendingAssets(merged)
       await ensureAssetsPersisted(merged)
-    } catch {
-      setTrendingAssets(MOCK_ASSETS)
-      await ensureAssetsPersisted(MOCK_ASSETS)
+    } catch (err) {
+      console.error("API failed to fetch trending assets:", err)
+      setTrendingAssets([])
     }
   }, [ensureAssetsPersisted])
 
@@ -708,7 +696,7 @@ function AssetsPageClient() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const trendingCoins = React.useMemo(
-    () => (trendingAssets.length > 0 ? trendingAssets : MOCK_ASSETS).slice(0, TRENDING_COINS_COUNT),
+    () => trendingAssets.slice(0, TRENDING_COINS_COUNT),
     [trendingAssets],
   )
   const trendingSymbols = React.useMemo(
@@ -821,6 +809,7 @@ function AssetsPageClient() {
                 handleSort={handleSort}
                 setSelectedAsset={setSelectedAsset}
                 quoteCurrency={normalizedQuoteCurrency}
+                marketAssets={trendingAssets.length > 0 ? trendingAssets : assets}
               />
               <AssetPagination
                 page={page}

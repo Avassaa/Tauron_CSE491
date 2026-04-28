@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, RefreshCw, Grid, List, Plus, ChevronDown, Check } from "lucide-react"
+import { Search, RefreshCw, Grid, List, Plus, ChevronDown, Check, MoreVertical, Edit3, Trash2 } from "lucide-react"
 import { Input } from "~/components/ui/input"
 import { Button } from "~/components/ui/button"
 import { format } from "date-fns"
@@ -14,6 +14,41 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
+
+function AddAssetIcon({ asset }: { asset: AssetResponse }) {
+  const [fallbackTried, setFallbackTried] = React.useState(false)
+  const [errored, setErrored] = React.useState(false)
+
+  React.useEffect(() => {
+    setFallbackTried(false)
+    setErrored(false)
+  }, [asset.symbol])
+
+  const iconUrl = fallbackTried
+    ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
+    : `https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`
+
+  return (
+    <div className="size-10 overflow-hidden rounded-xl bg-primary/10 flex items-center justify-center font-black text-xs text-primary transition-transform group-hover:scale-110">
+      {!errored ? (
+        <img
+          src={iconUrl}
+          alt={`${asset.symbol} icon`}
+          className="size-full object-cover"
+          onError={() => {
+            if (!fallbackTried) {
+              setFallbackTried(true)
+              return
+            }
+            setErrored(true)
+          }}
+        />
+      ) : (
+        asset.symbol.slice(0, 3).toUpperCase()
+      )}
+    </div>
+  )
+}
 
 interface WatchlistHeaderProps {
   title?: string
@@ -35,6 +70,8 @@ interface WatchlistHeaderProps {
   onAdd: (asset: AssetResponse) => void
   showAddPanel: boolean
   setShowAddPanel: (val: boolean) => void
+  onRenameWatchlist?: () => void
+  onDeleteWatchlist?: () => void
 }
 
 export function WatchlistHeader({
@@ -57,6 +94,8 @@ export function WatchlistHeader({
   onAdd,
   showAddPanel,
   setShowAddPanel,
+  onRenameWatchlist,
+  onDeleteWatchlist,
 }: WatchlistHeaderProps) {
   const [assetSearch, setAssetSearch] = React.useState("")
 
@@ -73,7 +112,42 @@ export function WatchlistHeader({
     <div className="flex flex-col gap-8 mb-6">
       <div className="flex items-end justify-between">
         <div className="space-y-1">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">{title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-4xl font-bold tracking-tight text-foreground">{title}</h1>
+            {onRenameWatchlist || onDeleteWatchlist ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 rounded-xl text-muted-foreground hover:text-foreground"
+                    aria-label="Watchlist actions"
+                  >
+                    <MoreVertical className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-44">
+                  {onRenameWatchlist ? (
+                    <DropdownMenuItem className="cursor-pointer" onSelect={onRenameWatchlist}>
+                      <Edit3 className="size-4" />
+                      Rename
+                    </DropdownMenuItem>
+                  ) : null}
+                  {onDeleteWatchlist ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      className="cursor-pointer"
+                      onSelect={onDeleteWatchlist}
+                    >
+                      <Trash2 className="size-4" />
+                      Remove
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </div>
           <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
             Updated {format(lastUpdate, "MMM dd, HH:mm")}
             <button onClick={onRefresh} className="hover:text-white transition-colors">
@@ -179,9 +253,7 @@ export function WatchlistHeader({
                       className="flex items-center justify-between p-3 rounded-xl cursor-pointer focus:bg-muted group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center font-black text-xs text-primary transition-transform group-hover:scale-110">
-                          {asset.symbol.slice(0, 3)}
-                        </div>
+                        <AddAssetIcon asset={asset} />
                         <div className="flex flex-col">
                           <span className="font-bold text-sm tracking-tight text-foreground">{asset.name}</span>
                           <span className="text-[10px] font-bold text-muted-foreground uppercase">{asset.symbol}</span>

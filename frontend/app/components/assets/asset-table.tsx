@@ -14,6 +14,7 @@ import { Badge } from "~/components/ui/badge"
 import type { AssetResponse } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
 import { cn } from "~/lib/utils"
+import { Skeleton } from "~/components/ui/skeleton"
 
 type CoinGeckoMarket = {
   id: string
@@ -68,6 +69,7 @@ interface AssetTableProps {
   handleSort: (key: "name" | "symbol" | "category" | "is_active" | "activity") => void
   setSelectedAsset: (asset: AssetResponse) => void
   quoteCurrency: string
+  marketAssets?: AssetResponse[]
 }
 
 export function AssetTable({
@@ -79,6 +81,7 @@ export function AssetTable({
   handleSort,
   setSelectedAsset,
   quoteCurrency,
+  marketAssets,
 }: AssetTableProps) {
   const isUsdPeggedQuote = (value: string) => value === "USDT" || value === "USDC" || value === "BUSD"
   const normalizedQuoteCurrency =
@@ -91,6 +94,9 @@ export function AssetTable({
       : "USDT"
   const [flashBySymbol, setFlashBySymbol] = React.useState<Record<string, "up" | "down">>({})
   const [marketById, setMarketById] = React.useState<Record<string, CoinGeckoMarket>>({})
+  const [loadingMarketIds, setLoadingMarketIds] = React.useState<Set<string>>(new Set())
+  const requestedMarketIdsRef = React.useRef<Set<string>>(new Set())
+  const marketByIdRef = React.useRef<Record<string, CoinGeckoMarket>>({})
   const lastPriceBySymbolRef = React.useRef<Record<string, number>>({})
   const flashTimersRef = React.useRef<Record<string, number>>({})
   const streamSymbols = React.useMemo(() => {
@@ -144,31 +150,53 @@ export function AssetTable({
   }, [liveTickers, queuePriceFlash])
 
   React.useEffect(() => {
+    marketByIdRef.current = marketById
+  }, [marketById])
+
+  React.useEffect(() => {
+    const sourceAssets = marketAssets && marketAssets.length > 0 ? marketAssets : assets
     const ids = Array.from(
       new Set(
-        assets
+        sourceAssets
           .map((asset) => asset.coingecko_id)
-          .filter((id): id is string => Boolean(id)),
+          .filter((id): id is string => {
+            if (!id) return false
+            return !marketByIdRef.current[id] && !requestedMarketIdsRef.current.has(id)
+          }),
       ),
     )
     if (ids.length === 0) return
 
     let cancelled = false
     const loadMarkets = async () => {
+      ids.forEach((id) => requestedMarketIdsRef.current.add(id))
+      setLoadingMarketIds((prev) => {
+        const next = new Set(prev)
+        ids.forEach((id) => next.add(id))
+        return next
+      })
       try {
-        const params = new URLSearchParams({
-          vs_currency: "usd",
-          ids: ids.join(","),
-          order: "market_cap_desc",
-          per_page: String(ids.length),
-          page: "1",
-          sparkline: "true",
-          price_change_percentage: "1h,24h,7d",
-        })
-        const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`)
-        if (!response.ok) return
-        const rows = (await response.json()) as CoinGeckoMarket[]
+        const chunks = Array.from({ length: Math.ceil(ids.length / 50) }, (_, index) =>
+          ids.slice(index * 50, index * 50 + 50),
+        )
+        const settled = await Promise.allSettled(
+          chunks.map(async (chunk) => {
+            const params = new URLSearchParams({
+              vs_currency: "usd",
+              ids: chunk.join(","),
+              order: "market_cap_desc",
+              per_page: String(chunk.length),
+              page: "1",
+              sparkline: "true",
+              price_change_percentage: "1h,24h,7d",
+            })
+            const response = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params}`)
+            if (!response.ok) throw new Error(`CoinGecko markets failed: ${response.status}`)
+            return (await response.json()) as CoinGeckoMarket[]
+          }),
+        )
         if (cancelled) return
+        const rows = settled.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
         setMarketById((prev) => {
           const next = { ...prev }
           for (const row of rows) {
@@ -178,6 +206,15 @@ export function AssetTable({
         })
       } catch {
         // Keep Binance live values and placeholders if CoinGecko rate-limits.
+      } finally {
+        if (!cancelled) {
+          setLoadingMarketIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.delete(id))
+            return next
+          })
+        }
+        ids.forEach((id) => requestedMarketIdsRef.current.delete(id))
       }
     }
 
@@ -185,7 +222,7 @@ export function AssetTable({
     return () => {
       cancelled = true
     }
-  }, [assets])
+  }, [assets, marketAssets])
 
   const SortIcon = ({ column }: { column: string }) => {
     if (sortConfig?.key !== column) return null
@@ -270,6 +307,7 @@ export function AssetTable({
             {assets.map((asset, index) => {
               const liveTicker = liveTickers[`${asset.symbol.toUpperCase()}USDT`]
               const market = asset.coingecko_id ? marketById[asset.coingecko_id] : undefined
+              const isMarketLoading = asset.coingecko_id ? loadingMarketIds.has(asset.coingecko_id) : false
               const oneHourChange = market?.price_change_percentage_1h_in_currency
               const dayChange = market?.price_change_percentage_24h_in_currency ?? liveTicker?.changePct
               const weekChange = market?.price_change_percentage_7d_in_currency
@@ -367,48 +405,70 @@ export function AssetTable({
                     </span>
                   </TableCell>
                   <TableCell className="hidden xl:table-cell py-4 text-center">
-                    <span className={cn(
-                      "text-xs font-black tabular-nums",
-                      Number.isFinite(oneHourChange ?? NaN)
-                        ? (oneHourChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                        : "text-muted-foreground"
-                    )}>
-                      {formatPercent(oneHourChange)}
-                    </span>
+                    {isMarketLoading ? (
+                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
+                    ) : (
+                      <span className={cn(
+                        "text-xs font-black tabular-nums",
+                        Number.isFinite(oneHourChange ?? NaN)
+                          ? (oneHourChange as number) >= 0 ? "text-green-500" : "text-red-500"
+                          : "text-muted-foreground"
+                      )}>
+                        {formatPercent(oneHourChange)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden xl:table-cell py-4 text-center">
-                    <span className={cn(
-                      "text-xs font-black tabular-nums",
-                      Number.isFinite(dayChange ?? NaN)
-                        ? (dayChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                        : "text-muted-foreground"
-                    )}>
-                      {formatPercent(dayChange)}
-                    </span>
+                    {isMarketLoading && !liveTicker ? (
+                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
+                    ) : (
+                      <span className={cn(
+                        "text-xs font-black tabular-nums",
+                        Number.isFinite(dayChange ?? NaN)
+                          ? (dayChange as number) >= 0 ? "text-green-500" : "text-red-500"
+                          : "text-muted-foreground"
+                      )}>
+                        {formatPercent(dayChange)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden xl:table-cell py-4 text-center">
-                    <span className={cn(
-                      "text-xs font-black tabular-nums",
-                      Number.isFinite(weekChange ?? NaN)
-                        ? (weekChange as number) >= 0 ? "text-green-500" : "text-red-500"
-                        : "text-muted-foreground"
-                    )}>
-                      {formatPercent(weekChange)}
-                    </span>
+                    {isMarketLoading ? (
+                      <Skeleton className="mx-auto h-4 w-12 rounded-md" />
+                    ) : (
+                      <span className={cn(
+                        "text-xs font-black tabular-nums",
+                        Number.isFinite(weekChange ?? NaN)
+                          ? (weekChange as number) >= 0 ? "text-green-500" : "text-red-500"
+                          : "text-muted-foreground"
+                      )}>
+                        {formatPercent(weekChange)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden 2xl:table-cell py-4 text-center">
-                    <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                      {formatCompactUsd(volume)}
-                    </span>
+                    {isMarketLoading && !liveTicker ? (
+                      <Skeleton className="mx-auto h-4 w-16 rounded-md" />
+                    ) : (
+                      <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
+                        {formatCompactUsd(volume)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden 2xl:table-cell py-4 text-center">
-                    <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
-                      {formatCompactUsd(market?.market_cap)}
-                    </span>
+                    {isMarketLoading ? (
+                      <Skeleton className="mx-auto h-4 w-16 rounded-md" />
+                    ) : (
+                      <span className="text-xs font-black text-foreground tabular-nums whitespace-nowrap">
+                        {formatCompactUsd(market?.market_cap)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden 2xl:table-cell py-4 text-center">
                     <div className="mx-auto h-10 w-28">
-                      {sparkPath ? (
+                      {isMarketLoading ? (
+                        <Skeleton className="h-10 w-28 rounded-lg" />
+                      ) : sparkPath ? (
                         <svg viewBox="0 0 100 40" className="h-full w-full overflow-visible">
                           <path
                             d={sparkPath}

@@ -30,19 +30,6 @@ export function AssetDetailChart({
   mode?: "price" | "volume" | "both",
 }) {
   if (!data || data.length === 0) return null
-  const [isDarkMode, setIsDarkMode] = React.useState(false)
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
-    const sync = () => {
-      const hasDarkClass = document.documentElement.classList.contains("dark")
-      setIsDarkMode(hasDarkClass || media.matches)
-    }
-    sync()
-    media.addEventListener("change", sync)
-    return () => media.removeEventListener("change", sync)
-  }, [])
 
   const isUp = trend === "up"
   const strokeColor = isUp ? "#16a34a" : "#ef4444"
@@ -104,7 +91,7 @@ export function AssetDetailChart({
           <YAxis
             yAxisId="volume"
             orientation="left"
-            domain={["auto", "auto"]}
+            domain={[0, "dataMax"]}
             tickLine={false}
             axisLine={false}
             tick={{ fill: "var(--muted-foreground)", fontSize: 10, fontWeight: "bold" }}
@@ -117,9 +104,11 @@ export function AssetDetailChart({
           <Bar
             yAxisId="volume"
             dataKey="volume"
-            fill={isDarkMode ? "#ffffff" : "#000000"}
-            opacity={0.25}
+            fill="var(--foreground)"
+            opacity={0.35}
             radius={[2, 2, 0, 0]}
+            maxBarSize={10}
+            minPointSize={2}
           />
         ) : null}
         {showPrice ? (

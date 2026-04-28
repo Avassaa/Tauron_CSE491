@@ -4,7 +4,7 @@ import * as React from "react"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import { useNavigate } from "react-router"
-import { ArrowRight, Edit3, Grid, List, ListChecks, MoreVertical, Plus, Trash2 } from "lucide-react"
+import { ArrowRight, Edit3, ExternalLink, Grid, List, ListChecks, MoreVertical, Plus, Trash2 } from "lucide-react"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import {
@@ -19,7 +19,6 @@ import {
   type PaginatedResponse,
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
-import { MOCK_ASSETS } from "~/lib/mock-data"
 import {
   WatchlistCard,
   WatchlistTable,
@@ -74,6 +73,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "~/components/ui/context-menu"
 
 type TimeRange = "1h" | "24h" | "7d" | "30d" | "1m" | "3m" | "1y" | "max"
 const TIME_RANGES: TimeRange[] = ["1h", "24h", "7d", "30d", "1m", "3m", "1y", "max"]
@@ -118,6 +124,19 @@ const getWatchlistRangeConfig = (range: string) => {
     default:
       return { interval: "1h", limit: 24 }
   }
+}
+
+const mergePopularAssets = (primary: AssetResponse[], targetCount = 60) => {
+  const seen = new Set<string>()
+  const merged: AssetResponse[] = []
+  for (const asset of primary) {
+    const symbol = asset.symbol.toUpperCase()
+    if (seen.has(symbol)) continue
+    seen.add(symbol)
+    merged.push(asset)
+    if (merged.length >= targetCount) break
+  }
+  return merged
 }
 
 function WatchlistCoinAvatar({ asset }: { asset: AssetResponse }) {
@@ -372,18 +391,21 @@ function WatchlistPageClient() {
     }
   }, [deleteWatchlist])
 
+  const openWatchlistList = React.useCallback((list: WatchlistListResponse) => {
+    setSelectedWatchlistList(list)
+    setSearch("")
+    setPage(1)
+  }, [])
+
   const fetchAllAssets = React.useCallback(async () => {
     if (allAssets.length > 0) return
     setLoadingAssets(true)
     try {
-      const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 100 })
-      if (data.items && data.items.length > 0) {
-        setAllAssets(data.items)
-      } else {
-        setAllAssets(MOCK_ASSETS)
-      }
-    } catch {
-      setAllAssets(MOCK_ASSETS)
+      const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 500 })
+      setAllAssets(mergePopularAssets(data.items || []))
+    } catch (err) {
+      console.error("API failed to fetch addable assets:", err)
+      setAllAssets([])
     } finally {
       setLoadingAssets(false)
     }
@@ -737,6 +759,8 @@ function WatchlistPageClient() {
 
   return (
     <DashboardLayout title={selectedWatchlistList?.name || "Watchlists"}>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-1 flex-col gap-4 px-4 pb-4 pt-8 md:px-8 md:pb-8 md:pt-10">
 
@@ -795,6 +819,12 @@ function WatchlistPageClient() {
               onAdd={handleAdd}
               showAddPanel={showAddPanel}
               setShowAddPanel={setShowAddPanel}
+              onRenameWatchlist={
+                selectedWatchlistList ? () => openEditWatchlist(selectedWatchlistList) : undefined
+              }
+              onDeleteWatchlist={
+                selectedWatchlistList ? () => setDeleteWatchlist(selectedWatchlistList) : undefined
+              }
             />
           )}
 
@@ -915,15 +945,12 @@ function WatchlistPageClient() {
                           const remainingAssets = Math.max(trackedAssets.length - visibleAssets.length, 0)
 
                           return (
-                            <TableRow
-                              key={list.id}
-                              onClick={() => {
-                                setSelectedWatchlistList(list)
-                                setSearch("")
-                                setPage(1)
-                              }}
-                              className="group cursor-pointer border-border/40 transition-colors hover:bg-primary/[0.03]"
-                            >
+                            <ContextMenu key={list.id}>
+                              <ContextMenuTrigger asChild>
+                                <TableRow
+                                  onClick={() => openWatchlistList(list)}
+                                  className="group cursor-pointer border-border/40 transition-colors hover:bg-primary/[0.03]"
+                                >
                               <TableCell className="px-6 py-5">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -1011,7 +1038,28 @@ function WatchlistPageClient() {
                                   <ArrowRight className="size-4 translate-x-2 text-muted-foreground opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:text-primary group-hover:opacity-100" />
                                 </div>
                               </TableCell>
-                            </TableRow>
+                                </TableRow>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="w-44">
+                                <ContextMenuItem className="cursor-pointer" onSelect={() => openWatchlistList(list)}>
+                                  <ExternalLink className="size-4" />
+                                  Open
+                                </ContextMenuItem>
+                                <ContextMenuSeparator />
+                                <ContextMenuItem className="cursor-pointer" onSelect={() => openEditWatchlist(list)}>
+                                  <Edit3 className="size-4" />
+                                  Rename
+                                </ContextMenuItem>
+                                <ContextMenuItem
+                                  variant="destructive"
+                                  className="cursor-pointer"
+                                  onSelect={() => setDeleteWatchlist(list)}
+                                >
+                                  <Trash2 className="size-4" />
+                                  Remove
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                            </ContextMenu>
                           )
                         })}
                       </TableBody>
@@ -1025,25 +1073,20 @@ function WatchlistPageClient() {
                       const remainingAssets = Math.max(trackedAssets.length - visibleAssets.length, 0)
 
                       return (
-                        <div
-                          key={list.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            setSelectedWatchlistList(list)
-                            setSearch("")
-                            setPage(1)
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault()
-                              setSelectedWatchlistList(list)
-                              setSearch("")
-                              setPage(1)
-                            }
-                          }}
-                          className="group relative cursor-pointer overflow-hidden rounded-3xl border-2 border-border/50 bg-card/40 p-5 text-left shadow-2xl shadow-primary/5 transition-colors hover:border-primary/40 hover:bg-card"
-                        >
+                        <ContextMenu key={list.id}>
+                          <ContextMenuTrigger asChild>
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openWatchlistList(list)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault()
+                                  openWatchlistList(list)
+                                }
+                              }}
+                              className="group relative cursor-pointer overflow-hidden rounded-3xl border-2 border-border/50 bg-card/40 p-5 text-left shadow-2xl shadow-primary/5 transition-colors hover:border-primary/40 hover:bg-card"
+                            >
                           <div
                             className="absolute right-4 top-4 z-10"
                             onClick={(event) => event.stopPropagation()}
@@ -1137,7 +1180,28 @@ function WatchlistPageClient() {
                               </span>
                             </div>
                           </div>
-                        </div>
+                            </div>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent className="w-44">
+                            <ContextMenuItem className="cursor-pointer" onSelect={() => openWatchlistList(list)}>
+                              <ExternalLink className="size-4" />
+                              Open
+                            </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem className="cursor-pointer" onSelect={() => openEditWatchlist(list)}>
+                              <Edit3 className="size-4" />
+                              Rename
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                              variant="destructive"
+                              className="cursor-pointer"
+                              onSelect={() => setDeleteWatchlist(list)}
+                            >
+                              <Trash2 className="size-4" />
+                              Remove
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
                       )
                     })}
                   </div>
@@ -1353,6 +1417,34 @@ function WatchlistPageClient() {
           </Dialog>
         </div>
       </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-52">
+          <ContextMenuItem className="cursor-pointer" onSelect={() => setCreateDialogOpen(true)}>
+            <Plus className="size-4" />
+            Create Watchlist
+          </ContextMenuItem>
+          {selectedWatchlistList ? (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                className="cursor-pointer"
+                onSelect={() => openEditWatchlist(selectedWatchlistList)}
+              >
+                <Edit3 className="size-4" />
+                Rename Current
+              </ContextMenuItem>
+              <ContextMenuItem
+                variant="destructive"
+                className="cursor-pointer"
+                onSelect={() => setDeleteWatchlist(selectedWatchlistList)}
+              >
+                <Trash2 className="size-4" />
+                Remove Current
+              </ContextMenuItem>
+            </>
+          ) : null}
+        </ContextMenuContent>
+      </ContextMenu>
     </DashboardLayout>
   )
 }

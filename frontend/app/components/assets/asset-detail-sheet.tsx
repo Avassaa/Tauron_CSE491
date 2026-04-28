@@ -87,7 +87,6 @@ export function AssetDetailSheet({
     normalizedQuoteCurrency === "BUSD"
   const [activeTab, setActiveTab] = React.useState<"price" | "prediction">("price")
   const [chartMode, setChartMode] = React.useState<"price" | "volume" | "both">("both")
-  const [liveTicker, setLiveTicker] = React.useState<{ price: number; changePct: number } | null>(null)
   const [priceFlash, setPriceFlash] = React.useState<"up" | "down" | null>(null)
   const [detailIconErrored, setDetailIconErrored] = React.useState(false)
   const [detailIconFallbackTried, setDetailIconFallbackTried] = React.useState(false)
@@ -104,70 +103,53 @@ export function AssetDetailSheet({
             `USDT${normalizedQuoteCurrency.toUpperCase()}`,
           ]),
     ]
-  }, [selectedAsset, isUsdPeggedQuote, normalizedQuoteCurrency])
+  }, [selectedAsset?.symbol, isUsdPeggedQuote, normalizedQuoteCurrency])
+  const chartConfig = React.useMemo(() => ({ price: { label: "Price", color: "#16a34a" } }), [])
   const liveTickers = useLiveTickers(streamSymbols)
+  const targetSymbol = selectedAsset ? `${selectedAsset.symbol.toUpperCase()}USDT` : ""
+  const quoteUsdtSymbol = `${normalizedQuoteCurrency.toUpperCase()}USDT`
+  const usdtQuoteSymbol = `USDT${normalizedQuoteCurrency.toUpperCase()}`
+  const usdtPrice = targetSymbol ? liveTickers[targetSymbol]?.price : undefined
+  const targetChangePct = targetSymbol ? liveTickers[targetSymbol]?.changePct : undefined
+  const quoteUsdtPrice = liveTickers[quoteUsdtSymbol]?.price
+  const usdtQuotePrice = liveTickers[usdtQuoteSymbol]?.price
+  const liveTicker = React.useMemo(() => {
+    if (!Number.isFinite(usdtPrice)) return null
+    const quotePerUsdt = (() => {
+      if (isUsdPeggedQuote) return 1
+      if (Number.isFinite(quoteUsdtPrice) && (quoteUsdtPrice ?? 0) > 0) return 1 / (quoteUsdtPrice as number)
+      if (Number.isFinite(usdtQuotePrice) && (usdtQuotePrice ?? 0) > 0) return usdtQuotePrice as number
+      return null
+    })()
+    if (!Number.isFinite(quotePerUsdt ?? NaN)) return null
+    return {
+      price: (usdtPrice as number) * (quotePerUsdt as number),
+      changePct: Number.isFinite(targetChangePct) ? (targetChangePct as number) : 0,
+    }
+  }, [isUsdPeggedQuote, quoteUsdtPrice, targetChangePct, usdtPrice, usdtQuotePrice])
 
   React.useEffect(() => {
     if (!selectedAsset) {
-      setLiveTicker(null)
       setPriceFlash(null)
       previousPriceRef.current = null
       return
     }
     setDetailIconErrored(false)
     setDetailIconFallbackTried(false)
-    setLiveTicker(null)
     setPriceFlash(null)
     previousPriceRef.current = null
   }, [selectedAsset?.id])
 
   React.useEffect(() => {
-    if (!selectedAsset) return
-    const targetSymbol = `${selectedAsset.symbol.toUpperCase()}USDT`
-    const quoteUsdtSymbol = `${normalizedQuoteCurrency.toUpperCase()}USDT`
-    const usdtQuoteSymbol = `USDT${normalizedQuoteCurrency.toUpperCase()}`
-
-    const queueFlash = (direction: "up" | "down") => {
-      setPriceFlash(direction)
+    if (!selectedAsset || !liveTicker) return
+    const prev = previousPriceRef.current
+    if (prev !== null && prev !== liveTicker.price) {
+      setPriceFlash(liveTicker.price > prev ? "up" : "down")
       if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current)
       flashTimerRef.current = window.setTimeout(() => setPriceFlash(null), 650)
     }
-
-    const usdtPrice = liveTickers[targetSymbol]?.price
-    if (!Number.isFinite(usdtPrice)) return
-    const quotePerUsdt = (() => {
-      if (isUsdPeggedQuote) return 1
-      const quoteUsdt = liveTickers[quoteUsdtSymbol]?.price
-      if (Number.isFinite(quoteUsdt) && quoteUsdt > 0) return 1 / quoteUsdt
-      const usdtQuote = liveTickers[usdtQuoteSymbol]?.price
-      if (Number.isFinite(usdtQuote) && usdtQuote > 0) return usdtQuote
-      return null
-    })()
-    if (!Number.isFinite(quotePerUsdt ?? NaN)) return
-    const convertedPrice = usdtPrice * (quotePerUsdt as number)
-
-    const prev = previousPriceRef.current
-    if (prev !== null && prev !== convertedPrice) {
-      queueFlash(convertedPrice > prev ? "up" : "down")
-    }
-    previousPriceRef.current = convertedPrice
-    const changePct = liveTickers[targetSymbol]?.changePct
-
-    const nextTicker = {
-      price: convertedPrice,
-      changePct: Number.isFinite(changePct) ? (changePct as number) : 0,
-    }
-    setLiveTicker((prevTicker) => {
-      if (
-        prevTicker &&
-        prevTicker.price === nextTicker.price &&
-        prevTicker.changePct === nextTicker.changePct
-      ) {
-        return prevTicker
-      }
-      return nextTicker
-    })
-  }, [selectedAsset, normalizedQuoteCurrency, liveTickers, isUsdPeggedQuote])
+    previousPriceRef.current = liveTicker.price
+  }, [selectedAsset?.id, liveTicker?.price])
 
   React.useEffect(() => {
     return () => {
@@ -446,7 +428,7 @@ export function AssetDetailSheet({
                     {hasChartData ? (
                       <AssetDetailChart
                         data={chartData}
-                        config={{ price: { label: "Price", color: "#16a34a" } }}
+                        config={chartConfig}
                         currentPrice={marketStats?.price || 0}
                         mode={chartMode}
                       />
