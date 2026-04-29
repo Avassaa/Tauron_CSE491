@@ -1,7 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Star, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Search } from "lucide-react"
+import { Star, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Search, Activity, Check, ChevronDown as ChevronDownIcon } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import {
   Table,
   TableBody,
@@ -10,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table"
-import type { AssetResponse } from "~/lib/api-client"
+import type { AssetResponse, WatchlistListResponse } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
 import { cn } from "~/lib/utils"
 import { Sparkline } from "./sparkline"
@@ -18,7 +25,10 @@ import {
   type CurrencyCode,
   CURRENCY_SYMBOLS,
   FALLBACK_USD_BASE_RATES,
-  getUsdtPerCurrency
+  getUsdtPerCurrency,
+  formatCurrency,
+  formatCompactCurrency,
+  formatCompact
 } from "~/lib/currency"
 
 /**
@@ -36,33 +46,6 @@ export interface MarketData {
   market_cap: number
   rank: number
   sparkline: number[]
-}
-
-/**
- * Currency formatting: Shortens values using compact notation (K, M, B).
- */
-function formatCompactCurrency(
-  value: number | null | undefined,
-  currencyCode: CurrencyCode,
-) {
-  if (!Number.isFinite(value ?? NaN)) return "—"
-  const formatted = new Intl.NumberFormat("en-US", {
-    currency: currencyCode,
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(value as number)
-  return `${CURRENCY_SYMBOLS[currencyCode]}${formatted}`
-}
-
-/**
- * Number formatting: Shortens large numbers like Volume and Market Cap.
- */
-function formatCompact(value?: number | null) {
-  if (!Number.isFinite(value ?? NaN)) return "—"
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(value as number)
 }
 
 /**
@@ -116,8 +99,13 @@ interface AssetTableProps {
   setSelectedAsset: (asset: AssetResponse) => void // Opens detail view on row click
   quoteCurrency: string // Currency to display (USD, TRY, etc.)
   quotePerUsd?: number
-  onToggleWatchlist: (asset: AssetResponse) => void // Add/Remove from watchlist
+  onToggleWatchlist: (asset: AssetResponse) => void // Add/Remove from primary watchlist
   watchlistIds: Set<string> // Set of asset IDs in the user's watchlist
+  watchlistLists?: WatchlistListResponse[]
+  onToggleWatchlistList?: (asset: AssetResponse, listId: string, currentlyInList: boolean) => void
+  onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
+  watchlistAssetsByListId?: Record<string, AssetResponse[]>
+  onCreateWatchlistList?: () => void
 }
 
 export function AssetTable({
@@ -132,6 +120,11 @@ export function AssetTable({
   quotePerUsd: externalQuotePerUsd,
   onToggleWatchlist,
   watchlistIds,
+  watchlistLists = [],
+  onToggleWatchlistList,
+  onAddToWatchlistList,
+  watchlistAssetsByListId = {},
+  onCreateWatchlistList,
 }: AssetTableProps) {
   // --- HELPER VARIABLES & STATE ---
   const isUsdPeggedQuote = (value: string) => value === "USD" || value === "USDT" || value === "USDC" || value === "BUSD"
@@ -215,7 +208,7 @@ export function AssetTable({
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/20">
-              <TableHead className="w-[32px] px-1 text-center"></TableHead>
+              <TableHead className="w-[48px] pl-6 text-left"></TableHead>
               <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("rank")}>
                 <div className="flex items-center justify-center gap-0.5"># <SortIcon column="rank" /></div>
               </TableHead>
@@ -265,13 +258,77 @@ export function AssetTable({
                 const mData = marketDataMap[asset.id];
                 const isWatched = watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase());
                 const liveTickerSymbol = `${asset.symbol.toUpperCase()}USDT`
+                const [menuOpen, setMenuOpen] = React.useState(false);
 
                 return (
                   <TableRow key={asset.id} className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/30" onClick={() => setSelectedAsset(asset)}>
-                    {/* Watchlist Toggle */}
-                    <TableCell className="py-4 px-0 w-[40px] text-center" onClick={(e) => { e.stopPropagation(); onToggleWatchlist(asset); }}>
+                    {/* Watchlist Toggle with Dropdown */}
+                    <TableCell className="py-4 pl-6 px-0 w-[48px] text-left" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center h-full">
-                        <Star className={cn("size-4 transition-all duration-300", isWatched ? "fill-primary text-primary scale-110" : "text-muted-foreground/40 hover:text-primary/70 opacity-0 group-hover:opacity-100")} />
+                        <DropdownMenu onOpenChange={setMenuOpen}>
+                          <DropdownMenuTrigger asChild>
+                            <button className="group/star outline-none">
+                              <Star
+                                className={cn(
+                                  "size-4 transition-all duration-300",
+                                  isWatched
+                                    ? "fill-primary text-primary scale-110"
+                                    : cn(
+                                      "text-muted-foreground/40 hover:text-primary/70",
+                                      (menuOpen || isWatched) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                    )
+                                )}
+                              />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-[200px] p-2 bg-popover/95 backdrop-blur-md border-border shadow-2xl rounded-xl">
+                            <div className="px-2 py-1.5 mb-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
+                              Add to Watchlist
+                            </div>
+
+                            {watchlistLists.length > 0 ? (
+                              watchlistLists.map((list) => {
+                                const listAssets = watchlistAssetsByListId[list.id] || [];
+                                const isInList = listAssets.some(a => a.id === asset.id || a.symbol.toUpperCase() === asset.symbol.toUpperCase());
+
+                                return (
+                                  <DropdownMenuItem
+                                    key={list.id}
+                                    onSelect={() => {
+                                      if (onToggleWatchlistList) {
+                                        onToggleWatchlistList(asset, list.id, isInList);
+                                      } else if (!isInList) {
+                                        onAddToWatchlistList?.(asset, list.id);
+                                      }
+                                    }}
+                                    className="flex cursor-pointer items-center justify-between px-3 py-2 text-[10px] font-bold uppercase rounded-lg transition-colors focus:bg-primary/10"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className={cn("size-1.5 rounded-full", isInList ? "bg-primary animate-pulse" : "bg-muted-foreground/20")} />
+                                      <span className="truncate">{list.name}</span>
+                                    </div>
+                                    {isInList && <Check className="size-3 text-primary" />}
+                                  </DropdownMenuItem>
+                                );
+                              })
+                            ) : (
+                              <div className="px-3 py-4 text-center text-[9px] font-bold text-muted-foreground/60 uppercase">
+                                No watchlists found
+                              </div>
+                            )}
+
+                            <DropdownMenuSeparator className="my-2 bg-border/50" />
+                            <DropdownMenuItem
+                              onClick={() => onCreateWatchlistList?.()}
+                              className="flex items-center gap-2 cursor-pointer px-3 py-2 text-[10px] font-bold uppercase rounded-lg text-primary hover:bg-primary/5 transition-colors"
+                            >
+                              <div className="size-4 rounded-md bg-primary/10 flex items-center justify-center">
+                                <Activity className="size-2.5" />
+                              </div>
+                              New Watchlist
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                     {/* Row Number */}
@@ -300,10 +357,7 @@ export function AssetTable({
                           const usdtPrice = liveTickers[liveTickerSymbol]?.price || mData?.price
                           if (!Number.isFinite(usdtPrice)) return "—"
                           const livePrice = (usdtPrice as number) * (quotePerUsd as number)
-                          return `${CURRENCY_SYMBOLS[currencyCode]}${new Intl.NumberFormat("en-US", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: livePrice >= 1 ? 2 : 6,
-                          }).format(livePrice)}`
+                          return formatCurrency(livePrice, currencyCode)
                         })()}
                       </span>
                     </TableCell>

@@ -96,3 +96,10 @@ export function formatCompactCurrency(
     maximumFractionDigits: 2,
   }).format(value as number)
 }
+export function formatCompact(value?: number | null): string {
+  if (!Number.isFinite(value ?? NaN)) return "—"
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value as number)
+}
