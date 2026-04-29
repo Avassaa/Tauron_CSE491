@@ -4,6 +4,7 @@ import { apiGet, apiPut, apiDelete, apiPost, type AssetResponse, type WatchlistE
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const isUuid = (value: string) => UUID_REGEX.test(value)
+const normalizeWatchlistName = (value: string) => value.trim().toLowerCase()
 
 export function useWatchlist(assets: AssetResponse[] = []) {
   const [watchlist, setWatchlist] = React.useState<WatchlistEntryResponse[]>([])
@@ -224,22 +225,31 @@ export function useWatchlist(assets: AssetResponse[] = []) {
   }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists, watchlistAssetsByListId])
 
   const createWatchlistList = React.useCallback(async (name: string, selectedAsset?: AssetResponse | null) => {
+    const trimmedName = name.trim()
+    const duplicate = watchlistLists.some(
+      (list) => normalizeWatchlistName(list.name) === normalizeWatchlistName(trimmedName)
+    )
+    if (duplicate) {
+      toast.error(`Watchlist "${trimmedName}" already exists.`)
+      return false
+    }
     setCreatingWatchlist(true)
     try {
-      const newList = await apiPost<WatchlistListResponse>("/users/me/watchlists", { name })
+      const newList = await apiPost<WatchlistListResponse>("/users/me/watchlists", { name: trimmedName })
       await fetchWatchlistLists()
       if (selectedAsset && newList?.id) {
         await addAssetToNamedWatchlist(selectedAsset, newList.id)
       }
-      toast.success(`Watchlist "${name}" created`)
+      toast.success(`Watchlist "${trimmedName}" created`)
       return true
-    } catch {
-      toast.error("Failed to create watchlist")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create watchlist"
+      toast.error(message === "Watchlist name already exists" ? `Watchlist "${trimmedName}" already exists.` : message)
       return false
     } finally {
       setCreatingWatchlist(false)
     }
-  }, [fetchWatchlistLists, addAssetToNamedWatchlist])
+  }, [fetchWatchlistLists, addAssetToNamedWatchlist, watchlistLists])
 
   const watchedIds = React.useMemo(() => {
     const ids = new Set<string>()

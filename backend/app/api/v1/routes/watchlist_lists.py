@@ -35,7 +35,11 @@ async def create_my_watchlist(
     session: AsyncSession = Depends(get_db_session),
 ):
     repo = WatchlistListsRepository(session)
-    return await repo.create_list(user_id, body.name.strip())
+    name = body.name.strip()
+    existing = await repo.get_list_by_name(user_id, name)
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Watchlist name already exists")
+    return await repo.create_list(user_id, name)
 
 
 @router.patch("/{list_id}", response_model=WatchlistListResponse)

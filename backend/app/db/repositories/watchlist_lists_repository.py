@@ -28,6 +28,20 @@ class WatchlistListsRepository:
         await self._session.refresh(row)
         return row
 
+    async def get_list_by_name(self, user_id: uuid.UUID, name: str) -> WatchlistList | None:
+        normalized_name = name.strip().lower()
+        result = await self._session.execute(
+            select(WatchlistList).where(WatchlistList.user_id == user_id)
+        )
+        return next(
+            (
+                row
+                for row in result.scalars().all()
+                if row.name.strip().lower() == normalized_name
+            ),
+            None,
+        )
+
     async def get_list(self, list_id: uuid.UUID, user_id: uuid.UUID) -> WatchlistList | None:
         result = await self._session.execute(
             select(WatchlistList).where(WatchlistList.id == list_id, WatchlistList.user_id == user_id)
