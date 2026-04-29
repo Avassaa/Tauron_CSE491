@@ -330,6 +330,16 @@ function WatchlistPageClient() {
   const totalPages = Math.ceil(sortedWatchlist.length / PAGE_SIZE)
   const paginatedWatchlist = sortedWatchlist.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  const selectedAssetWatchlistMembership = React.useMemo(() => {
+    if (!selectedAsset) return {}
+    return Object.fromEntries(
+      watchlistLists.map((list) => [
+        list.id,
+        (watchlistAssetsByListId[list.id] || []).some(a => a.id === selectedAsset.id || a.symbol.toUpperCase() === selectedAsset.symbol.toUpperCase()),
+      ])
+    )
+  }, [selectedAsset, watchlistAssetsByListId, watchlistLists])
+
   const showListOverview = selectedWatchlistList === null
 
   return (
@@ -896,6 +906,11 @@ function WatchlistPageClient() {
             formatCompactCurrency={formatCompactCurrency}
             isWatched={selectedAsset ? watchedIds.has(selectedAsset.id) : false}
             onToggleWatchlist={toggleWatchlist}
+            watchlistLists={watchlistLists}
+            watchlistMembershipByListId={selectedAssetWatchlistMembership}
+            onAddToWatchlistList={addAssetToNamedWatchlist}
+            onToggleWatchlistList={toggleAssetInNamedWatchlist}
+            onCreateWatchlistList={() => setCreateDialogOpen(true)}
           />
 
           <CreateWatchlistDialog

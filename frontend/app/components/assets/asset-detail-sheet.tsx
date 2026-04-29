@@ -219,6 +219,16 @@ export function AssetDetailSheet({
       : `https://cryptoicons.org/api/icon/${selectedAsset.symbol.toLowerCase()}/200`
     : ""
 
+  const activeWatchlists = React.useMemo(() => {
+    return watchlistLists.filter((list) => watchlistMembershipByListId[list.id])
+  }, [watchlistLists, watchlistMembershipByListId])
+
+  const watchlistButtonText = activeWatchlists.length === 1
+    ? activeWatchlists[0].name
+    : activeWatchlists.length > 1
+      ? `${activeWatchlists.length} Lists`
+      : "Watchlists"
+
   return (
     <Sheet open={!!selectedAsset} onOpenChange={(open) => !open && setSelectedAsset(null)}>
       <SheetContent side="right" className="w-full sm:max-w-[680px] p-0 border-l border-border bg-background text-foreground overflow-y-auto scrollbar-none">
@@ -275,7 +285,7 @@ export function AssetDetailSheet({
                                 ? "fill-amber-500 text-amber-500 dark:fill-yellow-500 dark:text-yellow-500 scale-110"
                                 : "text-muted-foreground/30 fill-none"
                             )} />
-                            <span className="hidden sm:inline">Watchlists</span>
+                            <span className="hidden sm:inline truncate max-w-[120px]">{watchlistButtonText}</span>
                             <ChevronDown className="ml-0 sm:ml-1.5 size-3 opacity-50" />
                           </Button>
                         </DropdownMenuTrigger>

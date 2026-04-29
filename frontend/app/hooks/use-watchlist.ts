@@ -129,6 +129,13 @@ export function useWatchlist(assets: AssetResponse[] = []) {
   const addAssetToNamedWatchlist = React.useCallback(async (asset: AssetResponse, listId: string) => {
     try {
       const backendId = await resolveBackendAssetId(asset)
+      
+      const isInOtherLists = watchlistLists.some(list => {
+        if (list.id === listId) return false;
+        const assetsInList = watchlistAssetsByListId[list.id] || [];
+        return assetsInList.some(a => a.id === backendId || a.symbol.toUpperCase() === asset.symbol.toUpperCase());
+      });
+
       await apiPut(`/users/me/watchlists/${listId}/assets/${backendId}`)
       await apiPut(`/users/me/watchlist/${backendId}`)
       await fetchWatchlist()
@@ -139,7 +146,11 @@ export function useWatchlist(assets: AssetResponse[] = []) {
           label: "Undo",
           onClick: () => {
             void apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
-              .then(() => apiDelete(`/users/me/watchlist/${backendId}`))
+              .then(() => {
+                if (!isInOtherLists) {
+                  return apiDelete(`/users/me/watchlist/${backendId}`)
+                }
+              })
               .then(() => {
                 void fetchWatchlist()
                 void fetchWatchlistLists()
@@ -151,15 +162,24 @@ export function useWatchlist(assets: AssetResponse[] = []) {
     } catch (err) {
       toast.error(`Failed to add ${asset.symbol}`)
     }
-  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists])
+  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists, watchlistAssetsByListId])
 
   const toggleAssetInNamedWatchlist = React.useCallback(async (asset: AssetResponse, listId: string, currentlyInList: boolean) => {
     try {
       const backendId = await resolveBackendAssetId(asset)
       const listName = watchlistLists.find((w) => w.id === listId)?.name || "watchlist"
+      
+      const isInOtherLists = watchlistLists.some(list => {
+        if (list.id === listId) return false;
+        const assetsInList = watchlistAssetsByListId[list.id] || [];
+        return assetsInList.some(a => a.id === backendId || a.symbol.toUpperCase() === asset.symbol.toUpperCase());
+      });
+
       if (currentlyInList) {
         await apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
-        await apiDelete(`/users/me/watchlist/${backendId}`)
+        if (!isInOtherLists) {
+          await apiDelete(`/users/me/watchlist/${backendId}`)
+        }
         toast.success(`Removed ${asset.symbol} from ${listName}`, {
           action: {
             label: "Undo",
@@ -182,7 +202,11 @@ export function useWatchlist(assets: AssetResponse[] = []) {
             label: "Undo",
             onClick: () => {
               void apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
-                .then(() => apiDelete(`/users/me/watchlist/${backendId}`))
+                .then(() => {
+                  if (!isInOtherLists) {
+                    return apiDelete(`/users/me/watchlist/${backendId}`)
+                  }
+                })
                 .then(() => {
                   void fetchWatchlist()
                   void fetchWatchlistLists()
@@ -197,7 +221,7 @@ export function useWatchlist(assets: AssetResponse[] = []) {
     } catch (err) {
       toast.error(`Update failed`)
     }
-  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists])
+  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists, watchlistAssetsByListId])
 
   const createWatchlistList = React.useCallback(async (name: string, selectedAsset?: AssetResponse | null) => {
     setCreatingWatchlist(true)
