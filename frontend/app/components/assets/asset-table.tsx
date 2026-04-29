@@ -21,6 +21,7 @@ import type { AssetResponse, WatchlistListResponse } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
 import { cn } from "~/lib/utils"
 import { Sparkline } from "./sparkline"
+import { AssetIcon } from "~/components/asset-icon"
 import {
   type CurrencyCode,
   CURRENCY_SYMBOLS,
@@ -59,30 +60,6 @@ function PriceChange({ value }: { value?: number | null }) {
       {isPositive ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
       {isPositive ? "+" : ""}{value?.toFixed(2)}%
     </div>
-  )
-}
-
-/**
- * Resilient Icon component that falls back to text if image fails
- */
-function AssetIcon({ symbol }: { symbol: string }) {
-  const [error, setError] = React.useState(false)
-
-  if (error) {
-    return (
-      <span className="text-[10px] font-black text-primary uppercase">
-        {symbol.slice(0, 3)}
-      </span>
-    )
-  }
-
-  return (
-    <img
-      src={`https://cryptoicons.org/api/icon/${symbol.toLowerCase()}/64`}
-      alt={symbol}
-      className="size-full object-cover"
-      onError={() => setError(true)}
-    />
   )
 }
 
@@ -395,8 +372,8 @@ function AssetTableRow({
       </TableCell>
       <TableCell className="py-4 px-6">
         <div className="flex items-center gap-3">
-          <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
-            <AssetIcon symbol={asset.symbol} />
+          <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-full group-hover:scale-110 transition-transform shrink-0">
+            <AssetIcon symbol={asset.symbol} alt={`${asset.symbol} icon`} fallbackClassName="text-[10px]" />
           </div>
           <div className="flex items-baseline gap-2 min-w-0">
             <span className="font-bold tracking-tight truncate">{asset.name}</span>

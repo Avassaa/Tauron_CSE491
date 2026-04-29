@@ -148,13 +148,16 @@ function AssetsPageClient() {
   const sortedAssets = React.useMemo(() => {
     if (!sortConfig) return assets
     return [...assets].sort((a, b) => {
-      let valA: any = (marketDataMap[a.id] as any)?.[sortConfig.key] || a[sortConfig.key as keyof AssetResponse]
-      let valB: any = (marketDataMap[b.id] as any)?.[sortConfig.key] || b[sortConfig.key as keyof AssetResponse]
+      let valA: any = (marketDataMap[a.id] as any)?.[sortConfig.key] ?? a[sortConfig.key as keyof AssetResponse]
+      let valB: any = (marketDataMap[b.id] as any)?.[sortConfig.key] ?? b[sortConfig.key as keyof AssetResponse]
       
       // Special mappings for sorting
       if (sortConfig.key === "change1h") { valA = marketDataMap[a.id]?.price_change_1h; valB = marketDataMap[b.id]?.price_change_1h }
       if (sortConfig.key === "change24h") { valA = marketDataMap[a.id]?.price_change_24h; valB = marketDataMap[b.id]?.price_change_24h }
       if (sortConfig.key === "change7d") { valA = marketDataMap[a.id]?.price_change_7d; valB = marketDataMap[b.id]?.price_change_7d }
+      if (valA == null && valB == null) return 0
+      if (valA == null) return 1
+      if (valB == null) return -1
 
       if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1

@@ -8,6 +8,7 @@ import { format } from "date-fns"
 import { cn } from "~/lib/utils"
 import { motion } from "framer-motion"
 import type { AssetResponse } from "~/lib/api-client"
+import { AssetIcon } from "~/components/asset-icon"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,36 +17,9 @@ import {
 } from "~/components/ui/dropdown-menu"
 
 function AddAssetIcon({ asset }: { asset: AssetResponse }) {
-  const [fallbackTried, setFallbackTried] = React.useState(false)
-  const [errored, setErrored] = React.useState(false)
-
-  React.useEffect(() => {
-    setFallbackTried(false)
-    setErrored(false)
-  }, [asset.symbol])
-
-  const iconUrl = fallbackTried
-    ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
-    : `https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`
-
   return (
-    <div className="size-10 overflow-hidden rounded-xl bg-primary/10 flex items-center justify-center font-black text-xs text-primary transition-transform group-hover:scale-110">
-      {!errored ? (
-        <img
-          src={iconUrl}
-          alt={`${asset.symbol} icon`}
-          className="size-full object-cover"
-          onError={() => {
-            if (!fallbackTried) {
-              setFallbackTried(true)
-              return
-            }
-            setErrored(true)
-          }}
-        />
-      ) : (
-        asset.symbol.slice(0, 3).toUpperCase()
-      )}
+    <div className="size-10 overflow-hidden rounded-full flex items-center justify-center font-black text-xs text-primary transition-transform group-hover:scale-110">
+      <AssetIcon symbol={asset.symbol} alt={`${asset.symbol} icon`} fallbackClassName="text-xs" />
     </div>
   )
 }

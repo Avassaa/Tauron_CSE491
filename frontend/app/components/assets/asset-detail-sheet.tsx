@@ -17,6 +17,7 @@ import {
   TabsTrigger,
 } from "~/components/ui/tabs"
 import { AssetDetailChart } from "~/components/dashboard/asset-detail-chart"
+import { AssetIcon } from "~/components/asset-icon"
 import {
   Card,
   CardContent,
@@ -124,8 +125,6 @@ export function AssetDetailSheet({
   const [activeTab, setActiveTab] = React.useState<"price" | "prediction">("price")
   const [chartMode, setChartMode] = React.useState<"price" | "volume" | "both">("both")
   const [priceFlash, setPriceFlash] = React.useState<"up" | "down" | null>(null)
-  const [detailIconErrored, setDetailIconErrored] = React.useState(false)
-  const [detailIconFallbackTried, setDetailIconFallbackTried] = React.useState(false)
   const previousPriceRef = React.useRef<number | null>(null)
   const flashTimerRef = React.useRef<number | null>(null)
   const streamSymbols = React.useMemo(() => {
@@ -186,8 +185,6 @@ export function AssetDetailSheet({
       previousPriceRef.current = null
       return
     }
-    setDetailIconErrored(false)
-    setDetailIconFallbackTried(false)
     setPriceFlash(null)
     previousPriceRef.current = null
   }, [selectedAsset?.id])
@@ -213,12 +210,6 @@ export function AssetDetailSheet({
   const displayedChange24h = liveTicker?.changePct ?? marketStats?.change24h
   const hasVolumeData = marketStats?.volume !== undefined
   const hasChartData = chartData.length > 0
-  const iconUrl = selectedAsset
-    ? detailIconFallbackTried
-      ? `https://assets.coincap.io/assets/icons/${selectedAsset.symbol.toLowerCase()}@2x.png`
-      : `https://cryptoicons.org/api/icon/${selectedAsset.symbol.toLowerCase()}/200`
-    : ""
-
   const activeWatchlists = React.useMemo(() => {
     return watchlistLists.filter((list) => watchlistMembershipByListId[list.id])
   }, [watchlistLists, watchlistMembershipByListId])
@@ -237,25 +228,12 @@ export function AssetDetailSheet({
             <SheetHeader className="items-start text-left mb-8 p-0">
               <div className="flex items-center gap-5">
                 <div className="relative">
-                  <div className="size-20 overflow-hidden rounded-[28px] bg-muted flex items-center justify-center font-black text-2xl shadow-2xl ring-1 ring-border">
-                    {!detailIconErrored ? (
-                      <img
-                        src={iconUrl}
-                        alt={`${selectedAsset.symbol} icon`}
-                        className="size-full object-cover"
-                        onError={() => {
-                          if (!detailIconFallbackTried) {
-                            setDetailIconFallbackTried(true)
-                            return
-                          }
-                          setDetailIconErrored(true)
-                        }}
-                      />
-                    ) : (
-                      <span>
-                        {selectedAsset.symbol.slice(0, 3).toUpperCase()}
-                      </span>
-                    )}
+                  <div className="size-20 overflow-hidden rounded-full flex items-center justify-center font-black text-2xl">
+                    <AssetIcon
+                      symbol={selectedAsset.symbol}
+                      alt={`${selectedAsset.symbol} icon`}
+                      fallbackClassName="text-2xl"
+                    />
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5 size-7 rounded-xl bg-background border-2 border-background flex items-center justify-center shadow-lg">
                     <Activity className={cn("size-3.5", (marketStats?.rangeChange ?? 0) >= 0 ? "text-green-500" : "text-red-500")} />

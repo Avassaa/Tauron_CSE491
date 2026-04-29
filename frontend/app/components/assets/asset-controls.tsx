@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, RefreshCw, X, ChevronDown, Check } from "lucide-react"
+import { Search, RefreshCw, X, ChevronDown, Check, SlidersHorizontal } from "lucide-react"
 import { Input } from "~/components/ui/input"
 import { Button } from "~/components/ui/button"
 import {
@@ -17,13 +17,23 @@ interface AssetControlsProps {
   loading: boolean
   fetchAssets: () => void
   sortConfig: {
-    key: "name" | "symbol" | "category" | "is_active" | "activity"
+    key: string
     direction: "asc" | "desc"
   } | null
   setSortConfig: (config: any) => void
   quoteCurrency: CurrencyCode
   setQuoteCurrency: (currency: CurrencyCode) => void
 }
+
+const MARKET_SORT_OPTIONS = [
+  { label: "Most popular", description: "Lowest market rank first", key: "rank", direction: "asc" as const },
+  { label: "Market cap", description: "Largest market cap first", key: "market_cap", direction: "desc" as const },
+  { label: "Volume", description: "Highest trading volume first", key: "volume", direction: "desc" as const },
+  { label: "Top gainers 24h", description: "Best 24h performance", key: "change24h", direction: "desc" as const },
+  { label: "Top losers 24h", description: "Worst 24h performance", key: "change24h", direction: "asc" as const },
+  { label: "Price high to low", description: "Highest price first", key: "price", direction: "desc" as const },
+  { label: "Name A-Z", description: "Alphabetical order", key: "name", direction: "asc" as const },
+]
 
 export function AssetControls({
   search,
@@ -47,6 +57,35 @@ export function AssetControls({
         />
       </div>
       <div className="flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-12 rounded-2xl px-3 text-[10px] font-black uppercase tracking-wider">
+              <SlidersHorizontal className="mr-1 size-3.5" />
+              Filter
+              <ChevronDown className="ml-1 size-3 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            {MARKET_SORT_OPTIONS.map((option) => {
+              const active =
+                sortConfig?.key === option.key && sortConfig.direction === option.direction
+              return (
+                <DropdownMenuItem
+                  key={`${option.key}-${option.direction}`}
+                  onSelect={() => setSortConfig({ key: option.key, direction: option.direction })}
+                  className="flex cursor-pointer items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold">{option.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{option.description}</div>
+                  </div>
+                  {active ? <Check className="size-3 text-primary" /> : null}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-12 rounded-2xl px-3 text-[10px] font-black uppercase tracking-wider">

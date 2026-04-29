@@ -14,6 +14,7 @@ import {
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import type { WatchlistEntryResponse, AssetResponse } from "~/lib/api-client"
+import { AssetIcon } from "~/components/asset-icon"
 
 interface WatchlistTableProps {
   watchlist: WatchlistEntryResponse[]
@@ -79,26 +80,12 @@ export function WatchlistTable({
               >
                 <TableCell className="py-5 px-6">
                   <div className="flex items-center gap-4">
-                    <div className="relative size-10 overflow-hidden rounded-xl bg-primary/10 flex items-center justify-center ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
-                      <img
-                        src={`https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`}
+                    <div className="relative size-10 overflow-hidden rounded-full flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                      <AssetIcon
+                        symbol={asset.symbol}
                         alt={`${asset.symbol} icon`}
-                        className="size-full object-cover"
-                        onError={(e) => {
-                          const img = e.currentTarget
-                          if (!img.dataset.fallbackTried) {
-                            img.dataset.fallbackTried = "1"
-                            img.src = `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
-                            return
-                          }
-                          img.style.display = "none"
-                          const fallback = img.nextElementSibling as HTMLSpanElement | null
-                          if (fallback) fallback.style.display = "flex"
-                        }}
+                        fallbackClassName="text-xs"
                       />
-                      <span className="hidden size-full items-center justify-center font-black text-xs text-primary">
-                        {asset.symbol.slice(0, 3).toUpperCase()}
-                      </span>
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="font-black tracking-tight text-foreground group-hover:text-primary transition-colors truncate">

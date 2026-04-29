@@ -6,6 +6,7 @@ import { cn } from "~/lib/utils"
 import type { AssetResponse } from "~/lib/api-client"
 import { Sparkline } from "~/components/assets/sparkline"
 import { type MarketData } from "~/components/assets"
+import { AssetIcon } from "~/components/asset-icon"
 
 interface WatchlistCardProps {
   asset: AssetResponse
@@ -24,14 +25,6 @@ export function WatchlistCard({
   onSelect,
   marketData,
 }: WatchlistCardProps) {
-  const [iconErrored, setIconErrored] = React.useState(false)
-  const [iconFallbackTried, setIconFallbackTried] = React.useState(false)
-
-  React.useEffect(() => {
-    setIconErrored(false)
-    setIconFallbackTried(false)
-  }, [asset.symbol])
-
   const stats = React.useMemo(() => {
     const isUp = (marketData?.price_change_24h ?? 0) >= 0
     const isUp7d = (marketData?.price_change_7d ?? 0) >= 0
@@ -53,10 +46,6 @@ export function WatchlistCard({
     }
   }, [marketData])
 
-  const iconUrl = iconFallbackTried
-    ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
-    : `https://cryptoicons.org/api/icon/${asset.symbol.toLowerCase()}/64`
-
   return (
     <div
       onClick={() => onSelect(asset)}
@@ -72,23 +61,13 @@ export function WatchlistCard({
       <div className="flex items-center justify-between relative z-10">
         <div className="flex items-center gap-3.5">
           <div className="relative">
-            <div className="size-12 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center font-black text-xs text-primary shadow-inner">
-              {!iconErrored ? (
-                <img
-                  src={iconUrl}
-                  alt={`${asset.symbol} icon`}
-                  className="size-full object-cover transition-transform duration-500"
-                  onError={() => {
-                    if (!iconFallbackTried) {
-                      setIconFallbackTried(true)
-                      return
-                    }
-                    setIconErrored(true)
-                  }}
-                />
-              ) : (
-                <span className="text-lg">{asset.symbol.slice(0, 1).toUpperCase()}</span>
-              )}
+            <div className="size-12 overflow-hidden rounded-full flex items-center justify-center font-black text-xs text-primary">
+              <AssetIcon
+                symbol={asset.symbol}
+                alt={`${asset.symbol} icon`}
+                className="transition-transform duration-500"
+                fallbackClassName="text-lg"
+              />
             </div>
             {marketData?.rank && (
               <div className="absolute -bottom-1.5 -right-1.5 size-6 rounded-lg bg-background border border-border flex items-center justify-center text-[10px] font-black text-foreground shadow-sm">
