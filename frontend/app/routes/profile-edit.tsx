@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
+import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -132,10 +133,13 @@ export default function ProfileEditPage() {
           paddingTop: "var(--market-banner-offset, 0px)",
         }}
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="font-medium">Edit Profile</span>
+        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <span className="font-medium">Edit Profile</span>
+          </div>
+          <NotificationInbox />
         </header>
         <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
           <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">

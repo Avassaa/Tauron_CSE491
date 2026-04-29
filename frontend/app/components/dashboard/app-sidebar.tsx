@@ -10,6 +10,7 @@ import {
   BrainCircuit,
   FlaskConical,
   MessageSquare,
+  Bell,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
@@ -112,6 +113,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/notifications"}>
+                  <Link to="/notifications">
+                    <Bell />
+                    <span>Notifications</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -122,7 +131,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <span className="truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
             Theme
           </span>
-          <AnimatedThemeToggler className="text-sidebar-foreground" />
+          <div className="flex items-center gap-1">
+            <AnimatedThemeToggler className="text-sidebar-foreground" />
+          </div>
         </div>
       </SidebarFooter>
       <SidebarRail />

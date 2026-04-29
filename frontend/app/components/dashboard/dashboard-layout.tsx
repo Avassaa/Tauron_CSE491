@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Separator } from "~/components/ui/separator"
 import { DashboardClientOnly } from "./dashboard-client-only"
 import { AuthGuard } from "~/components/auth-guard"
+import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -40,7 +41,10 @@ export function DashboardLayout({
                   )}
                 </div>
               </div>
-              {actions && <div className="flex items-center gap-2">{actions}</div>}
+              <div className="flex items-center gap-2">
+                {actions}
+                <NotificationInbox />
+              </div>
             </header>
             <main className="flex flex-1 flex-col overflow-hidden pt-10">
               {children}

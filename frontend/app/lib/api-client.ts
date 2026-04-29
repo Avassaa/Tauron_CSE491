@@ -120,6 +120,7 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
     method: "PATCH",
     headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
@@ -203,6 +204,34 @@ export interface AssetResponse {
 export interface WatchlistEntryResponse {
   user_id: string
   asset: AssetResponse
+}
+
+export interface PriceAlertResponse {
+  id: string
+  user_id: string
+  asset_id: string
+  symbol: string
+  condition: "above" | "below"
+  target_price: number
+  reference_price: number | null
+  percentage_change: number | null
+  is_active: boolean
+  triggered_at: string | null
+  last_checked_price: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationResponse {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  message: string
+  payload: Record<string, unknown> | null
+  is_read: boolean
+  read_at: string | null
+  created_at: string
 }
 
 export interface WatchlistListResponse {

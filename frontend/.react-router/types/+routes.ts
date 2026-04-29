@@ -44,6 +44,9 @@ type Pages = {
   "/tools": {
     params: {};
   };
+  "/notifications": {
+    params: {};
+  };
   "/assets": {
     params: {};
   };
@@ -55,7 +58,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/assets" | "/watchlists";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -101,6 +104,10 @@ type RouteFiles = {
     id: "routes/tools";
     page: "/tools";
   };
+  "routes/notifications.tsx": {
+    id: "routes/notifications";
+    page: "/notifications";
+  };
   "routes/assets.tsx": {
     id: "routes/assets";
     page: "/assets";
@@ -124,6 +131,7 @@ type RouteModules = {
   "routes/profile-edit": typeof import("./app/routes/profile-edit.tsx");
   "routes/settings": typeof import("./app/routes/settings.tsx");
   "routes/tools": typeof import("./app/routes/tools.tsx");
+  "routes/notifications": typeof import("./app/routes/notifications.tsx");
   "routes/assets": typeof import("./app/routes/assets.tsx");
   "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
 };

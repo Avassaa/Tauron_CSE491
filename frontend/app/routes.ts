@@ -12,6 +12,7 @@ export default [
     route("profile/edit", "routes/profile-edit.tsx"),
     route("settings", "routes/settings.tsx"),
     route("tools", "routes/tools.tsx"),
+    route("notifications", "routes/notifications.tsx"),
     route("assets", "routes/assets.tsx"),
     route("watchlists", "routes/watchlists.tsx"),
 ] satisfies RouteConfig;
