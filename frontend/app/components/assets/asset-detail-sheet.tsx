@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CircleDot, TrendingUp, TrendingDown, Activity, RefreshCw, Star } from "lucide-react"
+import { AlarmClock, ArrowLeft, Check, ChevronDown, CircleDot, TrendingUp, TrendingDown, Activity, RefreshCw, Star, Trash2 } from "lucide-react"
 import { Badge } from "~/components/ui/badge"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from "~/components/ui/sheet"
 import { Button } from "~/components/ui/button"
+import { Input } from "~/components/ui/input"
 import {
   Tabs,
   TabsList,
@@ -31,7 +32,7 @@ import {
   TableRow,
 } from "~/components/ui/table"
 import { cn } from "~/lib/utils"
-import { Check, ChevronDown } from "lucide-react"
+import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,8 +40,32 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
-import type { AssetResponse, MlModelResponse, WatchlistListResponse } from "~/lib/api-client"
+import {
+  apiGet,
+  apiDelete,
+  apiPatch,
+  apiPost,
+  type AssetResponse,
+  type MlModelResponse,
+  type PriceAlertResponse,
+  type WatchlistListResponse,
+} from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select"
+import { Switch } from "~/components/ui/switch"
+
+const ALERT_MOVE_OPTIONS = [-15, -10, -5, -2, -1, 1, 2, 5, 10, 15] as const
+
+const normalizeAlertTarget = (value: number) => Number(value.toFixed(8))
+
+const isSameAlertTarget = (left: number, right: number) =>
+  normalizeAlertTarget(left) === normalizeAlertTarget(right)
 
 interface AssetDetailSheetProps {
   selectedAsset: AssetResponse | null
@@ -125,6 +150,14 @@ export function AssetDetailSheet({
   const [activeTab, setActiveTab] = React.useState<"price" | "prediction">("price")
   const [chartMode, setChartMode] = React.useState<"price" | "volume" | "both">("both")
   const [priceFlash, setPriceFlash] = React.useState<"up" | "down" | null>(null)
+  const [detailView, setDetailView] = React.useState<"overview" | "alerts">("overview")
+  const [assetAlerts, setAssetAlerts] = React.useState<PriceAlertResponse[]>([])
+  const [assetAlertsLoading, setAssetAlertsLoading] = React.useState(false)
+  const [assetAlertMove, setAssetAlertMove] = React.useState("1")
+  const [manualTargetPrice, setManualTargetPrice] = React.useState("")
+  const [assetAlertSaving, setAssetAlertSaving] = React.useState(false)
+  const [assetAlertDeleteMode, setAssetAlertDeleteMode] = React.useState(false)
+  const [selectedAssetAlertIds, setSelectedAssetAlertIds] = React.useState<Set<string>>(new Set())
   const previousPriceRef = React.useRef<number | null>(null)
   const flashTimerRef = React.useRef<number | null>(null)
   const streamSymbols = React.useMemo(() => {
@@ -187,7 +220,129 @@ export function AssetDetailSheet({
     }
     setPriceFlash(null)
     previousPriceRef.current = null
+    setDetailView("overview")
+    setManualTargetPrice("")
+    setAssetAlertMove("1")
+    setAssetAlertDeleteMode(false)
+    setSelectedAssetAlertIds(new Set())
   }, [selectedAsset?.id])
+
+  const refreshAssetAlerts = React.useCallback(async () => {
+    if (!selectedAsset) return
+    setAssetAlertsLoading(true)
+    try {
+      const alerts = await apiGet<PriceAlertResponse[]>("/users/me/price-alerts")
+      setAssetAlerts(
+        alerts.filter(
+          (alert) =>
+            alert.asset_id === selectedAsset.id ||
+            alert.symbol.replace(/USDT$/, "") === selectedAsset.symbol.toUpperCase()
+        )
+      )
+    } catch {
+      setAssetAlerts([])
+    } finally {
+      setAssetAlertsLoading(false)
+    }
+  }, [selectedAsset])
+
+  React.useEffect(() => {
+    if (selectedAsset && detailView === "alerts") {
+      void refreshAssetAlerts()
+    }
+  }, [detailView, refreshAssetAlerts, selectedAsset])
+
+  const handleCreateAssetAlert = async () => {
+    if (!selectedAsset || selectedAlertTarget == null || !Number.isFinite(selectedAlertTarget)) {
+      toast.error("Select a valid alert target.")
+      return
+    }
+    if (alertReferencePrice == null || !Number.isFinite(alertReferencePrice)) {
+      toast.error("Current price is not available yet.")
+      return
+    }
+    const duplicateAlert = assetAlerts.find((alert) =>
+      isSameAlertTarget(alert.target_price, selectedAlertTarget)
+    )
+    if (duplicateAlert) {
+      toast.error("This asset already has an alert with the same target price.")
+      return
+    }
+    setAssetAlertSaving(true)
+    try {
+      const condition = selectedAlertTarget >= alertReferencePrice ? "above" : "below"
+      await apiPost<PriceAlertResponse>("/users/me/price-alerts", {
+        asset_id: selectedAsset.id,
+        condition,
+        target_price: selectedAlertTarget,
+        reference_price: alertReferencePrice,
+        percentage_change: manualTargetIsValid ? null : parsedAlertMove,
+      })
+      toast.success(`${selectedAsset.symbol} alert created.`)
+      setManualTargetPrice("")
+      await refreshAssetAlerts()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create alert."
+      toast.error(message)
+    } finally {
+      setAssetAlertSaving(false)
+    }
+  }
+
+  const toggleAssetAlertSelection = (alertId: string, checked: boolean) => {
+    setSelectedAssetAlertIds((current) => {
+      const next = new Set(current)
+      if (checked) {
+        next.add(alertId)
+      } else {
+        next.delete(alertId)
+      }
+      return next
+    })
+  }
+
+  const toggleAllAssetAlerts = (checked: boolean) => {
+    setSelectedAssetAlertIds(checked ? new Set(assetAlerts.map((alert) => alert.id)) : new Set())
+  }
+
+  const handleDeleteSelectedAssetAlerts = async () => {
+    if (selectedAssetAlertIds.size === 0) return
+    const idsToDelete = Array.from(selectedAssetAlertIds)
+    try {
+      await Promise.all(
+        idsToDelete.map((alertId) =>
+          apiDelete(`/users/me/price-alerts/${alertId}`)
+        )
+      )
+      setAssetAlerts((current) => current.filter((alert) => !selectedAssetAlertIds.has(alert.id)))
+      setSelectedAssetAlertIds(new Set())
+      setAssetAlertDeleteMode(false)
+      toast.success("Selected alerts deleted.")
+    } catch {
+      toast.error("Could not delete selected alerts.")
+      await refreshAssetAlerts()
+    }
+  }
+
+  const toggleAssetAlertActive = async (alert: PriceAlertResponse, checked: boolean) => {
+    setAssetAlerts((current) =>
+      current.map((item) =>
+        item.id === alert.id ? { ...item, is_active: checked } : item
+      )
+    )
+    try {
+      await apiPatch<PriceAlertResponse>(`/users/me/price-alerts/${alert.id}`, {
+        is_active: checked,
+      })
+    } catch {
+      setAssetAlerts((current) =>
+        current.map((item) =>
+          item.id === alert.id ? { ...item, is_active: alert.is_active } : item
+        )
+      )
+      toast.error("Could not update alert status.")
+    }
+  }
 
   React.useEffect(() => {
     if (!selectedAsset || !liveTicker) return
@@ -208,6 +363,22 @@ export function AssetDetailSheet({
 
   const displayedPrice = liveTicker?.price ?? marketStats?.price
   const displayedChange24h = liveTicker?.changePct ?? marketStats?.change24h
+  const alertReferencePrice = Number.isFinite(usdtPrice) ? (usdtPrice as number) : marketStats?.price ?? null
+  const parsedAlertMove = Number.parseFloat(assetAlertMove)
+  const calculatedAlertTarget =
+    alertReferencePrice != null && Number.isFinite(parsedAlertMove)
+      ? alertReferencePrice * (1 + parsedAlertMove / 100)
+      : null
+  const parsedManualTarget = Number.parseFloat(manualTargetPrice)
+  const manualTargetIsValid = Number.isFinite(parsedManualTarget) && parsedManualTarget > 0
+  const selectedAlertTarget = manualTargetIsValid ? parsedManualTarget : calculatedAlertTarget
+  const formatAlertPrice = (value?: number | null) =>
+    Number.isFinite(value ?? NaN)
+      ? `$${(value as number).toLocaleString(undefined, { maximumFractionDigits: 6 })}`
+      : "—"
+  const selectedAssetAlertCount = selectedAssetAlertIds.size
+  const allAssetAlertsSelected =
+    assetAlerts.length > 0 && selectedAssetAlertCount === assetAlerts.length
   const hasVolumeData = marketStats?.volume !== undefined
   const hasChartData = chartData.length > 0
   const activeWatchlists = React.useMemo(() => {
@@ -244,6 +415,17 @@ export function AssetDetailSheet({
                     <SheetTitle className="text-2xl sm:text-4xl font-black tracking-tighter truncate min-w-0">
                       {selectedAsset.name}
                     </SheetTitle>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        type="button"
+                        variant={detailView === "alerts" ? "secondary" : "outline"}
+                        size="icon"
+                        className="h-9 w-9 rounded-lg"
+                        onClick={() => setDetailView((view) => (view === "alerts" ? "overview" : "alerts"))}
+                        aria-label={detailView === "alerts" ? "Back to asset overview" : "Set price alert"}
+                      >
+                        {detailView === "alerts" ? <ArrowLeft className="size-4" /> : <AlarmClock className="size-4" />}
+                      </Button>
                     {onToggleWatchlist || onToggleWatchlistList ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -321,6 +503,7 @@ export function AssetDetailSheet({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Badge variant="secondary" className="px-2.5 py-0.5 bg-muted text-foreground font-black text-[10px] rounded-md border-none">
@@ -336,6 +519,207 @@ export function AssetDetailSheet({
 
             </SheetHeader>
 
+            {detailView === "alerts" ? (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-border bg-card/50 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-lg font-black tracking-tight">
+                        <AlarmClock className="size-5 text-primary" />
+                        Set {selectedAsset.symbol} alert
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Create an alarm using a percentage move or enter a manual USDT target price.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl border bg-muted/30 p-4">
+                      <div className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground/50">
+                        Current Binance price
+                      </div>
+                      <div className="mt-2 text-2xl font-black">
+                        {formatAlertPrice(alertReferencePrice)}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border bg-muted/30 p-4">
+                      <div className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground/50">
+                        Alert target
+                      </div>
+                      <div className="mt-2 text-2xl font-black">
+                        {formatAlertPrice(selectedAlertTarget)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Move</label>
+                      <Select value={assetAlertMove} onValueChange={setAssetAlertMove}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select move" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56 min-w-[var(--radix-select-trigger-width)]">
+                          {ALERT_MOVE_OPTIONS.map((move) => (
+                            <SelectItem key={move} value={String(move)}>
+                              {move > 0 ? "+" : ""}{move}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="manual-alert-target">
+                        Manual target price
+                      </label>
+                      <Input
+                        id="manual-alert-target"
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={manualTargetPrice}
+                        onChange={(event) => setManualTargetPrice(event.target.value)}
+                        placeholder="Optional USDT target"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={() => void handleCreateAssetAlert()}
+                      disabled={assetAlertSaving || selectedAlertTarget == null}
+                    >
+                      {assetAlertSaving ? "Setting..." : "Set alarm"}
+                    </Button>
+                  </div>
+
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Manual target takes priority over the percentage move when filled.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-card/50">
+                  <div className="flex items-center justify-between border-b px-5 py-4">
+                    <div className="font-black">Existing alarms</div>
+                    {assetAlerts.length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        {assetAlertDeleteMode ? (
+                          <>
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                              onClick={() => toggleAllAssetAlerts(!allAssetAlertsSelected)}
+                            >
+                              {allAssetAlertsSelected ? "Clear all" : "Select all"}
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-destructive hover:text-destructive"
+                              onClick={() => void handleDeleteSelectedAssetAlerts()}
+                              disabled={selectedAssetAlertCount === 0}
+                            >
+                              <Trash2 className="size-3.5" />
+                              Delete selected
+                            </Button>
+                          </>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant={assetAlertDeleteMode ? "secondary" : "ghost"}
+                          size="sm"
+                          onClick={() => {
+                            setAssetAlertDeleteMode((enabled) => !enabled)
+                            setSelectedAssetAlertIds(new Set())
+                          }}
+                        >
+                          {assetAlertDeleteMode ? "Done" : "Select"}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {assetAlertsLoading ? (
+                    <div className="space-y-3 p-5">
+                      <Skeleton className="h-14 w-full" />
+                      <Skeleton className="h-14 w-full" />
+                    </div>
+                  ) : assetAlerts.length === 0 ? (
+                    <div className="flex min-h-[240px] flex-col items-center justify-center px-5 py-10 text-center">
+                      <div className="flex size-14 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+                        <AlarmClock className="size-7" />
+                      </div>
+                      <div className="mt-4 font-semibold text-foreground">No active alarms</div>
+                      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                        Set an alarm to get notified when {selectedAsset.symbol} reaches your target price.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {assetAlerts.map((alert) => (
+                        <div key={alert.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                          <div className="flex min-w-0 items-start gap-3">
+                            {assetAlertDeleteMode ? (
+                              <button
+                                type="button"
+                                className={cn(
+                                  "mt-1 flex size-5 shrink-0 items-center justify-center rounded border text-[10px] font-bold transition-colors",
+                                  selectedAssetAlertIds.has(alert.id)
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border text-transparent hover:border-primary"
+                                )}
+                                onClick={() =>
+                                  toggleAssetAlertSelection(alert.id, !selectedAssetAlertIds.has(alert.id))
+                                }
+                                aria-label={`Select ${alert.symbol} alert for deletion`}
+                                aria-pressed={selectedAssetAlertIds.has(alert.id)}
+                              >
+                                {selectedAssetAlertIds.has(alert.id) ? <Check className="size-3" /> : null}
+                              </button>
+                            ) : null}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <span>{alert.symbol}</span>
+                                <span
+                                  className={
+                                    alert.is_active
+                                      ? "rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600"
+                                      : "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                                  }
+                                >
+                                  {alert.is_active ? "Active" : "Off"}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Notify when price is {alert.condition} {formatAlertPrice(alert.target_price)}
+                              </p>
+                              {alert.percentage_change != null && alert.reference_price != null ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Created from {alert.percentage_change > 0 ? "+" : ""}{alert.percentage_change}%
+                                  at {formatAlertPrice(alert.reference_price)}.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {alert.is_active ? "On" : "Off"}
+                            </span>
+                            <Switch
+                              checked={alert.is_active}
+                              onCheckedChange={(checked) => void toggleAssetAlertActive(alert, checked)}
+                              aria-label={`${alert.is_active ? "Deactivate" : "Activate"} ${alert.symbol} alert`}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Status & Technical Details Row */}
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <div className="w-full sm:flex-1 space-y-3">
@@ -652,6 +1036,8 @@ export function AssetDetailSheet({
                   )}
               </Tabs>
             </div>
+              </>
+            )}
           </div>
         )}
       </SheetContent>

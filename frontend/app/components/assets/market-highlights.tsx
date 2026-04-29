@@ -1,17 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, Zap, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react"
-import {
-  Card,
-  CardContent,
-} from "~/components/ui/card"
-import { Badge } from "~/components/ui/badge"
+import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react"
 import { Skeleton } from "~/components/ui/skeleton"
+import { AssetIcon } from "~/components/asset-icon"
 import { cn } from "~/lib/utils"
 import { apiGet, type AssetResponse, type PaginatedResponse } from "~/lib/api-client"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const TRENDING_COINS_COUNT = 20
 
 interface CoinHighlight {
   id: string
@@ -22,8 +18,6 @@ interface CoinHighlight {
   /** rank in the list (1-based) */
   rank: number
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatPrice(price: number | null): string {
   if (price === null) return "—"
@@ -44,32 +38,26 @@ function formatChange(pct: number | null): string {
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`
 }
 
-// ─── Skeleton row ─────────────────────────────────────────────────────────────
-
-function HighlightRowSkeleton() {
+function TrendingCoinSkeleton() {
   return (
-    <div className="flex items-center gap-3 py-2.5">
-      <Skeleton className="size-8 rounded-lg shrink-0" />
-      <div className="flex flex-col gap-1.5 flex-1">
-        <Skeleton className="h-3 w-24 rounded" />
-        <Skeleton className="h-2.5 w-12 rounded" />
+    <div className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/30 p-4">
+      <Skeleton className="size-10 shrink-0 rounded-full" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-3 w-10" />
       </div>
-      <div className="flex flex-col items-end gap-1.5">
-        <Skeleton className="h-3 w-16 rounded" />
-        <Skeleton className="h-2.5 w-12 rounded" />
-      </div>
+      <Skeleton className="h-3 w-12" />
     </div>
   )
 }
 
-// ─── Single coin row ──────────────────────────────────────────────────────────
-
-interface HighlightRowProps {
+function TrendingCoinCard({
+  coin,
+  onClick,
+}: {
   coin: CoinHighlight
   onClick?: () => void
-}
-
-function HighlightRow({ coin, onClick }: HighlightRowProps) {
+}) {
   const isUp = coin.changePct === null ? null : coin.changePct >= 0
   const Icon =
     isUp === null ? Minus : isUp ? ArrowUpRight : ArrowDownRight
@@ -78,31 +66,24 @@ function HighlightRow({ coin, onClick }: HighlightRowProps) {
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "group flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left",
-        "transition-all duration-200",
-        "hover:bg-accent/60 hover:shadow-sm",
-        "active:scale-[0.99]",
-        onClick ? "cursor-pointer" : "cursor-default",
-      )}
+      className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/30 p-4 text-left transition-all hover:scale-[1.02] hover:bg-card/50 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.98]"
     >
-      {/* Avatar / rank */}
-      <div className="relative flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20 font-black text-primary text-[10px] group-hover:bg-primary/15 transition-colors">
-        {coin.symbol.slice(0, 3)}
+      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full">
+        <AssetIcon
+          symbol={coin.symbol}
+          alt={`${coin.symbol} icon`}
+          fallbackClassName="text-xs"
+        />
       </div>
 
-      {/* Name / symbol */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold leading-tight text-foreground">
-          {coin.name}
-        </p>
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="flex min-w-0 flex-col items-start overflow-hidden">
+        <span className="truncate font-black tracking-tight">{coin.name}</span>
+        <span className="text-[10px] font-bold uppercase text-muted-foreground">
           {coin.symbol}
-        </p>
+        </span>
       </div>
 
-      {/* Price + change */}
-      <div className="flex flex-col items-end gap-0.5 shrink-0">
+      <div className="ml-auto flex shrink-0 flex-col items-end">
         <span className="text-xs font-bold tabular-nums text-foreground">
           {formatPrice(coin.price)}
         </span>
@@ -124,83 +105,17 @@ function HighlightRow({ coin, onClick }: HighlightRowProps) {
   )
 }
 
-// ─── Panel ────────────────────────────────────────────────────────────────────
-
-interface HighlightPanelProps {
-  icon: React.ReactNode
-  title: string
-  subtitle: string
-  coins: CoinHighlight[]
-  loading: boolean
-  onCoinClick?: (coin: CoinHighlight) => void
-  accentClass?: string
-}
-
-function HighlightPanel({
-  icon,
-  title,
-  subtitle,
-  coins,
-  loading,
-  onCoinClick,
-  accentClass = "text-red-500",
-}: HighlightPanelProps) {
-  return (
-    <Card className="flex-1 min-w-0 gap-0 py-0 overflow-hidden border-border/60 shadow-sm">
-      {/* Header */}
-      <div className="px-4 py-2.5 border-b border-border/40 flex flex-row items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={cn("text-base leading-none", accentClass)}>{icon}</span>
-          <h3 className="text-sm font-bold text-foreground leading-none">
-            {title}
-          </h3>
-        </div>
-        <Badge
-          variant="outline"
-          className="text-[10px] font-medium text-muted-foreground border-border/60 px-2 py-0.5 h-auto leading-none"
-        >
-          {subtitle}
-        </Badge>
-      </div>
-
-      <CardContent className="px-2 py-1">
-        <div className="divide-y divide-border/30">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="px-2">
-                <HighlightRowSkeleton />
-              </div>
-            ))
-          ) : coins.length === 0 ? (
-            <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No data available
-            </p>
-          ) : (
-            coins.slice(0, 3).map((coin) => (
-              <HighlightRow
-                key={coin.id}
-                coin={coin}
-                onClick={onCoinClick ? () => onCoinClick(coin) : undefined}
-              />
-            ))
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
-
 interface MarketHighlightsProps {
-  /** Called when user clicks a coin row — passes the matched AssetResponse if found */
   onCoinClick?: (symbol: string) => void
 }
 
 export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
   const [trending, setTrending] = React.useState<CoinHighlight[]>([])
-  const [topGainers, setTopGainers] = React.useState<CoinHighlight[]>([])
   const [loading, setLoading] = React.useState(true)
+  const marqueeCoins = React.useMemo(
+    () => (trending.length > 0 ? [...trending, ...trending] : []),
+    [trending],
+  )
 
   React.useEffect(() => {
     let cancelled = false
@@ -229,11 +144,9 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
 
         if (cancelled) return
 
-        setTrending(coins.slice(0, 5))
-        setTopGainers([...coins].sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0)).slice(0, 5))
+        setTrending(coins.slice(0, TRENDING_COINS_COUNT))
       } catch (err) {
         console.error("Highlights fetch failed:", err)
-        // Final fallback: try fetching specific backend assets from CG
         try {
           const assetsRes = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 20 })
           const ids = assetsRes.items.map(a => a.coingecko_id).filter(Boolean).join(",")
@@ -249,15 +162,24 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
                 changePct: coin.price_change_percentage_24h || 0,
                 rank: i + 1,
               }))
-              setTrending(coins.slice(0, 5))
-              setTopGainers([...coins].sort((a, b) => (b.changePct ?? 0) - (a.changePct ?? 0)).slice(0, 5))
+              setTrending(coins.slice(0, TRENDING_COINS_COUNT))
             }
+          } else {
+            setTrending(
+              assetsRes.items.slice(0, TRENDING_COINS_COUNT).map((asset, index) => ({
+                id: asset.id,
+                symbol: asset.symbol.toUpperCase(),
+                name: asset.name,
+                price: null,
+                changePct: null,
+                rank: index + 1,
+              }))
+            )
           }
         } catch (innerErr) {
           console.error("Highlight deep fallback failed:", innerErr)
           if (!cancelled) {
             setTrending([])
-            setTopGainers([])
           }
         }
       } finally {
@@ -270,28 +192,42 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
   }, [])
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="flex-1 min-w-0">
-        <HighlightPanel
-          icon={<TrendingUp className="size-4" />}
-          title="Trending"
-          subtitle="24h"
-          coins={trending}
-          loading={loading}
-          onCoinClick={onCoinClick ? (c) => onCoinClick(c.symbol) : undefined}
-          accentClass="text-red-500"
-        />
+    <div className="space-y-4">
+      <style>
+        {`
+          @keyframes market-highlight-marquee {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+          }
+        `}
+      </style>
+      <div className="flex items-center justify-between px-3">
+        <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-foreground/80">
+          Trending Coins
+        </h3>
       </div>
-      <div className="flex-1 min-w-0">
-        <HighlightPanel
-          icon={<Zap className="size-4" />}
-          title="Top Gainers"
-          subtitle="24h"
-          coins={topGainers}
-          loading={loading}
-          onCoinClick={onCoinClick ? (c) => onCoinClick(c.symbol) : undefined}
-          accentClass="text-green-500"
-        />
+      <div className="overflow-hidden p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {loading ? (
+          <div className="flex gap-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <TrendingCoinSkeleton key={index} />
+            ))}
+          </div>
+        ) : trending.length === 0 ? (
+          <div className="rounded-2xl border border-border/50 bg-card/30 px-5 py-4 text-sm text-muted-foreground">
+            No trending coins available.
+          </div>
+        ) : (
+          <div className="flex w-max gap-4 [animation:market-highlight-marquee_45s_linear_infinite] hover:[animation-play-state:paused]">
+            {marqueeCoins.map((coin, index) => (
+              <TrendingCoinCard
+                key={`${coin.id}-${index}`}
+                coin={coin}
+                onClick={onCoinClick ? () => onCoinClick(coin.symbol) : undefined}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

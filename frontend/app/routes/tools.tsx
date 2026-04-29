@@ -113,6 +113,11 @@ function formatUsd(value: number | null): string {
   }).format(value)
 }
 
+const normalizeAlertTarget = (value: number) => Number(value.toFixed(8))
+
+const isSameAlertTarget = (left: number, right: number) =>
+  normalizeAlertTarget(left) === normalizeAlertTarget(right)
+
 function formatCompactUsd(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return "—"
   return new Intl.NumberFormat("en-US", {
@@ -611,6 +616,16 @@ export default function ToolsPage() {
         return
       }
       const targetPrice = currentPrice * (1 + move / 100)
+      const duplicateAlert = priceAlerts.find(
+        (alert) =>
+          (alert.asset_id === selectedAlertAsset.id ||
+            alert.symbol.replace(/USDT$/, "") === selectedAlertAsset.symbol.toUpperCase()) &&
+          isSameAlertTarget(alert.target_price, targetPrice)
+      )
+      if (duplicateAlert) {
+        setPriceAlertsError("This asset already has a price alert with the same target price.")
+        return
+      }
       await apiPost<PriceAlertResponse>("/users/me/price-alerts", {
         asset_id: selectedAlertAsset.id,
         condition: move > 0 ? "above" : "below",
@@ -619,8 +634,9 @@ export default function ToolsPage() {
         percentage_change: move,
       })
       await refreshPriceAlerts()
-    } catch {
-      setPriceAlertsError("Could not create this price alert.")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create this price alert."
+      setPriceAlertsError(message)
     } finally {
       setAlertSaving(false)
     }

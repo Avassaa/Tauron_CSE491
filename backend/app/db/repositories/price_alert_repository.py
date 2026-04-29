@@ -44,6 +44,25 @@ class PriceAlertRepository:
         )
         return result.scalar_one_or_none()
 
+    async def find_duplicate_target(
+        self,
+        *,
+        user_id: uuid.UUID,
+        asset_id: uuid.UUID,
+        target_price: Decimal,
+    ) -> Optional[PriceAlert]:
+        result = await self._session.execute(
+            select(PriceAlert).where(
+                PriceAlert.user_id == user_id,
+                PriceAlert.asset_id == asset_id,
+            )
+        )
+        normalized_target = target_price.quantize(Decimal("0.00000001"))
+        for alert in result.scalars().all():
+            if alert.target_price.quantize(Decimal("0.00000001")) == normalized_target:
+                return alert
+        return None
+
     async def create(
         self,
         *,

@@ -61,12 +61,23 @@ async def create_price_alert(
     if not symbol.endswith("USDT"):
         symbol = f"{symbol}USDT"
     repository = PriceAlertRepository(session)
+    target_price = Decimal(str(body.target_price))
+    existing_alert = await repository.find_duplicate_target(
+        user_id=user_id,
+        asset_id=asset.id,
+        target_price=target_price,
+    )
+    if existing_alert is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A price alert with this target price already exists for this asset",
+        )
     alert = await repository.create(
         user_id=user_id,
         asset_id=asset.id,
         symbol=symbol,
         condition=body.condition,
-        target_price=Decimal(str(body.target_price)),
+        target_price=target_price,
         reference_price=Decimal(str(body.reference_price)) if body.reference_price is not None else None,
         percentage_change=Decimal(str(body.percentage_change)) if body.percentage_change is not None else None,
     )
