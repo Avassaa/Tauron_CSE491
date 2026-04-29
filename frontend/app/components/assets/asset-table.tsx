@@ -308,7 +308,7 @@ function AssetTableRow({
                   className={cn(
                     "size-4 transition-all duration-300",
                     isWatched
-                      ? "fill-primary text-primary scale-110"
+                      ? "fill-amber-400 text-amber-400 scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.65)]"
                       : cn(
                         "text-muted-foreground/40 hover:text-primary/70",
                         (menuOpen || isWatched) ? "opacity-100" : "opacity-0 group-hover:opacity-100"

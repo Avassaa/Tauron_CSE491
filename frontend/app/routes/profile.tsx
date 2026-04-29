@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRight, PencilLine, UserRound } from "lucide-react"
+import { PencilLine } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
+import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
@@ -38,6 +39,7 @@ function toFullName(username: string): string {
 export default function ProfilePage() {
   const [profile, setProfile] = React.useState<ProfileViewModel>(FALLBACK_PROFILE)
   const [loading, setLoading] = React.useState(true)
+  const userInitial = (profile.username || profile.fullName || "U").trim().charAt(0).toUpperCase()
 
   React.useEffect(() => {
     const token = localStorage.getItem("access_token")
@@ -136,49 +138,41 @@ export default function ProfilePage() {
                 </>
               ) : (
                 <>
-                  <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
-                    <div className="flex items-start gap-3">
-                      <ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
-                      <div>
-                        <div className="font-semibold">{profile.fullName}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Manage your public profile details and account identity.
+                  <div className="rounded-xl border">
+                    <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <Avatar className="ring-2 ring-zinc-200/70 dark:ring-zinc-700/60">
+                          <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-semibold">
+                            {userInitial}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="text-xl font-semibold">{profile.fullName}</div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Manage your public profile details and account identity.
+                          </p>
                         </div>
                       </div>
-                    </div>
-                    <Button type="button" className="gap-2" asChild>
-                      <Link to="/profile/edit">
-                        <PencilLine className="size-4" />
-                        Edit profile
-                      </Link>
-                    </Button>
-                  </div>
-
-                  <div className="rounded-xl border">
-                    <div className="border-b px-5 py-4">
-                      <div className="text-xl font-semibold">Profile Details</div>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Basic account information fetched from your current session.
-                      </p>
+                      <Button type="button" className="shrink-0 gap-2" asChild>
+                        <Link to="/profile/edit">
+                          <PencilLine className="size-4" />
+                          Edit profile
+                        </Link>
+                      </Button>
                     </div>
 
                     <div className="space-y-4 px-5 py-4">
-                      <div className="flex items-center justify-between rounded-lg border px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="rounded-md border p-2 text-muted-foreground">
-                            <UserRound className="size-4" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">Username</div>
-                            <div className="text-xs text-muted-foreground">
-                              Used for your account identifier.
-                            </div>
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <div className="text-sm font-medium">Username</div>
+                          <div className="text-xs text-muted-foreground">
+                            Used for your account identifier.
                           </div>
                         </div>
                         <div className="text-sm font-medium">{profile.username}</div>
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                      <div className="flex items-center justify-between px-4 py-3">
                         <div>
                           <div className="text-sm font-medium">Email</div>
                           <div className="text-xs text-muted-foreground">
@@ -188,7 +182,7 @@ export default function ProfilePage() {
                         <div className="text-sm font-medium">{profile.email}</div>
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+                      <div className="flex items-center justify-between px-4 py-3">
                         <div>
                           <div className="text-sm font-medium">Full Name</div>
                           <div className="text-xs text-muted-foreground">

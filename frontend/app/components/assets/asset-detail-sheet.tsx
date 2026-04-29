@@ -720,34 +720,6 @@ export function AssetDetailSheet({
               </div>
             ) : (
               <>
-            {/* Status & Technical Details Row */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
-              <div className="w-full sm:flex-1 space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40">Network Status</h3>
-                <div className="rounded-2xl border border-border bg-card/50 px-5 py-2 flex flex-col justify-center h-[68px] transition-colors hover:bg-card">
-                  <div className="flex items-center gap-2 text-xs font-black">
-                    <div className={cn("size-1 rounded-full animate-pulse", selectedAsset.is_active ? "bg-green-500" : "bg-red-500")} />
-                    {selectedAsset.is_active ? "Active" : "Inactive"}
-                  </div>
-                  <div className="text-[9px] font-bold text-muted-foreground/60 mt-0.5 uppercase tracking-wider">{selectedAsset.is_active ? "System Online" : "System Offline"}</div>
-                </div>
-              </div>
-
-              <div className="w-full sm:flex-[1.8] space-y-3">
-                <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40">Technical ID Details</h3>
-                <div className="rounded-2xl border border-border bg-card/50 overflow-hidden h-[68px] flex flex-col justify-center">
-                  <div className="flex items-center justify-between px-5 py-2 border-b border-border">
-                    <span className="text-[10px] font-bold text-muted-foreground/80">Asset ID</span>
-                    <Badge className="bg-muted text-foreground font-black rounded-md border-none px-2 py-0 text-[9px]">{selectedAsset.id.slice(0, 8)}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between px-5 py-2">
-                    <span className="text-[10px] font-bold text-muted-foreground/80">CG Ref</span>
-                    <span className="font-mono font-bold text-[10px]">{selectedAsset.coingecko_id || selectedAsset.name.toLowerCase()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Market Overview */}
             <div className="space-y-4 mb-8">
               <div className="flex items-center justify-between">
