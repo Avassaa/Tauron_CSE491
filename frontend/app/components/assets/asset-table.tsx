@@ -140,7 +140,6 @@ export function AssetTable({
   const currencyCode = (normalizedQuoteCurrency as CurrencyCode) || "USD"
 
   // --- LIVE DATA (WEBSOCKET) ---
-  // Determine which symbols to subscribe to for live updates
   const streamSymbols = React.useMemo(() => {
     const assetUsdtSymbols = assets.map((asset) => `${asset.symbol.toUpperCase()}USDT`)
     const conversionSymbols = isUsdPeggedQuote(normalizedQuoteCurrency)
@@ -151,7 +150,6 @@ export function AssetTable({
 
   const liveTickers = useLiveTickers(streamSymbols)
 
-  // Calculate the exchange rate for the selected quote currency
   const quotePerUsd = React.useMemo(() => {
     if (isUsdPeggedQuote(normalizedQuoteCurrency)) return 1
     if (Number.isFinite(externalQuotePerUsd)) return externalQuotePerUsd as number
@@ -164,7 +162,7 @@ export function AssetTable({
     return FALLBACK_USD_BASE_RATES[normalizedQuoteCurrency] || 1
   }, [externalQuotePerUsd, liveTickers, normalizedQuoteCurrency])
 
-  // --- PRICE FLASH EFFECT (TICKERS) ---
+  // --- PRICE FLASH EFFECT ---
   const queuePriceFlash = React.useCallback((symbol: string, direction: "up" | "down") => {
     setFlashBySymbol((prev) => ({ ...prev, [symbol]: direction }))
     const existing = flashTimersRef.current[symbol]
@@ -178,7 +176,6 @@ export function AssetTable({
     }, 650)
   }, [])
 
-  // Trigger flash effect when live price changes
   React.useEffect(() => {
     for (const [symbol, row] of Object.entries(liveTickers)) {
       const nextPrice = row.price
@@ -191,7 +188,6 @@ export function AssetTable({
     }
   }, [liveTickers, queuePriceFlash])
 
-  // --- SORTING ICON ---
   const SortIcon = ({ column }: { column: string }) => {
     if (sortConfig?.key !== column) return null
     return sortConfig.direction === "asc" ? (
@@ -201,7 +197,6 @@ export function AssetTable({
     )
   }
 
-  // --- RENDER ---
   return (
     <div className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden">
       <div className="overflow-x-auto scrollbar-thin">
@@ -238,7 +233,6 @@ export function AssetTable({
           </TableHeader>
           <TableBody>
             {assets.length === 0 ? (
-              // --- EMPTY STATE ---
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={10} className="h-72 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 animate-in fade-in zoom-in duration-500">
@@ -253,134 +247,186 @@ export function AssetTable({
                 </TableCell>
               </TableRow>
             ) : (
-              // --- ASSET LIST ---
-              assets.map((asset, index) => {
-                const mData = marketDataMap[asset.id];
-                const isWatched = watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase());
-                const liveTickerSymbol = `${asset.symbol.toUpperCase()}USDT`
-                const [menuOpen, setMenuOpen] = React.useState(false);
-
-                return (
-                  <TableRow key={asset.id} className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/30" onClick={() => setSelectedAsset(asset)}>
-                    {/* Watchlist Toggle with Dropdown */}
-                    <TableCell className="py-4 pl-6 px-0 w-[48px] text-left" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center h-full">
-                        <DropdownMenu onOpenChange={setMenuOpen}>
-                          <DropdownMenuTrigger asChild>
-                            <button className="group/star outline-none">
-                              <Star
-                                className={cn(
-                                  "size-4 transition-all duration-300",
-                                  isWatched
-                                    ? "fill-primary text-primary scale-110"
-                                    : cn(
-                                      "text-muted-foreground/40 hover:text-primary/70",
-                                      (menuOpen || isWatched) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                                    )
-                                )}
-                              />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-[200px] p-2 bg-popover/95 backdrop-blur-md border-border shadow-2xl rounded-xl">
-                            <div className="px-2 py-1.5 mb-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
-                              Add to Watchlist
-                            </div>
-
-                            {watchlistLists.length > 0 ? (
-                              watchlistLists.map((list) => {
-                                const listAssets = watchlistAssetsByListId[list.id] || [];
-                                const isInList = listAssets.some(a => a.id === asset.id || a.symbol.toUpperCase() === asset.symbol.toUpperCase());
-
-                                return (
-                                  <DropdownMenuItem
-                                    key={list.id}
-                                    onSelect={() => {
-                                      if (onToggleWatchlistList) {
-                                        onToggleWatchlistList(asset, list.id, isInList);
-                                      } else if (!isInList) {
-                                        onAddToWatchlistList?.(asset, list.id);
-                                      }
-                                    }}
-                                    className="flex cursor-pointer items-center justify-between px-3 py-2 text-[10px] font-bold uppercase rounded-lg transition-colors focus:bg-primary/10"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className={cn("size-1.5 rounded-full", isInList ? "bg-primary animate-pulse" : "bg-muted-foreground/20")} />
-                                      <span className="truncate">{list.name}</span>
-                                    </div>
-                                    {isInList && <Check className="size-3 text-primary" />}
-                                  </DropdownMenuItem>
-                                );
-                              })
-                            ) : (
-                              <div className="px-3 py-4 text-center text-[9px] font-bold text-muted-foreground/60 uppercase">
-                                No watchlists found
-                              </div>
-                            )}
-
-                            <DropdownMenuSeparator className="my-2 bg-border/50" />
-                            <DropdownMenuItem
-                              onClick={() => onCreateWatchlistList?.()}
-                              className="flex items-center gap-2 cursor-pointer px-3 py-2 text-[10px] font-bold uppercase rounded-lg text-primary hover:bg-primary/5 transition-colors"
-                            >
-                              <div className="size-4 rounded-md bg-primary/10 flex items-center justify-center">
-                                <Activity className="size-2.5" />
-                              </div>
-                              New Watchlist
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                    {/* Row Number */}
-                    <TableCell className="py-4 px-1 text-center">
-                      <span className="text-[10px] font-black text-muted-foreground/60">{(currentPage - 1) * pageSize + index + 1}</span>
-                    </TableCell>
-                    {/* Coin Identity */}
-                    <TableCell className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
-                          <AssetIcon symbol={asset.symbol} />
-                        </div>
-                        <div className="flex items-baseline gap-2 min-w-0">
-                          <span className="font-bold tracking-tight truncate">{asset.name}</span>
-                          <span className="text-[10px] font-black text-muted-foreground uppercase opacity-60">{asset.symbol}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    {/* Live Price with Currency Conversion */}
-                    <TableCell className="py-4 px-4 text-right">
-                      <span className={cn(
-                        "inline-block rounded px-1 font-mono text-xs font-bold tabular-nums transition-colors duration-300",
-                        flashBySymbol[liveTickerSymbol] === "up" ? "text-green-500" : flashBySymbol[liveTickerSymbol] === "down" ? "text-red-500" : "text-foreground"
-                      )}>
-                        {(() => {
-                          const usdtPrice = liveTickers[liveTickerSymbol]?.price || mData?.price
-                          if (!Number.isFinite(usdtPrice)) return "—"
-                          const livePrice = (usdtPrice as number) * (quotePerUsd as number)
-                          return formatCurrency(livePrice, currencyCode)
-                        })()}
-                      </span>
-                    </TableCell>
-                    {/* Market Performance Metrics */}
-                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_1h} /></TableCell>
-                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_24h} /></TableCell>
-                    <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_7d} /></TableCell>
-                    {/* Financial Figures */}
-                    <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
-                    <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.market_cap)}</span></TableCell>
-                    {/* 7-Day Trend Visualization */}
-                    <TableCell className="py-4 px-6">
-                      <div className="flex justify-center">
-                        <Sparkline data={mData?.sparkline || []} isUp={(mData?.price_change_7d || 0) >= 0} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
+              assets.map((asset, index) => (
+                <AssetTableRow
+                  key={asset.id}
+                  asset={asset}
+                  index={index}
+                  mData={marketDataMap[asset.id]}
+                  isWatched={watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase())}
+                  liveTickerSymbol={`${asset.symbol.toUpperCase()}USDT`}
+                  liveTickers={liveTickers}
+                  quotePerUsd={quotePerUsd}
+                  currencyCode={currencyCode}
+                  flashBySymbol={flashBySymbol}
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  setSelectedAsset={setSelectedAsset}
+                  watchlistLists={watchlistLists}
+                  watchlistAssetsByListId={watchlistAssetsByListId}
+                  onToggleWatchlistList={onToggleWatchlistList}
+                  onAddToWatchlistList={onAddToWatchlistList}
+                  onCreateWatchlistList={onCreateWatchlistList}
+                />
+              ))
             )}
           </TableBody>
         </Table>
       </div>
     </div>
+  )
+}
+
+function AssetTableRow({
+  asset,
+  index,
+  mData,
+  isWatched,
+  liveTickerSymbol,
+  liveTickers,
+  quotePerUsd,
+  currencyCode,
+  flashBySymbol,
+  currentPage,
+  pageSize,
+  setSelectedAsset,
+  watchlistLists,
+  watchlistAssetsByListId,
+  onToggleWatchlistList,
+  onAddToWatchlistList,
+  onCreateWatchlistList,
+}: {
+  asset: AssetResponse
+  index: number
+  mData?: MarketData
+  isWatched: boolean
+  liveTickerSymbol: string
+  liveTickers: any
+  quotePerUsd: number
+  currencyCode: CurrencyCode
+  flashBySymbol: Record<string, "up" | "down">
+  currentPage: number
+  pageSize: number
+  setSelectedAsset: (asset: AssetResponse) => void
+  watchlistLists: WatchlistListResponse[]
+  watchlistAssetsByListId: Record<string, AssetResponse[]>
+  onToggleWatchlistList?: (asset: AssetResponse, listId: string, currentlyInList: boolean) => void
+  onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
+  onCreateWatchlistList?: () => void
+}) {
+  const [menuOpen, setMenuOpen] = React.useState(false)
+
+  return (
+    <TableRow
+      key={asset.id}
+      className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/30"
+      onClick={() => setSelectedAsset(asset)}
+    >
+      <TableCell className="py-4 pl-6 px-0 w-[48px] text-left" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-center h-full">
+          <DropdownMenu onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button className="group/star outline-none">
+                <Star
+                  className={cn(
+                    "size-4 transition-all duration-300",
+                    isWatched
+                      ? "fill-primary text-primary scale-110"
+                      : cn(
+                        "text-muted-foreground/40 hover:text-primary/70",
+                        (menuOpen || isWatched) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      )
+                  )}
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px] p-2 bg-popover/95 backdrop-blur-md border-border shadow-2xl rounded-xl">
+              <div className="px-2 py-1.5 mb-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">
+                Add to Watchlist
+              </div>
+
+              {watchlistLists.length > 0 ? (
+                watchlistLists.map((list) => {
+                  const listAssets = watchlistAssetsByListId[list.id] || [];
+                  const isInList = listAssets.some(a => a.id === asset.id || a.symbol.toUpperCase() === asset.symbol.toUpperCase());
+
+                  return (
+                    <DropdownMenuItem
+                      key={list.id}
+                      onSelect={() => {
+                        if (onToggleWatchlistList) {
+                          onToggleWatchlistList(asset, list.id, isInList);
+                        } else if (!isInList) {
+                          onAddToWatchlistList?.(asset, list.id);
+                        }
+                      }}
+                      className="flex cursor-pointer items-center justify-between px-3 py-2 text-[10px] font-bold uppercase rounded-lg transition-colors focus:bg-primary/10"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={cn("size-1.5 rounded-full", isInList ? "bg-primary animate-pulse" : "bg-muted-foreground/20")} />
+                        <span className="truncate">{list.name}</span>
+                      </div>
+                      {isInList && <Check className="size-3 text-primary" />}
+                    </DropdownMenuItem>
+                  );
+                })
+              ) : (
+                <div className="px-3 py-4 text-center text-[9px] font-bold text-muted-foreground/60 uppercase">
+                  No watchlists found
+                </div>
+              )}
+
+              <DropdownMenuSeparator className="my-2 bg-border/50" />
+              <DropdownMenuItem
+                onClick={() => onCreateWatchlistList?.()}
+                className="flex items-center gap-2 cursor-pointer px-3 py-2 text-[10px] font-bold uppercase rounded-lg text-primary hover:bg-primary/5 transition-colors"
+              >
+                <div className="size-4 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Activity className="size-2.5" />
+                </div>
+                New Watchlist
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </TableCell>
+      <TableCell className="py-4 px-1 text-center">
+        <span className="text-[10px] font-black text-muted-foreground/60">{(currentPage - 1) * pageSize + index + 1}</span>
+      </TableCell>
+      <TableCell className="py-4 px-6">
+        <div className="flex items-center gap-3">
+          <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-xl bg-primary/10 ring-1 ring-primary/20 group-hover:scale-110 transition-transform shrink-0">
+            <AssetIcon symbol={asset.symbol} />
+          </div>
+          <div className="flex items-baseline gap-2 min-w-0">
+            <span className="font-bold tracking-tight truncate">{asset.name}</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase opacity-60">{asset.symbol}</span>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="py-4 px-4 text-right">
+        <span className={cn(
+          "inline-block rounded px-1 font-mono text-xs font-bold tabular-nums transition-colors duration-300",
+          flashBySymbol[liveTickerSymbol] === "up" ? "text-green-500" : flashBySymbol[liveTickerSymbol] === "down" ? "text-red-500" : "text-foreground"
+        )}>
+          {(() => {
+            const usdtPrice = liveTickers[liveTickerSymbol]?.price || mData?.price
+            if (!Number.isFinite(usdtPrice)) return "—"
+            const livePrice = (usdtPrice as number) * (quotePerUsd as number)
+            return formatCurrency(livePrice, currencyCode)
+          })()}
+        </span>
+      </TableCell>
+      <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_1h} /></TableCell>
+      <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_24h} /></TableCell>
+      <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_7d} /></TableCell>
+      <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
+      <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.market_cap)}</span></TableCell>
+      <TableCell className="py-4 px-6">
+        <div className="flex justify-center">
+          <Sparkline data={mData?.sparkline || []} isUp={(mData?.price_change_7d || 0) >= 0} />
+        </div>
+      </TableCell>
+    </TableRow>
   )
 }

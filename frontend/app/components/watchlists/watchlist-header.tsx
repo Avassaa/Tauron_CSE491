@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, RefreshCw, Grid, List, Plus, ChevronDown, Check, MoreVertical, Edit3, Trash2 } from "lucide-react"
+import { Search, RefreshCw, Grid, List, Plus, MoreVertical, Edit3, Trash2 } from "lucide-react"
 import { Input } from "~/components/ui/input"
 import { Button } from "~/components/ui/button"
 import { format } from "date-fns"
@@ -109,11 +109,11 @@ export function WatchlistHeader({
   }, [allAssets, watchedIds, assetSearch])
 
   return (
-    <div className="flex flex-col gap-8 mb-6">
-      <div className="flex items-end justify-between">
+    <div className="flex flex-col gap-6 md:gap-8 mb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground">{title}</h1>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">{title}</h1>
             {onRenameWatchlist || onDeleteWatchlist ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -148,60 +148,27 @@ export function WatchlistHeader({
               </DropdownMenu>
             ) : null}
           </div>
-          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
-            Updated {format(lastUpdate, "MMM dd, HH:mm")}
+          <div className="flex items-center gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
+            Updated {format(lastUpdate, "MMM dd, hh:mm a")}
             <button onClick={onRefresh} className="hover:text-white transition-colors">
               <RefreshCw className={`size-3 ${loadingWatchlist ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           {/* Search bar */}
-          <div className="relative group">
+          <div className="relative group flex-1 md:flex-none min-w-[140px]">
             <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground group-focus-within:text-white transition-colors" />
             <Input
               placeholder="Find Assets"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-11 w-64 pl-11 rounded-[14px] border-white/5 bg-white/[0.03] text-sm focus-visible:ring-white/10 placeholder:text-muted-foreground/40"
+              className="h-10 md:h-11 w-full md:w-64 pl-11 rounded-[12px] md:rounded-[14px] border-white/5 bg-white/[0.03] text-sm focus-visible:ring-white/10 placeholder:text-muted-foreground/40"
             />
           </div>
 
-          {/* Time Range Selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={timeRangeLoading}
-                className={cn(
-                  "h-11 px-4 rounded-[14px] gap-2 border-border/50 bg-card/30 hover:bg-card/50 text-foreground",
-                  timeRangeLoading && "cursor-not-allowed bg-muted/40 text-muted-foreground opacity-60",
-                )}
-              >
-                <span className="text-sm font-bold uppercase">{watchlistTimeRange}</span>
-                <ChevronDown className={cn("size-3.5 opacity-50", timeRangeLoading && "animate-pulse")} />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-24 bg-card border-border/50 p-1 rounded-xl">
-              {["1h", "24h", "7d", "30d"].map((range) => (
-                <DropdownMenuItem
-                  key={range}
-                  disabled={timeRangeLoading}
-                  onClick={() => {
-                    if (!timeRangeLoading) setWatchlistTimeRange(range)
-                  }}
-                  className={cn(
-                    "cursor-pointer rounded-lg text-[10px] font-black uppercase tracking-widest focus:bg-muted",
-                    timeRangeLoading && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  {range}
-                  {watchlistTimeRange === range && <Check className="size-3 ml-auto text-primary" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+
 
           {/* Add Asset Dropdown */}
           <DropdownMenu onOpenChange={(open) => {
@@ -211,12 +178,12 @@ export function WatchlistHeader({
             }
           }}>
             <DropdownMenuTrigger asChild>
-              <Button className="h-11 px-6 rounded-[14px] gap-2 font-bold text-sm bg-foreground text-background hover:bg-foreground/90 shadow-xl transition-all active:scale-95 group">
-                Add
+              <Button className="h-10 md:h-11 px-4 md:px-6 rounded-[12px] md:rounded-[14px] gap-2 font-bold text-xs md:text-sm bg-foreground text-background hover:bg-foreground/90 shadow-xl transition-all active:scale-95 group">
+                <span className="hidden sm:inline">Add</span>
                 <Plus className="size-4 stroke-[3]" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-2 rounded-[20px] border-border/50 bg-card/95 backdrop-blur-3xl shadow-2xl">
+            <DropdownMenuContent align="end" className="w-[calc(100vw-32px)] md:w-80 p-2 rounded-[20px] border-border/50 bg-card/95 backdrop-blur-3xl shadow-2xl">
               <div className="p-2 border-b border-border/50">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -274,7 +241,7 @@ export function WatchlistHeader({
           </DropdownMenu>
 
           {/* View Mode Switcher */}
-          <div className="flex items-center gap-1 p-1 rounded-[14px] bg-muted/30 border border-border/50 ml-2 relative">
+          <div className="flex items-center gap-1 p-1 rounded-[12px] md:rounded-[14px] bg-muted/30 border border-border/50 relative">
             <div className="absolute inset-1 flex items-center gap-1 z-0">
               <motion.div
                 className="h-full rounded-lg bg-foreground shadow-lg"

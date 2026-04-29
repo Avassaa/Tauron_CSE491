@@ -74,7 +74,17 @@ export function useWatchlist(assets: AssetResponse[] = []) {
     try {
       await apiPut("/users/me/watchlist/" + asset.id)
       await fetchWatchlist()
-      toast.success(`Added ${asset.symbol}`)
+      toast.success(`Added ${asset.symbol}`, {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void apiDelete("/users/me/watchlist/" + asset.id).then(() => {
+              void fetchWatchlist()
+              toast.success(`Removed ${asset.symbol}`)
+            })
+          }
+        }
+      })
     } catch (err) {
       toast.error(`Failed to add ${asset.symbol}`)
     } finally {
@@ -82,13 +92,23 @@ export function useWatchlist(assets: AssetResponse[] = []) {
     }
   }, [fetchWatchlist])
 
-  const handleRemove = React.useCallback(async (assetId: string, symbol: string) => {
+  const handleRemove = React.useCallback(async (asset: AssetResponse) => {
     try {
-      await apiDelete("/users/me/watchlist/" + assetId)
+      await apiDelete("/users/me/watchlist/" + asset.id)
       await fetchWatchlist()
-      toast.success(`Removed ${symbol}`)
+      toast.success(`Removed ${asset.symbol}`, {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void apiPut("/users/me/watchlist/" + asset.id).then(() => {
+              void fetchWatchlist()
+              toast.success(`Added ${asset.symbol}`)
+            })
+          }
+        }
+      })
     } catch (err) {
-      toast.error(`Failed to remove ${symbol}`)
+      toast.error(`Failed to remove ${asset.symbol}`)
     }
   }, [fetchWatchlist])
 
@@ -97,7 +117,7 @@ export function useWatchlist(assets: AssetResponse[] = []) {
       const backendId = await resolveBackendAssetId(asset)
       const isWatched = watchlist.some(w => w.asset.id === backendId || w.asset.symbol.toUpperCase() === asset.symbol.toUpperCase())
       if (isWatched) {
-        await handleRemove(backendId, asset.symbol)
+        await handleRemove({ ...asset, id: backendId })
       } else {
         await handleAdd({ ...asset, id: backendId })
       }
@@ -113,30 +133,71 @@ export function useWatchlist(assets: AssetResponse[] = []) {
       await apiPut(`/users/me/watchlist/${backendId}`)
       await fetchWatchlist()
       await fetchWatchlistLists()
-      toast.success(`Added ${asset.symbol} to watchlist`)
+      const listName = watchlistLists.find((w) => w.id === listId)?.name || "watchlist"
+      toast.success(`Added ${asset.symbol} to ${listName}`, {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
+              .then(() => apiDelete(`/users/me/watchlist/${backendId}`))
+              .then(() => {
+                void fetchWatchlist()
+                void fetchWatchlistLists()
+                toast.success(`Removed ${asset.symbol} from ${listName}`)
+              })
+          }
+        }
+      })
     } catch (err) {
       toast.error(`Failed to add ${asset.symbol}`)
     }
-  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists])
+  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists])
 
   const toggleAssetInNamedWatchlist = React.useCallback(async (asset: AssetResponse, listId: string, currentlyInList: boolean) => {
     try {
       const backendId = await resolveBackendAssetId(asset)
+      const listName = watchlistLists.find((w) => w.id === listId)?.name || "watchlist"
       if (currentlyInList) {
         await apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
         await apiDelete(`/users/me/watchlist/${backendId}`)
-        toast.success(`Removed ${asset.symbol}`)
+        toast.success(`Removed ${asset.symbol} from ${listName}`, {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void apiPut(`/users/me/watchlists/${listId}/assets/${backendId}`)
+                .then(() => apiPut(`/users/me/watchlist/${backendId}`))
+                .then(() => {
+                  void fetchWatchlist()
+                  void fetchWatchlistLists()
+                  toast.success(`Restored ${asset.symbol} to ${listName}`)
+                })
+            }
+          }
+        })
       } else {
         await apiPut(`/users/me/watchlists/${listId}/assets/${backendId}`)
         await apiPut(`/users/me/watchlist/${backendId}`)
-        toast.success(`Added ${asset.symbol}`)
+        toast.success(`Added ${asset.symbol} to ${listName}`, {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void apiDelete(`/users/me/watchlists/${listId}/assets/${backendId}`)
+                .then(() => apiDelete(`/users/me/watchlist/${backendId}`))
+                .then(() => {
+                  void fetchWatchlist()
+                  void fetchWatchlistLists()
+                  toast.success(`Removed ${asset.symbol} from ${listName}`)
+                })
+            }
+          }
+        })
       }
       await fetchWatchlist()
       await fetchWatchlistLists()
     } catch (err) {
       toast.error(`Update failed`)
     }
-  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists])
+  }, [resolveBackendAssetId, fetchWatchlist, fetchWatchlistLists, watchlistLists])
 
   const createWatchlistList = React.useCallback(async (name: string, selectedAsset?: AssetResponse | null) => {
     setCreatingWatchlist(true)

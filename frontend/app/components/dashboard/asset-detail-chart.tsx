@@ -107,14 +107,21 @@ export function AssetDetailChart({
   return (
     <div
       ref={containerRef}
-      tabIndex={-1}
-      className="relative h-full w-full outline-none focus:outline-none [&_svg]:outline-none [&_svg]:focus:outline-none"
+      className="relative h-full w-full outline-none focus:outline-none focus:ring-0 [&_*]:outline-none [&_*]:focus:outline-none [&_*]:focus:ring-0"
     >
+      <style dangerouslySetInnerHTML={{ __html: `
+        .recharts-wrapper, .recharts-surface, .recharts-responsive-container, .recharts-layer {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        svg { outline: none !important; }
+      ` }} />
       <ChartContainer
         config={config || chartConfig}
-        className="aspect-auto h-full w-full outline-none [&>svg]:outline-none"
+        className="aspect-auto h-full w-full outline-none focus:outline-none focus:ring-0 [&>svg]:outline-none [&_.recharts-wrapper]:outline-none [&_.recharts-surface]:outline-none"
       >
-        <ComposedChart data={data} margin={{ top: 10, right: 45, left: 0, bottom: 0 }}>
+        <ComposedChart accessibilityLayer={false} data={data} margin={{ top: 10, right: 45, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="fillPriceDetailUp" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#16a34a" stopOpacity={0.4} />
@@ -215,7 +222,7 @@ export function AssetDetailChart({
               const volumeRow = payload.find((entry) => entry.dataKey === "volume")
 
               return (
-                <div className="rounded-xl border border-border bg-popover/90 backdrop-blur-md p-3 text-[10px] shadow-2xl min-w-[140px]">
+                <div className="rounded-xl bg-popover/90 backdrop-blur-md p-3 text-[10px] shadow-2xl min-w-[140px]">
                   <div className="mb-2 font-black text-muted-foreground uppercase tracking-widest opacity-50 border-b border-border pb-1.5">
                     {dateText}
                   </div>

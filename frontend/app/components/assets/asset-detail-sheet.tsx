@@ -491,7 +491,7 @@ export function AssetDetailSheet({
                 {activeTab === "price" ? (
                   <div className="space-y-6">
                     {/* Chart Section */}
-                    <div className="h-[280px] sm:h-[340px] w-full rounded-2xl border border-border bg-card/50 p-4 sm:p-6 relative overflow-hidden flex items-center justify-center">
+                    <div className="h-[280px] sm:h-[340px] w-full px-0 sm:px-2 py-2 sm:py-4 relative overflow-hidden flex items-center justify-center border-none bg-transparent">
                       {chartLoading && chartData.length === 0 ? (
                         // skeleton
                         <div className="w-full h-full flex flex-col gap-4">

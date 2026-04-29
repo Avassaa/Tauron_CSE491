@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, TrendingDown, Star } from "lucide-react"
+import { TrendingUp, TrendingDown, Star, Activity, BarChart3, Globe } from "lucide-react"
 import { cn } from "~/lib/utils"
 import type { AssetResponse } from "~/lib/api-client"
+import { Sparkline } from "~/components/assets/sparkline"
+import { type MarketData } from "~/components/assets"
 
 interface WatchlistCardProps {
   asset: AssetResponse
@@ -11,9 +13,7 @@ interface WatchlistCardProps {
   isWatched?: boolean
   onRemove: (assetId: string, symbol: string) => void
   onSelect: (asset: AssetResponse) => void
-  tickerBySymbol: Record<string, { price: number; changePct: number; quoteVolume: number }>
-  rangeStatsBySymbol?: Record<string, { changePct: number; volume: number; sparkline: string }>
-  rangeStatsLoading?: boolean
+  marketData?: MarketData
 }
 
 export function WatchlistCard({
@@ -22,54 +22,36 @@ export function WatchlistCard({
   isWatched = true,
   onRemove,
   onSelect,
-  tickerBySymbol,
-  rangeStatsBySymbol = {},
-  rangeStatsLoading = false,
+  marketData,
 }: WatchlistCardProps) {
   const [iconErrored, setIconErrored] = React.useState(false)
   const [iconFallbackTried, setIconFallbackTried] = React.useState(false)
-  const [stats, setStats] = React.useState<{
-    price: number | null
-    change: string
-    isUp: boolean
-    marketCap: string
-    volume: string
-    supply: string
-    sparkline: string
-  }>({
-    price: null,
-    change: "--",
-    isUp: false,
-    marketCap: "—",
-    volume: "—",
-    supply: "—",
-    sparkline: "0,25 L 25,23 L 50,24 L 75,22 L 100,24",
-  })
 
   React.useEffect(() => {
     setIconErrored(false)
     setIconFallbackTried(false)
   }, [asset.symbol])
 
-  React.useEffect(() => {
-    const key = `${asset.symbol.toUpperCase()}USDT`
-    const ticker = tickerBySymbol[key]
-    const rangeStats = rangeStatsBySymbol[key]
-    if (!ticker && !rangeStats) return
-    const changePct = rangeStats?.changePct ?? ticker?.changePct ?? 0
-    setStats((prev) => ({
-      ...prev,
-      price: ticker?.price ?? prev.price,
-      change: `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%`,
-      isUp: changePct >= 0,
-      volume: Number.isFinite(rangeStats?.volume)
-        ? `$${((rangeStats?.volume ?? 0) / 1_000_000).toFixed(1)}M`
-        : Number.isFinite(ticker?.quoteVolume)
-          ? `$${((ticker?.quoteVolume ?? 0) / 1_000_000).toFixed(1)}M`
-          : "—",
-      sparkline: rangeStats?.sparkline ?? prev.sparkline,
-    }))
-  }, [asset.symbol, tickerBySymbol, timeRange, rangeStatsBySymbol])
+  const stats = React.useMemo(() => {
+    const isUp = (marketData?.price_change_24h ?? 0) >= 0
+    const isUp7d = (marketData?.price_change_7d ?? 0) >= 0
+    
+    return {
+      price: marketData?.price ?? null,
+      change24h: marketData?.price_change_24h !== undefined 
+        ? `${marketData.price_change_24h >= 0 ? "+" : ""}${marketData.price_change_24h.toFixed(2)}%` 
+        : "--",
+      change7d: marketData?.price_change_7d !== undefined 
+        ? `${marketData.price_change_7d >= 0 ? "+" : ""}${marketData.price_change_7d.toFixed(2)}%` 
+        : "--",
+      isUp,
+      isUp7d,
+      marketCap: marketData?.market_cap ? `$${(marketData.market_cap / 1_000_000_000).toFixed(2)}B` : "—",
+      volume: marketData?.volume ? `$${(marketData.volume / 1_000_000).toFixed(1)}M` : "—",
+      rank: marketData?.rank ? `#${marketData.rank}` : "—",
+      sparkline: marketData?.sparkline || []
+    }
+  }, [marketData])
 
   const iconUrl = iconFallbackTried
     ? `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`
@@ -78,120 +60,125 @@ export function WatchlistCard({
   return (
     <div
       onClick={() => onSelect(asset)}
-      className="group relative flex flex-col gap-5 p-5 rounded-[28px] border border-border/50 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/20 hover:bg-card cursor-pointer shadow-[0_16px_34px_rgba(15,23,42,0.08)] hover:shadow-[0_20px_42px_rgba(15,23,42,0.12)] dark:shadow-2xl dark:shadow-primary/5"
+      className="group relative flex flex-col gap-6 p-6 rounded-[32px] border border-border/40 bg-card/40 backdrop-blur-md transition-all duration-500 hover:border-primary/30 hover:bg-card hover:shadow-[0_12px_30px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_12px_30px_rgba(0,0,0,0.3)] cursor-pointer overflow-hidden"
     >
+      {/* Decorative Gradient Background */}
+      <div className={cn(
+        "absolute -right-10 -top-10 size-40 blur-[80px] opacity-20 transition-opacity duration-500 group-hover:opacity-30",
+        stats.isUp ? "bg-green-500" : "bg-red-500"
+      )} />
+
       {/* Top Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="size-10 overflow-hidden rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-black text-xs text-primary">
-            {!iconErrored ? (
-              <img
-                src={iconUrl}
-                alt={`${asset.symbol} icon`}
-                className="size-full object-cover"
-                onError={() => {
-                  if (!iconFallbackTried) {
-                    setIconFallbackTried(true)
-                    return
-                  }
-                  setIconErrored(true)
-                }}
-              />
-            ) : (
-              <span>{asset.symbol.slice(0, 1).toUpperCase()}</span>
-            )}
-          </div>
-          <div className="flex flex-col">
-            <span className="font-black text-sm text-foreground tracking-tight leading-none">{asset.name}</span>
-            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase">{asset.symbol}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onRemove(asset.id, asset.symbol)
-            }}
-            className="p-1 transition-colors"
-          >
-            <Star className={cn(
-              "size-4 transition-all",
-              isWatched ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]" : "text-muted-foreground/40 hover:text-white"
-            )} />
-          </button>
-        </div>
-      </div>
-
-      {/* Main Stats Row */}
-      <div className="flex items-end justify-between">
-        <div className="space-y-1.5">
-          <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-[0.2em]">Activity</span>
-          <div className="text-3xl font-black text-foreground tracking-tighter">
-            {stats.price == null
-              ? "—"
-              : `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          </div>
-          <div className="flex items-center gap-2">
-            {rangeStatsLoading ? (
-              <div className="h-6 w-20 animate-pulse rounded-lg bg-muted" />
-            ) : (
-              <div className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black",
-                stats.isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-              )}>
-                {stats.isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-                {stats.change}
+      <div className="flex items-center justify-between relative z-10">
+        <div className="flex items-center gap-3.5">
+          <div className="relative">
+            <div className="size-12 overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center font-black text-xs text-primary shadow-inner">
+              {!iconErrored ? (
+                <img
+                  src={iconUrl}
+                  alt={`${asset.symbol} icon`}
+                  className="size-full object-cover transition-transform duration-500"
+                  onError={() => {
+                    if (!iconFallbackTried) {
+                      setIconFallbackTried(true)
+                      return
+                    }
+                    setIconErrored(true)
+                  }}
+                />
+              ) : (
+                <span className="text-lg">{asset.symbol.slice(0, 1).toUpperCase()}</span>
+              )}
+            </div>
+            {marketData?.rank && (
+              <div className="absolute -bottom-1.5 -right-1.5 size-6 rounded-lg bg-background border border-border flex items-center justify-center text-[10px] font-black text-foreground shadow-sm">
+                {marketData.rank}
               </div>
             )}
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <h3 className="font-black text-base text-foreground tracking-tight leading-tight group-hover:text-primary transition-colors">
+              {asset.name}
+            </h3>
+            <span className="text-[11px] font-black text-muted-foreground/50 uppercase tracking-widest">
+              {asset.symbol}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove(asset.id, asset.symbol)
+          }}
+          className="p-2 rounded-xl transition-all hover:bg-primary/10 active:scale-90"
+        >
+          <Star className={cn(
+            "size-5 transition-all duration-300",
+            isWatched ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)] scale-110" : "text-muted-foreground/30 hover:text-white"
+          )} />
+        </button>
+      </div>
+
+      {/* Main Price & Sparkline */}
+      <div className="flex items-end justify-between gap-4 relative z-10">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-black text-muted-foreground/40 uppercase tracking-[0.2em]">Live Price</span>
+          <div className="text-3xl font-black text-foreground tracking-tighter leading-none">
+            {stats.price == null
+              ? "—"
+              : stats.price < 1 
+                ? `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
+                : `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={cn(
+              "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black shadow-sm",
+              stats.isUp ? "bg-green-500/15 text-green-500" : "bg-red-500/15 text-red-500"
+            )}>
+              {stats.isUp ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+              {stats.change24h}
+            </div>
             <span className={cn(
-              "text-[9px] font-black uppercase tracking-widest",
-              stats.isUp ? "text-green-500/60" : "text-red-500/60"
+              "text-[10px] font-black uppercase tracking-widest",
+              stats.isUp ? "text-green-500/50" : "text-red-500/50"
             )}>
               {stats.isUp ? "Bullish" : "Bearish"}
             </span>
           </div>
         </div>
 
-        {/* Mini Sparkline */}
-        <div className="w-24 h-12 mb-1">
-          <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
-            <defs>
-              <linearGradient id={`gradient-${asset.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={stats.isUp ? "#22c55e" : "#ef4444"} stopOpacity="0.2" />
-                <stop offset="100%" stopColor={stats.isUp ? "#22c55e" : "#ef4444"} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path
-              d={`M 0,25 L ${stats.sparkline}`}
-              fill="none"
-              stroke={stats.isUp ? "#22c55e" : "#ef4444"}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d={`M 0,25 L ${stats.sparkline} V 40 H 0 Z`}
-              fill={`url(#gradient-${asset.id})`}
-            />
-          </svg>
+        <div className="flex-1 max-w-[120px] h-14 -mb-2">
+          <Sparkline data={stats.sparkline} isUp={stats.isUp} />
         </div>
       </div>
 
-      {/* Bottom Info Grid */}
-      <div className="pt-4 border-t border-border/50">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-0.5">
-            <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">M. Cap</span>
-            <div className="text-[11px] font-black text-foreground">{stats.marketCap}</div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-3 gap-4 pt-5 border-t border-border/30 relative z-10">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1 text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">
+            <Globe className="size-2.5" />
+            Mkt Cap
           </div>
-          <div className="space-y-0.5">
-            <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Vol.</span>
-            <div className="text-[11px] font-black text-foreground">{stats.volume}</div>
+          <div className="text-[13px] font-black text-foreground tracking-tight">{stats.marketCap}</div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1 text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">
+            <Activity className="size-2.5" />
+            Vol (24h)
           </div>
-          <div className="space-y-0.5">
-            <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Supply</span>
-            <div className="text-[11px] font-black text-foreground">{stats.supply}</div>
+          <div className="text-[13px] font-black text-foreground tracking-tight">{stats.volume}</div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1 text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">
+            <BarChart3 className="size-2.5" />
+            7D Change
+          </div>
+          <div className={cn(
+            "text-[13px] font-black tracking-tight",
+            stats.isUp7d ? "text-green-500" : "text-red-500"
+          )}>
+            {stats.change7d}
           </div>
         </div>
       </div>
