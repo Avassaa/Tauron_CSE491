@@ -12,6 +12,7 @@ from app.db.repositories.price_alert_repository import PriceAlertRepository
 from app.db.session import get_db_session
 from app.models.request.table_requests import CreatePriceAlertRequest, UpdatePriceAlertRequest
 from app.models.response.table_responses import PriceAlertResponse
+from app.workers.price_alert_worker import get_price_alert_worker_status
 
 router = APIRouter(prefix="/users/me/price-alerts")
 
@@ -42,6 +43,14 @@ async def list_my_price_alerts(
     """List price alerts for the current user."""
     repository = PriceAlertRepository(session)
     return [_to_response(row) for row in await repository.list_for_user(user_id)]
+
+
+@router.get("/worker-status")
+async def get_worker_status(
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Return backend price alert worker health for debugging."""
+    return get_price_alert_worker_status()
 
 
 @router.post("", response_model=PriceAlertResponse, status_code=status.HTTP_201_CREATED)

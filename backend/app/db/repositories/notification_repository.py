@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.user_notifications import UserNotification
+from app.services.notification_push import notification_connection_manager, serialize_notification
 
 
 class NotificationRepository:
@@ -70,6 +71,10 @@ class NotificationRepository:
             await self._session.rollback()
             raise
         await self._session.refresh(notification)
+        await notification_connection_manager.publish(
+            notification.user_id,
+            serialize_notification(notification),
+        )
         return notification
 
     async def mark_read(self, user_id: uuid.UUID, notification_id: uuid.UUID) -> Optional[UserNotification]:

@@ -11,6 +11,7 @@ from .knowledge_base import router as knowledge_base_router
 from .market_data import router as market_data_router
 from .ml_models import router as ml_models_router
 from .news_scrape import router as news_scrape_router
+from .notifications import admin_router as notifications_admin_router
 from .notifications import router as notifications_router
 from .on_chain_metrics import router as on_chain_metrics_router
 from .price_alerts import router as price_alerts_router
@@ -34,6 +35,7 @@ __all__ = [
     "ml_models_router",
     "news_scrape_router",
     "notifications_router",
+    "notifications_admin_router",
     "on_chain_metrics_router",
     "price_alerts_router",
     "predictions_router",

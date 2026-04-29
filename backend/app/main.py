@@ -22,6 +22,7 @@ from app.api.v1.routes import (
     market_data_router,
     ml_models_router,
     news_scrape_router,
+    notifications_admin_router,
     notifications_router,
     on_chain_metrics_router,
     price_alerts_router,
@@ -79,6 +80,7 @@ app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])
 app.include_router(users_router, prefix="/api/v1", tags=["Users"])
 app.include_router(notifications_router, prefix="/api/v1", tags=["Notifications"])
+app.include_router(notifications_admin_router, prefix="/api/v1", tags=["Notifications (admin)"])
 app.include_router(price_alerts_router, prefix="/api/v1", tags=["Price alerts"])
 app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
 app.include_router(watchlist_lists_router, prefix="/api/v1", tags=["Watchlist Lists"])
