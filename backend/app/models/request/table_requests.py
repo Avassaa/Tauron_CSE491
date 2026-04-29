@@ -23,6 +23,24 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class CreatePriceAlertRequest(BaseModel):
+    """Create a user price alert."""
+
+    asset_id: uuid.UUID
+    condition: str = Field(pattern="^(above|below)$")
+    target_price: float = Field(gt=0)
+    reference_price: Optional[float] = Field(default=None, gt=0)
+    percentage_change: Optional[float] = Field(default=None, ge=-100, le=100)
+
+
+class UpdatePriceAlertRequest(BaseModel):
+    """Patch a user price alert."""
+
+    condition: Optional[str] = Field(default=None, pattern="^(above|below)$")
+    target_price: Optional[float] = Field(default=None, gt=0)
+    is_active: Optional[bool] = None
+
+
 class CreateAssetRequest(BaseModel):
     """Create a tradable asset (admin)."""
 

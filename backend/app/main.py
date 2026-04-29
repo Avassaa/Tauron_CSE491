@@ -5,6 +5,7 @@ creates the FastAPI app with middleware, and includes routers.
 """
 
 from app.core.app_factory import HealthCheck, create_app, create_lifespan
+from app.workers.price_alert_worker import start_price_alert_worker, stop_price_alert_worker
 from app.workers.news_scraper_worker import start_news_scraper_worker, stop_news_scraper_worker
 from app.core.logging import setup_logging
 from app.core.security import configure_default_rate_limiter
@@ -21,7 +22,9 @@ from app.api.v1.routes import (
     market_data_router,
     ml_models_router,
     news_scrape_router,
+    notifications_router,
     on_chain_metrics_router,
+    price_alerts_router,
     predictions_router,
     scraper_logs_router,
     technical_indicators_router,
@@ -56,8 +59,8 @@ configure_default_rate_limiter(
 )
 
 lifespan = create_lifespan(
-    on_startup=[_bootstrap_database_on_startup, start_news_scraper_worker],
-    on_shutdown=[_cancel_background_news_scrapes, stop_news_scraper_worker],
+    on_startup=[_bootstrap_database_on_startup, start_news_scraper_worker, start_price_alert_worker],
+    on_shutdown=[_cancel_background_news_scrapes, stop_news_scraper_worker, stop_price_alert_worker],
 )
 
 health_check = HealthCheck()
@@ -75,6 +78,8 @@ app = create_app(
 app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])
 app.include_router(users_router, prefix="/api/v1", tags=["Users"])
+app.include_router(notifications_router, prefix="/api/v1", tags=["Notifications"])
+app.include_router(price_alerts_router, prefix="/api/v1", tags=["Price alerts"])
 app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
 app.include_router(watchlist_lists_router, prefix="/api/v1", tags=["Watchlist Lists"])
 app.include_router(assets_router, prefix="/api/v1", tags=["Assets"])

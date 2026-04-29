@@ -52,6 +52,48 @@ class WatchlistEntryResponse(BaseModel):
     asset: AssetResponse
 
 
+class PriceAlertResponse(BaseModel):
+    """User price alert."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    asset_id: uuid.UUID
+    symbol: str
+    condition: str
+    target_price: float
+    reference_price: Optional[float]
+    percentage_change: Optional[float]
+    is_active: bool
+    triggered_at: Optional[datetime]
+    last_checked_price: Optional[float]
+    created_at: datetime
+    updated_at: datetime
+
+
+class NotificationResponse(BaseModel):
+    """User notification inbox item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    type: str
+    title: str
+    message: str
+    payload: Optional[dict[str, Any]]
+    is_read: bool
+    read_at: Optional[datetime]
+    created_at: datetime
+
+
+class UnreadNotificationCountResponse(BaseModel):
+    """Unread notification count."""
+
+    count: int
+
+
 class WatchlistListResponse(BaseModel):
     """Named watchlist container."""
 

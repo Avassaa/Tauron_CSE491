@@ -245,9 +245,11 @@ def _register_all_orm_models() -> None:
     import app.db.models.news_data
     import app.db.models.on_chain_metrics
     import app.db.models.predictions
+    import app.db.models.price_alerts
     import app.db.models.scraper_logs
     import app.db.models.technical_indicators
     import app.db.models.user
+    import app.db.models.user_notifications
     import app.db.models.watchlists
     import app.db.models.watchlist_lists
 
