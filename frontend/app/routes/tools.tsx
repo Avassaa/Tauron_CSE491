@@ -7,12 +7,14 @@ import {
   Bell,
   Gauge,
   Newspaper,
+  Trash2,
   TrendingDown,
   TrendingUp,
   WalletCards,
 } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
+import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -27,10 +29,13 @@ import {
 } from "~/components/ui/select"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import {
+  apiDelete,
   apiGet,
+  apiPost,
   type AssetResponse,
   type MarketDataResponse,
   type PaginatedResponse,
+  type PriceAlertResponse,
   type WatchlistEntryResponse,
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
@@ -49,6 +54,14 @@ const BINANCE_24HR_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
 const MAX_CONVERT_AMOUNT = 1_000_000_000
 type SentimentRange = "24h" | "7d" | "30d"
 const SENTIMENT_RANGES: SentimentRange[] = ["24h", "7d", "30d"]
+const ALERT_MOVE_OPTIONS = [1, -1, 2, -2, 5, -5, 10, -10, 15, -15] as const
+type ToolSectionId = "currency" | "price-alerts" | "market-sentiment" | "watchlist-insights"
+const TOOL_SECTIONS: Array<{ id: ToolSectionId; label: string }> = [
+  { id: "currency", label: "Currency Converter" },
+  { id: "price-alerts", label: "Price Alerts" },
+  { id: "market-sentiment", label: "Market Sentiment" },
+  { id: "watchlist-insights", label: "Watchlist Insights" },
+]
 
 type CuratedNewsResponse = {
   id: string
@@ -368,6 +381,12 @@ function buildUsdBaseRatesFromBinance(
 }
 
 export default function ToolsPage() {
+  const sectionRefs = React.useRef<Record<ToolSectionId, HTMLDivElement | null>>({
+    currency: null,
+    "price-alerts": null,
+    "market-sentiment": null,
+    "watchlist-insights": null,
+  })
   const [amount, setAmount] = React.useState("1")
   const [fromCurrency, setFromCurrency] = React.useState<CurrencyCode>("USD")
   const [toCurrency, setToCurrency] = React.useState<CurrencyCode>("TRY")
@@ -390,7 +409,19 @@ export default function ToolsPage() {
   const [sentimentLoading, setSentimentLoading] = React.useState(false)
   const [sentimentError, setSentimentError] = React.useState<string | null>(null)
   const [sentimentResult, setSentimentResult] = React.useState<MarketSentimentResult | null>(null)
+  const [priceAlerts, setPriceAlerts] = React.useState<PriceAlertResponse[]>([])
+  const [priceAlertsLoading, setPriceAlertsLoading] = React.useState(true)
+  const [priceAlertsError, setPriceAlertsError] = React.useState<string | null>(null)
+  const [selectedAlertAssetId, setSelectedAlertAssetId] = React.useState("")
+  const [alertMove, setAlertMove] = React.useState("1")
+  const [alertSaving, setAlertSaving] = React.useState(false)
   const selectedSentimentAsset = assets.find((asset) => asset.id === selectedSentimentAssetId)
+  const selectedAlertAsset = assets.find((asset) => asset.id === selectedAlertAssetId)
+  const alertAssets = React.useMemo(
+    () => assets.filter((asset) => asset.symbol.toUpperCase() !== "USDT"),
+    [assets]
+  )
+  const selectedAlertTickerSymbol = selectedAlertAsset ? getTickerSymbol(selectedAlertAsset.symbol) : null
 
   const watchlistTickerSymbols = React.useMemo(
     () => {
@@ -399,12 +430,21 @@ export default function ToolsPage() {
         : null
       return watchlist
         .map((entry) => getTickerSymbol(entry.asset.symbol))
-        .concat(selectedTickerSymbol)
+        .concat(selectedTickerSymbol, selectedAlertTickerSymbol)
         .filter((symbol): symbol is string => Boolean(symbol))
     },
-    [selectedSentimentAsset, watchlist]
+    [selectedAlertTickerSymbol, selectedSentimentAsset, watchlist]
   )
   const liveTickers = useLiveTickers(watchlistTickerSymbols)
+  const selectedAlertTicker = selectedAlertTickerSymbol ? liveTickers[selectedAlertTickerSymbol] : null
+  const selectedAlertCurrentPrice = selectedAlertTicker?.price ?? null
+  const selectedAlertMove = Number.parseFloat(alertMove)
+  const selectedAlertCondition: "above" | "below" = selectedAlertMove >= 0 ? "above" : "below"
+  const calculatedAlertTargetPrice =
+    selectedAlertCurrentPrice != null && Number.isFinite(selectedAlertMove)
+      ? selectedAlertCurrentPrice *
+      (1 + selectedAlertMove / 100)
+      : null
 
   const numericAmount = Number.parseFloat(amount)
   const converted = convertAmount(numericAmount, fromCurrency, toCurrency, usdBaseRates)
@@ -463,6 +503,13 @@ export default function ToolsPage() {
     setAmountLimitError(null)
   }
 
+  const scrollToToolSection = (sectionId: ToolSectionId) => {
+    sectionRefs.current[sectionId]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+  }
+
   const handleAnalyzeSentiment = async () => {
     if (!selectedSentimentAsset) {
       setSentimentError("Select an asset to analyze.")
@@ -515,6 +562,70 @@ export default function ToolsPage() {
     }
   }
 
+  const refreshPriceAlerts = React.useCallback(async () => {
+    setPriceAlertsLoading(true)
+    setPriceAlertsError(null)
+    try {
+      const alerts = await apiGet<PriceAlertResponse[]>("/users/me/price-alerts")
+      setPriceAlerts(alerts)
+    } catch {
+      setPriceAlerts([])
+      setPriceAlertsError("Could not load your price alerts.")
+    } finally {
+      setPriceAlertsLoading(false)
+    }
+  }, [])
+
+  const handleCreatePriceAlert = async () => {
+    if (!selectedAlertAsset) {
+      setPriceAlertsError("Select an asset before creating an alert.")
+      return
+    }
+    const move = Number.parseFloat(alertMove)
+    if (!Number.isFinite(move) || move === 0) {
+      setPriceAlertsError("Select a valid price move.")
+      return
+    }
+    const tickerSymbol = getTickerSymbol(selectedAlertAsset.symbol)
+    if (!tickerSymbol) {
+      setPriceAlertsError("This asset is not supported for Binance price alerts.")
+      return
+    }
+
+    setAlertSaving(true)
+    setPriceAlertsError(null)
+    try {
+      const tickerFallback = selectedAlertTicker ?? await fetchBinance24hTicker(tickerSymbol)
+      const currentPrice = tickerFallback?.price
+      if (currentPrice == null || !Number.isFinite(currentPrice)) {
+        setPriceAlertsError("Could not get the current Binance price for this asset.")
+        return
+      }
+      const targetPrice = currentPrice * (1 + move / 100)
+      await apiPost<PriceAlertResponse>("/users/me/price-alerts", {
+        asset_id: selectedAlertAsset.id,
+        condition: move > 0 ? "above" : "below",
+        target_price: targetPrice,
+        reference_price: currentPrice,
+        percentage_change: move,
+      })
+      await refreshPriceAlerts()
+    } catch {
+      setPriceAlertsError("Could not create this price alert.")
+    } finally {
+      setAlertSaving(false)
+    }
+  }
+
+  const handleDeletePriceAlert = async (alertId: string) => {
+    try {
+      await apiDelete(`/users/me/price-alerts/${alertId}`)
+      await refreshPriceAlerts()
+    } catch {
+      setPriceAlertsError("Could not delete this price alert.")
+    }
+  }
+
   React.useEffect(() => {
     let cancelled = false
 
@@ -525,9 +636,12 @@ export default function ToolsPage() {
         if (cancelled) return
         setAssets(data.items)
         const defaultAsset =
-          data.items.find((asset) => asset.symbol.toUpperCase() === "BTC") ?? data.items[0]
+          data.items.find((asset) => asset.symbol.toUpperCase() === "BTC") ??
+          data.items.find((asset) => asset.symbol.toUpperCase() !== "USDT") ??
+          data.items[0]
         if (defaultAsset) {
           setSelectedSentimentAssetId((current) => current || defaultAsset.id)
+          setSelectedAlertAssetId((current) => current || defaultAsset.id)
         }
       } catch {
         if (!cancelled) setAssets([])
@@ -542,6 +656,10 @@ export default function ToolsPage() {
       cancelled = true
     }
   }, [])
+
+  React.useEffect(() => {
+    void refreshPriceAlerts()
+  }, [refreshPriceAlerts])
 
   React.useEffect(() => {
     let cancelled = false
@@ -636,35 +754,35 @@ export default function ToolsPage() {
           paddingTop: "var(--market-banner-offset, 0px)",
         }}
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="font-medium">Tools</span>
+        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <span className="font-medium">Tools</span>
+          </div>
+          <NotificationInbox />
         </header>
         <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
           <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="space-y-1">
-              <button
-                type="button"
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
-              >
-                Currency Converter
-              </button>
-              <button
-                type="button"
-                className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                Watchlist Insights
-              </button>
-              <button
-                type="button"
-                className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                Market Sentiment
-              </button>
+              {TOOL_SECTIONS.map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
+                  onClick={() => scrollToToolSection(section.id)}
+                >
+                  {section.label}
+                </button>
+              ))}
             </aside>
             <section className="space-y-5">
-              <div className="rounded-xl border">
+              <div
+                ref={(node) => {
+                  sectionRefs.current.currency = node
+                }}
+                className="scroll-mt-20 rounded-xl border"
+              >
                 <div className="border-b px-5 py-4">
                   <div className="text-xl font-semibold">Currency Converter</div>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -763,7 +881,176 @@ export default function ToolsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border">
+              <div
+                ref={(node) => {
+                  sectionRefs.current["price-alerts"] = node
+                }}
+                className="scroll-mt-20 rounded-xl border"
+              >
+                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-xl font-semibold">
+                      <Bell className="size-5 text-primary" />
+                      Price Alerts
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Create Midas-style alarms and receive an inbox notification when Binance live price crosses your threshold.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-5 px-5 py-4">
+                  <div className="grid gap-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Asset</label>
+                      <Select
+                        value={selectedAlertAssetId}
+                        onValueChange={setSelectedAlertAssetId}
+                        disabled={assetsLoading || alertAssets.length === 0}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={assetsLoading ? "Loading assets..." : "Select asset"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {alertAssets.map((asset) => (
+                            <SelectItem key={asset.id} value={asset.id}>
+                              {asset.symbol} - {asset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Move</label>
+                      <Select value={alertMove} onValueChange={setAlertMove}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select move" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56 min-w-[var(--radix-select-trigger-width)]">
+                          {ALERT_MOVE_OPTIONS.map((move) => (
+                            <SelectItem key={move} value={String(move)}>
+                              {move > 0 ? "+" : ""}{move}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleCreatePriceAlert}
+                      disabled={alertSaving || assetsLoading}
+                    >
+                      {alertSaving ? "Creating..." : "Create alert"}
+                    </Button>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                      <span>
+                        Current price:{" "}
+                        <span className="font-medium text-foreground">
+                          {formatUsd(selectedAlertCurrentPrice)}
+                        </span>
+                      </span>
+                      <span>
+                        Alert target:{" "}
+                        <span className="font-medium text-foreground">
+                          {formatUsd(calculatedAlertTargetPrice)}
+                        </span>
+                      </span>
+                      <span>
+                        Trigger:{" "}
+                        <span className="font-medium text-foreground">
+                          price {selectedAlertCondition === "above" ? "rises above" : "falls below"} target
+                        </span>
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs">
+                      The endpoint stores this calculated target price; the worker triggers when live Binance price crosses it.
+                    </p>
+                  </div>
+
+                  {priceAlertsError ? (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {priceAlertsError}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-lg border">
+                    <div className="flex items-center justify-between border-b px-4 py-3">
+                      <div className="text-sm font-medium">Your alerts</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void refreshPriceAlerts()}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                    {priceAlertsLoading ? (
+                      <div className="space-y-3 p-4">
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                      </div>
+                    ) : priceAlerts.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No price alerts yet. Create one above to start watching live prices.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {priceAlerts.map((alert) => (
+                          <div key={alert.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <span>{alert.symbol}</span>
+                                <span
+                                  className={
+                                    alert.is_active
+                                      ? "rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600"
+                                      : "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                                  }
+                                >
+                                  {alert.is_active ? "Active" : "Triggered"}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Notify when price is {alert.condition} {formatUsd(alert.target_price)}
+                                {alert.triggered_at
+                                  ? `, triggered ${new Date(alert.triggered_at).toLocaleString()}`
+                                  : ""}
+                              </p>
+                              {alert.percentage_change != null && alert.reference_price != null ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Created from {alert.percentage_change > 0 ? "+" : ""}{alert.percentage_change}%
+                                  at {formatUsd(alert.reference_price)}.
+                                </p>
+                              ) : null}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => void handleDeletePriceAlert(alert.id)}
+                              aria-label={`Delete ${alert.symbol} alert`}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                ref={(node) => {
+                  sectionRefs.current["market-sentiment"] = node
+                }}
+                className="scroll-mt-20 rounded-xl border"
+              >
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
                     <div className="flex items-center gap-2 text-xl font-semibold">
@@ -950,7 +1237,12 @@ export default function ToolsPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border">
+              <div
+                ref={(node) => {
+                  sectionRefs.current["watchlist-insights"] = node
+                }}
+                className="scroll-mt-20 rounded-xl border"
+              >
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
                     <div className="flex items-center gap-2 text-xl font-semibold">
