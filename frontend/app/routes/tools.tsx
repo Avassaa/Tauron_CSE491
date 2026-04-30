@@ -454,6 +454,14 @@ export default function ToolsPage() {
   const selectedAlertCondition: "above" | "below" = selectedAlertMove >= 0 ? "above" : "below"
   const selectedPriceAlertCount = selectedPriceAlertIds.size
   const allPriceAlertsSelected = priceAlerts.length > 0 && selectedPriceAlertCount === priceAlerts.length
+  const sortedPriceAlerts = React.useMemo(
+    () =>
+      [...priceAlerts].sort((left, right) => {
+        if (left.is_active !== right.is_active) return left.is_active ? -1 : 1
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+      }),
+    [priceAlerts]
+  )
   const calculatedAlertTargetPrice =
     selectedAlertCurrentPrice != null && Number.isFinite(selectedAlertMove)
       ? selectedAlertCurrentPrice *
@@ -1070,26 +1078,29 @@ export default function ToolsPage() {
                       <div className="text-sm font-medium">Your alerts</div>
                       <div className="flex items-center gap-2">
                         {priceAlertDeleteMode ? (
-                          <>
+                          <div className="flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1">
+                            <span className="px-2 text-xs font-medium text-muted-foreground">
+                              {selectedPriceAlertCount} selected
+                            </span>
                             <button
                               type="button"
-                              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                              className="rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                               onClick={() => toggleAllPriceAlerts(!allPriceAlertsSelected)}
                             >
                               {allPriceAlertsSelected ? "Clear all" : "Select all"}
                             </button>
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
-                              className="gap-1"
+                              className="h-7 rounded-full px-3 text-xs"
                               onClick={() => void handleDeleteSelectedPriceAlerts()}
                               disabled={selectedPriceAlertCount === 0}
                             >
                               <Trash2 className="size-3.5" />
-                              Delete selected
+                              Delete
                             </Button>
-                          </>
+                          </div>
                         ) : null}
                         <Button
                           type="button"
@@ -1098,7 +1109,7 @@ export default function ToolsPage() {
                           onClick={() => setPriceAlertDeleteMode((enabled) => !enabled)}
                           disabled={priceAlerts.length === 0}
                         >
-                          {priceAlertDeleteMode ? "Done" : "Select"}
+                          {priceAlertDeleteMode ? "Cancel" : "Manage"}
                         </Button>
                         <Button
                           type="button"
@@ -1126,7 +1137,7 @@ export default function ToolsPage() {
                         </div>
                       ) : (
                         <div className="divide-y">
-                          {priceAlerts.map((alert) => (
+                          {sortedPriceAlerts.map((alert) => (
                             <div key={alert.id} className="flex items-center justify-between gap-4 px-4 py-3">
                               <div className="flex min-w-0 items-start gap-3">
                                 {priceAlertDeleteMode ? (

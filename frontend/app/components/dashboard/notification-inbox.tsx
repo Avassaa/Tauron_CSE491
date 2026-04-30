@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bell, CheckCheck, Info, LayoutGrid, CircleAlert } from "lucide-react"
+import { AlarmClock, Bell, CheckCheck, Info, LayoutGrid } from "lucide-react"
 import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
+import { cn } from "~/lib/utils"
 
 function formatRelativeTime(value: string): string {
   const createdAt = new Date(value).getTime()
@@ -24,8 +25,13 @@ function formatRelativeTime(value: string): string {
   return `${diffDays}d ago`
 }
 
-function NotificationIcon({ type }: { type: string }) {
-  if (type === "price_alert") return <CircleAlert className="size-5" />
+function getNotificationCondition(item: NotificationResponse) {
+  const condition = item.payload?.condition
+  return condition === "above" || condition === "below" ? condition : null
+}
+
+function NotificationIcon({ item }: { item: NotificationResponse }) {
+  if (item.type === "price_alert") return <AlarmClock className="size-5" />
   return <Info className="size-5" />
 }
 
@@ -39,7 +45,7 @@ export function NotificationInbox() {
     try {
       const [list, count] = await Promise.all([
         apiGet<PaginatedResponse<NotificationResponse>>("/users/me/notifications", {
-          page_size: 8,
+          page_size: 6,
         }),
         apiGet<{ count: number }>("/users/me/notifications/unread-count"),
       ])
@@ -127,27 +133,80 @@ export function NotificationInbox() {
         ) : (
           <div className="max-h-96 overflow-auto">
             {items.map((item) => (
+              (() => {
+                const condition = getNotificationCondition(item)
+                const directionClass =
+                  condition === "above"
+                    ? "bg-green-500/10 text-green-600"
+                    : condition === "below"
+                      ? "bg-red-500/10 text-red-600"
+                      : "bg-primary/10 text-primary"
+                return (
               <button
                 key={item.id}
                 type="button"
-                className="flex w-full gap-4 border-b px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-muted/50"
+                className={cn(
+                  "relative flex w-full gap-4 border-b px-5 py-4 text-left transition-colors last:border-b-0",
+                  item.is_read
+                    ? "bg-background text-muted-foreground hover:bg-muted/40"
+                    : "bg-blue-500/10 text-foreground shadow-[inset_3px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
+                )}
                 onClick={() => {
                   if (!item.is_read) void markRead(item.id)
                 }}
               >
-                <div className="mt-0.5 text-muted-foreground">
-                  <NotificationIcon type={item.type} />
+                <div
+                  className={cn(
+                    "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full",
+                    item.is_read
+                      ? condition === "above"
+                        ? "text-green-600/70"
+                        : condition === "below"
+                          ? "text-red-600/70"
+                          : "text-muted-foreground"
+                      : directionClass
+                  )}
+                >
+                  <NotificationIcon item={item} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
-                    <span className="truncate text-base font-semibold">{item.title}</span>
-                    <span className="shrink-0 text-sm text-muted-foreground">
+                    <span
+                      className={cn(
+                        "truncate text-base",
+                        item.is_read ? "font-medium text-muted-foreground" : "font-semibold text-foreground"
+                      )}
+                    >
+                      {item.title}
+                    </span>
+                    {condition ? (
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                          condition === "above"
+                            ? "bg-green-500/10 text-green-600"
+                            : "bg-red-500/10 text-red-600"
+                        )}
+                      >
+                        {condition}
+                      </span>
+                    ) : null}
+                    <span className={cn("shrink-0 text-sm", item.is_read ? "text-muted-foreground" : "font-medium text-foreground")}>
                       {formatRelativeTime(item.created_at)}
                     </span>
                   </div>
-                  <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.message}</div>
+                  <div
+                    className={cn(
+                      "mt-1 line-clamp-2 text-sm",
+                      item.is_read ? "text-muted-foreground" : "text-foreground/80"
+                    )}
+                  >
+                    {item.message}
+                  </div>
                 </div>
               </button>
+                )
+              })()
             ))}
           </div>
         )}

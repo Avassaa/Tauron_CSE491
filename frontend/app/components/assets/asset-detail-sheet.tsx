@@ -379,6 +379,14 @@ export function AssetDetailSheet({
   const selectedAssetAlertCount = selectedAssetAlertIds.size
   const allAssetAlertsSelected =
     assetAlerts.length > 0 && selectedAssetAlertCount === assetAlerts.length
+  const sortedAssetAlerts = React.useMemo(
+    () =>
+      [...assetAlerts].sort((left, right) => {
+        if (left.is_active !== right.is_active) return left.is_active ? -1 : 1
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime()
+      }),
+    [assetAlerts]
+  )
   const hasVolumeData = marketStats?.volume !== undefined
   const hasChartData = chartData.length > 0
   const activeWatchlists = React.useMemo(() => {
@@ -605,26 +613,29 @@ export function AssetDetailSheet({
                     {assetAlerts.length > 0 ? (
                       <div className="flex items-center gap-2">
                         {assetAlertDeleteMode ? (
-                          <>
+                          <div className="flex items-center gap-2 rounded-full border bg-muted/40 px-2 py-1">
+                            <span className="px-2 text-xs font-medium text-muted-foreground">
+                              {selectedAssetAlertCount} selected
+                            </span>
                             <button
                               type="button"
-                              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                              className="rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                               onClick={() => toggleAllAssetAlerts(!allAssetAlertsSelected)}
                             >
                               {allAssetAlertsSelected ? "Clear all" : "Select all"}
                             </button>
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
-                              className="gap-1 text-destructive hover:text-destructive"
+                              className="h-7 rounded-full px-3 text-xs"
                               onClick={() => void handleDeleteSelectedAssetAlerts()}
                               disabled={selectedAssetAlertCount === 0}
                             >
                               <Trash2 className="size-3.5" />
-                              Delete selected
+                              Delete
                             </Button>
-                          </>
+                          </div>
                         ) : null}
                         <Button
                           type="button"
@@ -635,7 +646,7 @@ export function AssetDetailSheet({
                             setSelectedAssetAlertIds(new Set())
                           }}
                         >
-                          {assetAlertDeleteMode ? "Done" : "Select"}
+                          {assetAlertDeleteMode ? "Cancel" : "Manage"}
                         </Button>
                       </div>
                     ) : null}
@@ -657,7 +668,7 @@ export function AssetDetailSheet({
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {assetAlerts.map((alert) => (
+                      {sortedAssetAlerts.map((alert) => (
                         <div key={alert.id} className="flex items-center justify-between gap-4 px-4 py-3">
                           <div className="flex min-w-0 items-start gap-3">
                             {assetAlertDeleteMode ? (

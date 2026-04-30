@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bell, CheckCheck, CircleAlert, Info } from "lucide-react"
+import { AlarmClock, Bell, CheckCheck, Info } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
@@ -11,6 +11,7 @@ import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Skeleton } from "~/components/ui/skeleton"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
+import { cn } from "~/lib/utils"
 
 function formatRelativeTime(value: string): string {
   const createdAt = new Date(value).getTime()
@@ -24,8 +25,13 @@ function formatRelativeTime(value: string): string {
   return `${diffDays}d ago`
 }
 
-function NotificationIcon({ type }: { type: string }) {
-  if (type === "price_alert") return <CircleAlert className="size-5" />
+function getNotificationCondition(item: NotificationResponse) {
+  const condition = item.payload?.condition
+  return condition === "above" || condition === "below" ? condition : null
+}
+
+function NotificationIcon({ item }: { item: NotificationResponse }) {
+  if (item.type === "price_alert") return <AlarmClock className="size-5" />
   return <Info className="size-5" />
 }
 
@@ -148,32 +154,80 @@ export default function NotificationsPage() {
                 ) : (
                   <div className="divide-y">
                     {items.map((item) => (
+                      (() => {
+                        const condition = getNotificationCondition(item)
+                        const directionClass =
+                          condition === "above"
+                            ? "border-green-500/20 bg-green-500/10 text-green-600"
+                            : condition === "below"
+                              ? "border-red-500/20 bg-red-500/10 text-red-600"
+                              : "border-primary/20 bg-primary/10 text-primary"
+                        return (
                       <button
                         key={item.id}
                         type="button"
-                        className="flex w-full gap-4 px-5 py-4 text-left transition-colors hover:bg-muted/50"
+                        className={cn(
+                          "relative flex w-full gap-4 px-5 py-4 text-left transition-colors",
+                          item.is_read
+                            ? "bg-background text-muted-foreground hover:bg-muted/40"
+                            : "bg-blue-500/10 text-foreground shadow-[inset_4px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
+                        )}
                         onClick={() => {
                           if (!item.is_read) void markRead(item.id)
                         }}
                       >
-                        <div className="mt-0.5 rounded-md border p-2 text-muted-foreground">
-                          <NotificationIcon type={item.type} />
+                        <div
+                          className={cn(
+                            "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border",
+                            item.is_read
+                              ? condition === "above"
+                                ? "border-green-500/15 text-green-600/70"
+                                : condition === "below"
+                                  ? "border-red-500/15 text-red-600/70"
+                                  : "border-border text-muted-foreground"
+                              : directionClass
+                          )}
+                        >
+                          <NotificationIcon item={item} />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2">
-                              <span className="truncate font-semibold">{item.title}</span>
+                              <span
+                                className={cn(
+                                  "truncate",
+                                  item.is_read ? "font-medium text-muted-foreground" : "font-semibold text-foreground"
+                                )}
+                              >
+                                {item.title}
+                              </span>
+                              {condition ? (
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                    condition === "above"
+                                      ? "bg-green-500/10 text-green-600"
+                                      : "bg-red-500/10 text-red-600"
+                                  )}
+                                >
+                                  {condition}
+                                </span>
+                              ) : null}
                               {!item.is_read ? (
-                                <span className="size-2 rounded-full bg-primary" aria-label="Unread" />
+                                <span className="size-2 rounded-full bg-blue-500" aria-label="Unread" />
                               ) : null}
                             </div>
-                            <span className="shrink-0 text-sm text-muted-foreground">
+                            <span className={cn("shrink-0 text-sm", item.is_read ? "text-muted-foreground" : "font-medium text-foreground")}>
                               {formatRelativeTime(item.created_at)}
                             </span>
                           </div>
-                          <p className="mt-1 text-sm text-muted-foreground">{item.message}</p>
+                          <p className={cn("mt-1 text-sm", item.is_read ? "text-muted-foreground" : "text-foreground/80")}>
+                            {item.message}
+                          </p>
                         </div>
                       </button>
+                        )
+                      })()
                     ))}
                   </div>
                 )}
