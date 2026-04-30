@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   ArrowRightLeft,
   Activity,
+  AlarmClock,
   Bell,
   Gauge,
   Newspaper,
@@ -43,6 +44,7 @@ import {
   type WatchlistEntryResponse,
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
+import { cn } from "~/lib/utils"
 
 import {
   type CurrencyCode,
@@ -109,8 +111,13 @@ function formatUsd(value: number | null): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: value >= 100 ? 2 : 4,
+    maximumFractionDigits: value >= 100 ? 2 : value >= 1 ? 4 : 8,
   }).format(value)
+}
+
+function formatTargetInput(value: number | null): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return ""
+  return Number(value.toFixed(8)).toString()
 }
 
 const normalizeAlertTarget = (value: number) => Number(value.toFixed(8))
@@ -423,6 +430,9 @@ export default function ToolsPage() {
   const [priceAlertsError, setPriceAlertsError] = React.useState<string | null>(null)
   const [selectedAlertAssetId, setSelectedAlertAssetId] = React.useState("")
   const [alertMove, setAlertMove] = React.useState("1")
+  const [alertTargetPrice, setAlertTargetPrice] = React.useState("")
+  const [alertTargetEdited, setAlertTargetEdited] = React.useState(false)
+  const [selectedAlertFallbackTicker, setSelectedAlertFallbackTicker] = React.useState<TickerFallback | null>(null)
   const [alertSaving, setAlertSaving] = React.useState(false)
   const [priceAlertsOpen, setPriceAlertsOpen] = React.useState(false)
   const [priceAlertDeleteMode, setPriceAlertDeleteMode] = React.useState(false)
@@ -449,9 +459,8 @@ export default function ToolsPage() {
   )
   const liveTickers = useLiveTickers(watchlistTickerSymbols)
   const selectedAlertTicker = selectedAlertTickerSymbol ? liveTickers[selectedAlertTickerSymbol] : null
-  const selectedAlertCurrentPrice = selectedAlertTicker?.price ?? null
+  const selectedAlertCurrentPrice = selectedAlertTicker?.price ?? selectedAlertFallbackTicker?.price ?? null
   const selectedAlertMove = Number.parseFloat(alertMove)
-  const selectedAlertCondition: "above" | "below" = selectedAlertMove >= 0 ? "above" : "below"
   const selectedPriceAlertCount = selectedPriceAlertIds.size
   const allPriceAlertsSelected = priceAlerts.length > 0 && selectedPriceAlertCount === priceAlerts.length
   const sortedPriceAlerts = React.useMemo(
@@ -466,6 +475,11 @@ export default function ToolsPage() {
     selectedAlertCurrentPrice != null && Number.isFinite(selectedAlertMove)
       ? selectedAlertCurrentPrice *
       (1 + selectedAlertMove / 100)
+      : null
+  const parsedAlertTargetPrice = Number.parseFloat(alertTargetPrice)
+  const selectedAlertTargetPrice =
+    Number.isFinite(parsedAlertTargetPrice) && parsedAlertTargetPrice > 0
+      ? parsedAlertTargetPrice
       : null
 
   const numericAmount = Number.parseFloat(amount)
@@ -523,6 +537,16 @@ export default function ToolsPage() {
     }
     setAmount(raw)
     setAmountLimitError(null)
+  }
+
+  const handleAlertMoveChange = (value: string) => {
+    setAlertMove(value)
+    setAlertTargetEdited(false)
+  }
+
+  const handleAlertTargetChange = (value: string) => {
+    setAlertTargetEdited(true)
+    setAlertTargetPrice(value.replace(",", "."))
   }
 
   const scrollToToolSection = (sectionId: ToolSectionId) => {
@@ -608,6 +632,10 @@ export default function ToolsPage() {
       setPriceAlertsError("Select a valid price move.")
       return
     }
+    if (selectedAlertTargetPrice == null || selectedAlertTargetPrice <= 0) {
+      setPriceAlertsError("Enter a valid alert target above 0.")
+      return
+    }
     const tickerSymbol = getTickerSymbol(selectedAlertAsset.symbol)
     if (!tickerSymbol) {
       setPriceAlertsError("This asset is not supported for Binance price alerts.")
@@ -619,11 +647,15 @@ export default function ToolsPage() {
     try {
       const tickerFallback = selectedAlertTicker ?? await fetchBinance24hTicker(tickerSymbol)
       const currentPrice = tickerFallback?.price
-      if (currentPrice == null || !Number.isFinite(currentPrice)) {
+      if (currentPrice == null || !Number.isFinite(currentPrice) || currentPrice <= 0) {
         setPriceAlertsError("Could not get the current Binance price for this asset.")
         return
       }
-      const targetPrice = currentPrice * (1 + move / 100)
+      const targetPrice = selectedAlertTargetPrice
+      if (targetPrice <= 0) {
+        setPriceAlertsError("Alert target must be greater than 0.")
+        return
+      }
       const duplicateAlert = priceAlerts.find(
         (alert) =>
           (alert.asset_id === selectedAlertAsset.id ||
@@ -636,10 +668,10 @@ export default function ToolsPage() {
       }
       await apiPost<PriceAlertResponse>("/users/me/price-alerts", {
         asset_id: selectedAlertAsset.id,
-        condition: move > 0 ? "above" : "below",
+        condition: targetPrice >= currentPrice ? "above" : "below",
         target_price: targetPrice,
         reference_price: currentPrice,
-        percentage_change: move,
+        percentage_change: alertTargetEdited ? null : move,
       })
       await refreshPriceAlerts()
     } catch (error) {
@@ -740,6 +772,24 @@ export default function ToolsPage() {
   React.useEffect(() => {
     void refreshPriceAlerts()
   }, [refreshPriceAlerts])
+
+  React.useEffect(() => {
+    let cancelled = false
+    setSelectedAlertFallbackTicker(null)
+    if (!selectedAlertTickerSymbol) return
+    void fetchBinance24hTicker(selectedAlertTickerSymbol).then((ticker) => {
+      if (!cancelled) setSelectedAlertFallbackTicker(ticker)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedAlertTickerSymbol])
+
+  React.useEffect(() => {
+    if (!alertTargetEdited) {
+      setAlertTargetPrice(formatTargetInput(calculatedAlertTargetPrice))
+    }
+  }, [alertTargetEdited, calculatedAlertTargetPrice])
 
   React.useEffect(() => {
     setSelectedPriceAlertIds((current) => {
@@ -986,11 +1036,11 @@ export default function ToolsPage() {
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
                     <div className="flex items-center gap-2 text-xl font-semibold">
-                      <Bell className="size-5 text-primary" />
+                      <AlarmClock className="size-5 text-primary" />
                       Price Alerts
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Create Midas-style alarms and receive an inbox notification when Binance live price crosses your threshold.
+                      Create price alarms with inbox notifications when Binance hits your threshold. Use a preset move, then edit the exact target in the card.
                     </p>
                   </div>
                 </div>
@@ -1000,7 +1050,10 @@ export default function ToolsPage() {
                       <label className="text-sm font-medium">Asset</label>
                       <Select
                         value={selectedAlertAssetId}
-                        onValueChange={setSelectedAlertAssetId}
+                        onValueChange={(value) => {
+                          setSelectedAlertAssetId(value)
+                          setAlertTargetEdited(false)
+                        }}
                         disabled={assetsLoading || alertAssets.length === 0}
                       >
                         <SelectTrigger className="w-full">
@@ -1017,10 +1070,16 @@ export default function ToolsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Move</label>
-                      <Select value={alertMove} onValueChange={setAlertMove}>
+                      <label className="text-sm font-medium">Preset move</label>
+                      <Select value={alertMove} onValueChange={handleAlertMoveChange}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select move" />
+                          {alertTargetEdited ? (
+                            <span className="truncate text-left text-sm font-normal text-muted-foreground">
+                              Pick a % change to recalculate target, or keep your typed price
+                            </span>
+                          ) : (
+                            <SelectValue placeholder="Select move" />
+                          )}
                         </SelectTrigger>
                         <SelectContent className="max-h-56 min-w-[var(--radix-select-trigger-width)]">
                           {ALERT_MOVE_OPTIONS.map((move) => (
@@ -1035,37 +1094,58 @@ export default function ToolsPage() {
                     <Button
                       type="button"
                       onClick={handleCreatePriceAlert}
-                      disabled={alertSaving || assetsLoading}
+                      disabled={
+                        alertSaving ||
+                        assetsLoading ||
+                        selectedAlertCurrentPrice == null ||
+                        selectedAlertCurrentPrice <= 0 ||
+                        selectedAlertTargetPrice == null
+                      }
                     >
                       {alertSaving ? "Creating..." : "Create alert"}
                     </Button>
                   </div>
 
-                  <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                      <span>
-                        Current price:{" "}
-                        <span className="font-medium text-foreground">
-                          {formatUsd(selectedAlertCurrentPrice)}
-                        </span>
-                      </span>
-                      <span>
-                        Alert target:{" "}
-                        <span className="font-medium text-foreground">
-                          {formatUsd(calculatedAlertTargetPrice)}
-                        </span>
-                      </span>
-                      <span>
-                        Trigger:{" "}
-                        <span className="font-medium text-foreground">
-                          price {selectedAlertCondition === "above" ? "rises above" : "falls below"} target
-                        </span>
-                      </span>
+                  <div className="grid gap-3 rounded-xl border bg-card/50 p-3 sm:grid-cols-2 sm:items-stretch">
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
+                      <div className="shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground">
+                        Current price
+                      </div>
+                      <div className="flex min-h-[1.75rem] flex-1 items-center text-lg font-semibold tabular-nums leading-none text-foreground">
+                        {formatUsd(selectedAlertCurrentPrice)}
+                      </div>
                     </div>
-                    <p className="mt-1 text-xs">
-                      The endpoint stores this calculated target price; the worker triggers when live Binance price crosses it.
-                    </p>
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
+                      <label
+                        className="block shrink-0 cursor-text text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground"
+                        htmlFor="tools-alert-target"
+                      >
+                        Alert target
+                      </label>
+                      <div className="flex min-h-[1.75rem] flex-1 items-center">
+                        <Input
+                          id="tools-alert-target"
+                          type="text"
+                          inputMode="decimal"
+                          value={alertTargetPrice}
+                          onChange={(event) => handleAlertTargetChange(event.target.value)}
+                          placeholder={
+                            selectedAlertCurrentPrice == null ? "Wait for live price" : "Edit target price"
+                          }
+                          className={cn(
+                            "h-auto min-h-0 w-full rounded-none border-0 bg-transparent px-0 py-0 shadow-none outline-none",
+                            "text-lg font-semibold tabular-nums leading-none text-foreground md:text-lg",
+                            "placeholder:text-muted-foreground dark:bg-transparent",
+                            "focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+                          )}
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    After you edit the target by hand, use Preset move again only if you want the price recalculated from a percentage.
+                  </p>
 
                   {priceAlertsError ? (
                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -1166,7 +1246,7 @@ export default function ToolsPage() {
                                         : "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
                                     }
                                   >
-                                    {alert.is_active ? "Active" : "Triggered"}
+                                    {alert.is_active ? "Active" : "Off"}
                                   </span>
                                 </div>
                                 <p className="mt-1 text-sm text-muted-foreground">

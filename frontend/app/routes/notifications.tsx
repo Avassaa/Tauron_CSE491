@@ -156,12 +156,6 @@ export default function NotificationsPage() {
                     {items.map((item) => (
                       (() => {
                         const condition = getNotificationCondition(item)
-                        const directionClass =
-                          condition === "above"
-                            ? "border-green-500/20 bg-green-500/10 text-green-600"
-                            : condition === "below"
-                              ? "border-red-500/20 bg-red-500/10 text-red-600"
-                              : "border-primary/20 bg-primary/10 text-primary"
                         return (
                       <button
                         key={item.id}
@@ -180,12 +174,8 @@ export default function NotificationsPage() {
                           className={cn(
                             "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border",
                             item.is_read
-                              ? condition === "above"
-                                ? "border-green-500/15 text-green-600/70"
-                                : condition === "below"
-                                  ? "border-red-500/15 text-red-600/70"
-                                  : "border-border text-muted-foreground"
-                              : directionClass
+                              ? "border-border text-muted-foreground"
+                              : "border-primary/15 bg-primary/10 text-primary"
                           )}
                         >
                           <NotificationIcon item={item} />

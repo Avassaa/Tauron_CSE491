@@ -67,6 +67,11 @@ const normalizeAlertTarget = (value: number) => Number(value.toFixed(8))
 const isSameAlertTarget = (left: number, right: number) =>
   normalizeAlertTarget(left) === normalizeAlertTarget(right)
 
+const formatTargetInput = (value: number | null) => {
+  if (value == null || !Number.isFinite(value) || value <= 0) return ""
+  return Number(value.toFixed(8)).toString()
+}
+
 interface AssetDetailSheetProps {
   selectedAsset: AssetResponse | null
   setSelectedAsset: (asset: AssetResponse | null) => void
@@ -155,6 +160,7 @@ export function AssetDetailSheet({
   const [assetAlertsLoading, setAssetAlertsLoading] = React.useState(false)
   const [assetAlertMove, setAssetAlertMove] = React.useState("1")
   const [manualTargetPrice, setManualTargetPrice] = React.useState("")
+  const [assetAlertTargetEdited, setAssetAlertTargetEdited] = React.useState(false)
   const [assetAlertSaving, setAssetAlertSaving] = React.useState(false)
   const [assetAlertDeleteMode, setAssetAlertDeleteMode] = React.useState(false)
   const [selectedAssetAlertIds, setSelectedAssetAlertIds] = React.useState<Set<string>>(new Set())
@@ -222,6 +228,7 @@ export function AssetDetailSheet({
     previousPriceRef.current = null
     setDetailView("overview")
     setManualTargetPrice("")
+    setAssetAlertTargetEdited(false)
     setAssetAlertMove("1")
     setAssetAlertDeleteMode(false)
     setSelectedAssetAlertIds(new Set())
@@ -252,12 +259,26 @@ export function AssetDetailSheet({
     }
   }, [detailView, refreshAssetAlerts, selectedAsset])
 
+  const handleAssetAlertMoveChange = (value: string) => {
+    setAssetAlertMove(value)
+    setAssetAlertTargetEdited(false)
+  }
+
+  const handleAssetAlertTargetChange = (value: string) => {
+    setAssetAlertTargetEdited(true)
+    setManualTargetPrice(value.replace(",", "."))
+  }
+
   const handleCreateAssetAlert = async () => {
     if (!selectedAsset || selectedAlertTarget == null || !Number.isFinite(selectedAlertTarget)) {
       toast.error("Select a valid alert target.")
       return
     }
-    if (alertReferencePrice == null || !Number.isFinite(alertReferencePrice)) {
+    if (selectedAlertTarget <= 0) {
+      toast.error("Alert target must be greater than 0.")
+      return
+    }
+    if (alertReferencePrice == null || !Number.isFinite(alertReferencePrice) || alertReferencePrice <= 0) {
       toast.error("Current price is not available yet.")
       return
     }
@@ -276,10 +297,11 @@ export function AssetDetailSheet({
         condition,
         target_price: selectedAlertTarget,
         reference_price: alertReferencePrice,
-        percentage_change: manualTargetIsValid ? null : parsedAlertMove,
+        percentage_change: assetAlertTargetEdited ? null : parsedAlertMove,
       })
       toast.success(`${selectedAsset.symbol} alert created.`)
       setManualTargetPrice("")
+      setAssetAlertTargetEdited(false)
       await refreshAssetAlerts()
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not create alert."
@@ -371,10 +393,10 @@ export function AssetDetailSheet({
       : null
   const parsedManualTarget = Number.parseFloat(manualTargetPrice)
   const manualTargetIsValid = Number.isFinite(parsedManualTarget) && parsedManualTarget > 0
-  const selectedAlertTarget = manualTargetIsValid ? parsedManualTarget : calculatedAlertTarget
+  const selectedAlertTarget = manualTargetIsValid ? parsedManualTarget : null
   const formatAlertPrice = (value?: number | null) =>
     Number.isFinite(value ?? NaN)
-      ? `$${(value as number).toLocaleString(undefined, { maximumFractionDigits: 6 })}`
+      ? `$${(value as number).toLocaleString(undefined, { maximumFractionDigits: 8 })}`
       : "—"
   const selectedAssetAlertCount = selectedAssetAlertIds.size
   const allAssetAlertsSelected =
@@ -387,6 +409,11 @@ export function AssetDetailSheet({
       }),
     [assetAlerts]
   )
+  React.useEffect(() => {
+    if (!assetAlertTargetEdited) {
+      setManualTargetPrice(formatTargetInput(calculatedAlertTarget))
+    }
+  }, [assetAlertTargetEdited, calculatedAlertTarget])
   const hasVolumeData = marketStats?.volume !== undefined
   const hasChartData = chartData.length > 0
   const activeWatchlists = React.useMemo(() => {
@@ -537,36 +564,60 @@ export function AssetDetailSheet({
                         Set {selectedAsset.symbol} alert
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Create an alarm using a percentage move or enter a manual USDT target price.
+                        Choose a preset percentage move or type your exact alert price in the target card below.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-xl border bg-muted/30 p-4">
-                      <div className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground/50">
+                  <div className="mt-5 grid gap-3 rounded-xl border bg-card/50 p-3 sm:grid-cols-2 sm:items-stretch">
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
+                      <div className="shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground">
                         Current Binance price
                       </div>
-                      <div className="mt-2 text-2xl font-black">
+                      <div className="flex min-h-[1.75rem] flex-1 items-center text-lg font-semibold tabular-nums leading-none text-foreground">
                         {formatAlertPrice(alertReferencePrice)}
                       </div>
                     </div>
-                    <div className="rounded-xl border bg-muted/30 p-4">
-                      <div className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground/50">
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
+                      <label
+                        className="block shrink-0 cursor-text text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground"
+                        htmlFor="manual-alert-target"
+                      >
                         Alert target
-                      </div>
-                      <div className="mt-2 text-2xl font-black">
-                        {formatAlertPrice(selectedAlertTarget)}
+                      </label>
+                      <div className="flex min-h-[1.75rem] flex-1 items-center">
+                        <Input
+                          id="manual-alert-target"
+                          type="text"
+                          inputMode="decimal"
+                          value={manualTargetPrice}
+                          onChange={(event) => handleAssetAlertTargetChange(event.target.value)}
+                          placeholder={
+                            alertReferencePrice == null ? "Wait for live price" : "Edit target price"
+                          }
+                          className={cn(
+                            "h-auto min-h-0 w-full rounded-none border-0 bg-transparent px-0 py-0 shadow-none outline-none",
+                            "text-lg font-semibold tabular-nums leading-none text-foreground md:text-lg",
+                            "placeholder:text-muted-foreground dark:bg-transparent",
+                            "focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+                          )}
+                        />
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Move</label>
-                      <Select value={assetAlertMove} onValueChange={setAssetAlertMove}>
+                      <label className="text-sm font-medium">Preset move</label>
+                      <Select value={assetAlertMove} onValueChange={handleAssetAlertMoveChange}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select move" />
+                          {assetAlertTargetEdited ? (
+                            <span className="truncate text-left text-sm font-normal text-muted-foreground">
+                              Pick a % change to recalculate target, or keep your typed price
+                            </span>
+                          ) : (
+                            <SelectValue placeholder="Select move" />
+                          )}
                         </SelectTrigger>
                         <SelectContent className="max-h-56 min-w-[var(--radix-select-trigger-width)]">
                           {ALERT_MOVE_OPTIONS.map((move) => (
@@ -578,32 +629,22 @@ export function AssetDetailSheet({
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="manual-alert-target">
-                        Manual target price
-                      </label>
-                      <Input
-                        id="manual-alert-target"
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={manualTargetPrice}
-                        onChange={(event) => setManualTargetPrice(event.target.value)}
-                        placeholder="Optional USDT target"
-                      />
-                    </div>
-
                     <Button
                       type="button"
                       onClick={() => void handleCreateAssetAlert()}
-                      disabled={assetAlertSaving || selectedAlertTarget == null}
+                      disabled={
+                        assetAlertSaving ||
+                        selectedAlertTarget == null ||
+                        alertReferencePrice == null ||
+                        alertReferencePrice <= 0
+                      }
                     >
                       {assetAlertSaving ? "Setting..." : "Set alarm"}
                     </Button>
                   </div>
 
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Manual target takes priority over the percentage move when filled.
+                    After you edit the target by hand, use Preset move again only if you want the price recalculated from a percentage.
                   </p>
                 </div>
 

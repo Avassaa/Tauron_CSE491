@@ -135,12 +135,6 @@ export function NotificationInbox() {
             {items.map((item) => (
               (() => {
                 const condition = getNotificationCondition(item)
-                const directionClass =
-                  condition === "above"
-                    ? "bg-green-500/10 text-green-600"
-                    : condition === "below"
-                      ? "bg-red-500/10 text-red-600"
-                      : "bg-primary/10 text-primary"
                 return (
               <button
                 key={item.id}
@@ -159,12 +153,8 @@ export function NotificationInbox() {
                   className={cn(
                     "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full",
                     item.is_read
-                      ? condition === "above"
-                        ? "text-green-600/70"
-                        : condition === "below"
-                          ? "text-red-600/70"
-                          : "text-muted-foreground"
-                      : directionClass
+                      ? "text-muted-foreground"
+                      : "bg-primary/10 text-primary"
                   )}
                 >
                   <NotificationIcon item={item} />

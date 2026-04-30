@@ -51,8 +51,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `Request failed: ${res.status}`
     try {
-      const data = (await res.json()) as { detail?: string }
-      if (data?.detail) message = data.detail
+      const data = (await res.json()) as { detail?: unknown }
+      if (typeof data?.detail === "string") {
+        message = data.detail
+      } else if (data?.detail) {
+        message = JSON.stringify(data.detail)
+      }
     } catch { /* ignore */ }
     throw new Error(message)
   }
