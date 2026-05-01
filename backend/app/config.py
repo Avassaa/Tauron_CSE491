@@ -108,6 +108,40 @@ class Settings(BaseSettings):
         default=86400,
         description="Sleep between successful scraper runs (default 86400 = 24 hours).",
     )
+    NEWS_KNOWLEDGE_SYNC_ENABLED: bool = Field(
+        default=True,
+        description=(
+            "When True, after each scrape run sync unsynced news_data rows into knowledge_base."
+        ),
+    )
+    NEWS_CURATION_ENABLED: bool = Field(
+        default=True,
+        description="When True, create curated_news summaries after knowledge sync.",
+    )
+    NEWS_CURATION_LOOKBACK_HOURS: int = Field(
+        default=24,
+        description="How far back (hours) curated summary generation reads news rows from.",
+    )
+    NEWS_CURATION_MAX_ITEMS: int = Field(
+        default=20,
+        description="Maximum number of recent news rows used for one curated summary prompt.",
+    )
+    GEMINI_API_KEY: str = Field(
+        default="",
+        description="Google Gemini API key used for embeddings and curated summaries.",
+    )
+    GEMINI_TEXT_MODEL: str = Field(
+        default="gemini-2.0-flash",
+        description="Gemini model name for text generation (curated summary).",
+    )
+    GEMINI_EMBEDDING_MODEL: str = Field(
+        default="gemini-embedding-2",
+        description="Gemini embedding model name for knowledge_base vectors.",
+    )
+    GEMINI_EMBEDDING_DIMENSIONS: int = Field(
+        default=1536,
+        description="Target output dimensions for embeddings stored in pgvector.",
+    )
 
     AUTO_POPULATE_ONCHAIN_ON_EMPTY_DB: bool = Field(
         default=True,

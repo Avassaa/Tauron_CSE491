@@ -53,12 +53,15 @@ type Pages = {
   "/watchlists": {
     params: {};
   };
+  "/news": {
+    params: {};
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -116,6 +119,10 @@ type RouteFiles = {
     id: "routes/watchlists";
     page: "/watchlists";
   };
+  "routes/news.tsx": {
+    id: "routes/news";
+    page: "/news";
+  };
 };
 
 type RouteModules = {
@@ -134,4 +141,5 @@ type RouteModules = {
   "routes/notifications": typeof import("./app/routes/notifications.tsx");
   "routes/assets": typeof import("./app/routes/assets.tsx");
   "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
+  "routes/news": typeof import("./app/routes/news.tsx");
 };

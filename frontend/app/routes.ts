@@ -15,4 +15,5 @@ export default [
     route("notifications", "routes/notifications.tsx"),
     route("assets", "routes/assets.tsx"),
     route("watchlists", "routes/watchlists.tsx"),
+    route("news", "routes/news.tsx"),
 ] satisfies RouteConfig;
