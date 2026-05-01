@@ -151,8 +151,8 @@ class Settings(BaseSettings):
         ),
     )
     AUTO_POPULATE_ONCHAIN_SYMBOLS: str = Field(
-        default="BTC,ETH,USDT,SOL,ADA,XRP,DOT,DOGE,AVAX,LINK,SHIB,MATIC,LTC,NEAR,UNI,ICP,DAI,BCH,STX,ATOM,OP,ARB,APT,SUI,PEPE,RNDR,FET,TIA,INJ,FIL,VET,ALGO,QNT,IMX,EGLD,THETA,HBAR,AAVE,MKR,SNX,GRT,BNB,TRX,XLM,ETC,EOS,XTZ,SAND,MANA,AXS,RUNE,FLOW,KAVA,GALA,LDO,CRV,COMP,ZEC,DASH,MINA",
-        description="Comma-separated symbols to backfill (must exist or be auto-seeded).",
+        default="",
+        description="Comma-separated symbols to backfill on startup (optional).",
     )
     AUTO_POPULATE_ONCHAIN_METRICS: str = Field(
         default="ALL",
@@ -161,6 +161,13 @@ class Settings(BaseSettings):
     AUTO_POPULATE_ONCHAIN_YEARS: int = Field(
         default=5,
         description="How many years of historical on-chain data to backfill on empty DB.",
+    )
+    AUTO_POPULATE_ONCHAIN_TOP_MARKETS: int = Field(
+        default=150,
+        description=(
+            "When AUTO_POPULATE_ONCHAIN_SYMBOLS is empty, fetch this many top "
+            "market-cap coins from CoinGecko for startup auto-populate."
+        ),
     )
 
     @property

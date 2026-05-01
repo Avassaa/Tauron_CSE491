@@ -7,7 +7,7 @@ import re
 import ssl
 import uuid
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from typing import Optional
 from urllib.parse import quote, urlparse, urlunparse
 from urllib.error import HTTPError
@@ -28,6 +28,7 @@ from app.db.session import _postgres_connect_args_for_url
 logger = logging.getLogger(__name__)
 _COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
 _COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
+_COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets"
 _COINMETRICS_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _METRIC_BATCH_SIZE = 30
 _FALLBACK_METRICS = ["ReferenceRateUSD", "CapMrktCurUSD", "SplyCur", "TxCnt"]
@@ -328,6 +329,26 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
 
         await conn.run_sync(create_all_tables)
 
+    async with engine.begin() as conn:
+        if schema:
+            await conn.execute(
+                text(
+                    f"""
+                    ALTER TABLE "{schema}".on_chain_metrics
+                    ALTER COLUMN value TYPE DOUBLE PRECISION
+                    """
+                )
+            )
+        else:
+            await conn.execute(
+                text(
+                    """
+                    ALTER TABLE on_chain_metrics
+                    ALTER COLUMN value TYPE DOUBLE PRECISION
+                    """
+                )
+            )
+
     hypertable_names = (
         "market_data",
         "technical_indicators",
@@ -464,12 +485,58 @@ def _asset_seed_rows_for_symbols(symbols: list[str]) -> list[dict[str, str | Non
     return rows
 
 
-def _to_decimal(value: str | None) -> Decimal | None:
+def _fetch_top_markets_from_coingecko_sync(limit: int) -> list[dict[str, str]]:
+    safe_limit = min(max(int(limit), 1), 250)
+    params = (
+        "vs_currency=usd"
+        "&order=market_cap_desc"
+        f"&per_page={safe_limit}"
+        "&page=1"
+        "&sparkline=false"
+    )
+    request = Request(
+        f"{_COINGECKO_MARKETS_URL}?{params}",
+        headers={"User-Agent": "tauron-bootstrap/1.0"},
+    )
+    with urlopen(request, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(payload, list):
+        return []
+
+    rows: list[dict[str, str]] = []
+    for coin in payload:
+        if not isinstance(coin, dict):
+            continue
+        symbol = coin.get("symbol")
+        name = coin.get("name")
+        coingecko_id = coin.get("id")
+        if not isinstance(symbol, str) or not symbol.strip():
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(coingecko_id, str) or not coingecko_id.strip():
+            continue
+        rows.append(
+            {
+                "symbol": symbol.strip().upper(),
+                "name": name.strip(),
+                "coingecko_id": coingecko_id.strip(),
+            }
+        )
+    return rows
+
+
+def _to_decimal(value: str | None) -> float | None:
     if value in (None, ""):
         return None
     try:
-        return Decimal(value)
-    except (InvalidOperation, ValueError):
+        parsed = float(value)
+        if parsed == float("inf") or parsed == float("-inf"):
+            return None
+        if parsed != parsed:
+            return None
+        return parsed
+    except (InvalidOperation, ValueError, OverflowError):
         return None
 
 
@@ -562,7 +629,29 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
 
     schema = settings.effective_database_schema
     configured_symbols = _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_SYMBOLS)
-    symbols = _unique_upper([*configured_symbols, *_DEFAULT_ONCHAIN_SYMBOLS])
+    symbols = _unique_upper(configured_symbols)
+    fetched_top_coins: list[dict[str, str]] = []
+    if not symbols:
+        top_n = max(settings.AUTO_POPULATE_ONCHAIN_TOP_MARKETS, 1)
+        try:
+            fetched_top_coins = await asyncio.to_thread(
+                _fetch_top_markets_from_coingecko_sync,
+                top_n,
+            )
+            symbols = _unique_upper([coin["symbol"] for coin in fetched_top_coins])
+            logger.info(
+                "Auto-populate symbols sourced from CoinGecko top markets: requested=%s fetched=%s unique=%s",
+                top_n,
+                len(fetched_top_coins),
+                len(symbols),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Auto-populate CoinGecko fetch failed; falling back to defaults: %s",
+                exc,
+            )
+            symbols = _unique_upper(_DEFAULT_ONCHAIN_SYMBOLS)
+
     metrics_config = _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_METRICS)
     if not symbols:
         logger.info("Auto-populate skipped: no symbols configured.")
@@ -570,8 +659,18 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
 
     table_prefix = f'"{schema}".' if schema else ""
 
-    # Always ensure configured assets exist (e.g., SOL) even if metrics table is not empty.
     asset_seed_rows = _asset_seed_rows_for_symbols(symbols)
+    if fetched_top_coins:
+        coin_map = {coin["symbol"]: coin for coin in fetched_top_coins}
+        for row in asset_seed_rows:
+            symbol = row["symbol"]
+            coin = coin_map.get(symbol) if isinstance(symbol, str) else None
+            if coin is None:
+                continue
+            row["name"] = coin["name"]
+            row["coingecko_id"] = coin["coingecko_id"]
+            row["category"] = "Crypto"
+
     async with engine.begin() as conn:
         await conn.execute(
             text(
@@ -646,7 +745,15 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
     start_time = end_time - timedelta(days=max(settings.AUTO_POPULATE_ONCHAIN_YEARS, 1) * 365)
 
     to_insert: list[dict[str, object]] = []
-    for symbol in symbols_to_backfill:
+    total_symbols = len(symbols_to_backfill)
+    for index, symbol in enumerate(symbols_to_backfill, start=1):
+        logger.info(
+            "Auto-populate progress: %s/%s symbol=%s remaining=%s",
+            index,
+            total_symbols,
+            symbol,
+            total_symbols - index,
+        )
         requested_metrics = metrics_config
         if len(metrics_config) == 1 and metrics_config[0].upper() == "ALL":
             try:
@@ -675,9 +782,6 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
                     )
                 )
             except HTTPError as exc:
-                # CoinMetrics can reject specific assets/metrics with 403 on community tier.
-                # Continue with other metric chunks so one denied metric family does not
-                # block the entire symbol backfill.
                 logger.warning(
                     "Auto-populate fetch chunk failed for %s (HTTP %s): %s; continuing.",
                     symbol,
@@ -744,7 +848,9 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
                     }
                 )
         logger.info(
-            "Auto-populate %s: collected %s rows from %s metrics.",
+            "Auto-populate progress: %s/%s symbol=%s collected_rows=%s metrics=%s",
+            index,
+            total_symbols,
             symbol,
             len([r for r in to_insert if r["asset_id"] == asset_id]),
             len(requested_metrics),

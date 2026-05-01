@@ -5,9 +5,10 @@ import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react"
 import { Skeleton } from "~/components/ui/skeleton"
 import { AssetIcon } from "~/components/asset-icon"
 import { cn } from "~/lib/utils"
-import { apiGet, type AssetResponse, type PaginatedResponse } from "~/lib/api-client"
+import { apiGet, apiPost, type AssetResponse, type PaginatedResponse } from "~/lib/api-client"
 
 const TRENDING_COINS_COUNT = 20
+const AUTO_ENSURE_COINS_COUNT = 150
 
 interface CoinHighlight {
   id: string
@@ -17,6 +18,72 @@ interface CoinHighlight {
   changePct: number | null
   /** rank in the list (1-based) */
   rank: number
+}
+
+const AUTO_ENSURE_CACHE_TTL_MS = 60 * 60 * 1000
+const ensuredCoinCache = new Map<string, number>()
+
+function rememberEnsured(id: string) {
+  ensuredCoinCache.set(id, Date.now())
+}
+
+function recentlyEnsured(id: string): boolean {
+  const ts = ensuredCoinCache.get(id)
+  if (!ts) return false
+  if (Date.now() - ts <= AUTO_ENSURE_CACHE_TTL_MS) return true
+  ensuredCoinCache.delete(id)
+  return false
+}
+
+async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
+  if (!coins.length) return
+
+  try {
+    const existing = await apiGet<PaginatedResponse<AssetResponse>>("/assets", {
+      page: 1,
+      page_size: 500,
+    })
+    const knownSymbols = new Set(existing.items.map((asset) => asset.symbol.toUpperCase()))
+
+    let attempted = 0
+    let created = 0
+    let skippedExisting = 0
+    let skippedCached = 0
+
+    for (const coin of coins) {
+      const symbol = coin.symbol.toUpperCase()
+      if (knownSymbols.has(symbol)) {
+        skippedExisting += 1
+        continue
+      }
+      if (recentlyEnsured(coin.id)) {
+        skippedCached += 1
+        continue
+      }
+
+      try {
+        attempted += 1
+        await apiPost<AssetResponse>("/assets/ensure", {
+          symbol,
+          name: coin.name,
+          category: "Crypto",
+          coingecko_id: coin.id,
+          is_active: true,
+        })
+        knownSymbols.add(symbol)
+        rememberEnsured(coin.id)
+        created += 1
+      } catch (ensureErr) {
+        console.warn(`Auto-ensure failed for ${symbol}:`, ensureErr)
+      }
+    }
+
+    console.info(
+      `[MarketHighlights] Auto-ensure done: input=${coins.length}, attempted=${attempted}, created=${created}, skipped_existing=${skippedExisting}, skipped_cached=${skippedCached}`,
+    )
+  } catch (err) {
+    console.warn("Auto-ensure skipped: unable to read existing assets", err)
+  }
 }
 
 function formatPrice(price: number | null): string {
@@ -123,9 +190,10 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
     const fetchHighlights = async () => {
       setLoading(true)
       try {
-        // Try fetching top 50 markets from CoinGecko
+        // Try fetching top markets from CoinGecko.
+        // UI shows top 20, but we auto-ensure a wider popular set.
         const res = await fetch(
-          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false&price_change_percentage=24h"
+          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h"
         )
 
         if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
@@ -144,7 +212,10 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
 
         if (cancelled) return
 
-        setTrending(coins.slice(0, TRENDING_COINS_COUNT))
+        const topCoins = coins.slice(0, TRENDING_COINS_COUNT)
+        const ensureCandidates = coins.slice(0, AUTO_ENSURE_COINS_COUNT)
+        setTrending(topCoins)
+        void autoEnsureTrendingAssets(ensureCandidates)
       } catch (err) {
         console.error("Highlights fetch failed:", err)
         try {
@@ -162,11 +233,13 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
                 changePct: coin.price_change_percentage_24h || 0,
                 rank: i + 1,
               }))
-              setTrending(coins.slice(0, TRENDING_COINS_COUNT))
+              const topCoins = coins.slice(0, TRENDING_COINS_COUNT)
+              const ensureCandidates = coins.slice(0, AUTO_ENSURE_COINS_COUNT)
+              setTrending(topCoins)
+              void autoEnsureTrendingAssets(ensureCandidates)
             }
           } else {
-            setTrending(
-              assetsRes.items.slice(0, TRENDING_COINS_COUNT).map((asset, index) => ({
+            const topCoins = assetsRes.items.slice(0, TRENDING_COINS_COUNT).map((asset, index) => ({
                 id: asset.id,
                 symbol: asset.symbol.toUpperCase(),
                 name: asset.name,
@@ -174,7 +247,7 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
                 changePct: null,
                 rank: index + 1,
               }))
-            )
+            setTrending(topCoins)
           }
         } catch (innerErr) {
           console.error("Highlight deep fallback failed:", innerErr)

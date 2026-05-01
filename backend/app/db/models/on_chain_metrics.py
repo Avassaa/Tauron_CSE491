@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Uuid
+from sqlalchemy import DateTime, Double, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -21,4 +21,4 @@ class OnChainMetric(Base):
         primary_key=True,
     )
     metric_name: Mapped[str] = mapped_column(String(50), primary_key=True)
-    value: Mapped[float] = mapped_column(Numeric(24, 8), nullable=False)
+    value: Mapped[float] = mapped_column(Double, nullable=False)
