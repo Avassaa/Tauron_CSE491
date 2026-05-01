@@ -11,6 +11,7 @@ import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Skeleton } from "~/components/ui/skeleton"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
+import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
 
 function formatRelativeTime(value: string): string {
@@ -59,6 +60,15 @@ export default function NotificationsPage() {
   React.useEffect(() => {
     void refresh()
   }, [refresh])
+
+  React.useEffect(() => {
+    return subscribeToNotificationPush((notification) => {
+      setItems((prev) => {
+        if (prev.some((item) => item.id === notification.id)) return prev
+        return [notification, ...prev].slice(0, 50)
+      })
+    })
+  }, [])
 
   const markRead = async (id: string) => {
     try {

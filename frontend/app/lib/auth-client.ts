@@ -125,6 +125,9 @@ export function persistSession(
   if (extra?.email) {
     localStorage.setItem("email", extra.email)
   }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
+  }
 }
 
 export function clearSession(): void {
@@ -133,4 +136,7 @@ export function clearSession(): void {
   localStorage.removeItem("user_id")
   localStorage.removeItem("username")
   localStorage.removeItem("email")
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
+  }
 }

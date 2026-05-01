@@ -1,5 +1,6 @@
 """Authenticated user notifications."""
 
+import json
 import uuid
 
 import jwt
@@ -80,7 +81,13 @@ async def notifications_websocket(websocket: WebSocket, token: str = Query(defau
     await notification_connection_manager.connect(user_id, websocket)
     try:
         while True:
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict) and data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         pass
     finally:

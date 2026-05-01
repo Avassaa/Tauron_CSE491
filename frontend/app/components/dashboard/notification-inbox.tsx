@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "~/components/ui/popover"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
+import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
 
 function formatRelativeTime(value: string): string {
@@ -61,18 +62,26 @@ export function NotificationInbox() {
 
   React.useEffect(() => {
     void refresh()
-    const interval = window.setInterval(() => {
-      void refresh()
-    }, 30_000)
-    return () => window.clearInterval(interval)
   }, [refresh])
+
+  React.useEffect(() => {
+    return subscribeToNotificationPush((notification) => {
+      setItems((prev) => {
+        if (prev.some((item) => item.id === notification.id)) return prev
+        return [notification, ...prev].slice(0, 6)
+      })
+      if (!notification.is_read) {
+        setUnreadCount((count) => count + 1)
+      }
+    })
+  }, [])
 
   const markRead = async (id: string) => {
     try {
       await apiPatch<NotificationResponse>(`/users/me/notifications/${id}/read`)
       await refresh()
     } catch {
-      // Keep existing items; next polling tick can recover.
+      // Keep existing items; WS push or manual refresh can recover.
     }
   }
 
@@ -81,7 +90,7 @@ export function NotificationInbox() {
       await apiPatch<{ updated: number }>("/users/me/notifications/read-all")
       await refresh()
     } catch {
-      // Keep existing items; next polling tick can recover.
+      // Keep existing items; WS push or manual refresh can recover.
     }
   }
 
