@@ -229,6 +229,7 @@ export function MarketMarqueeBanner() {
           // Ignore malformed packets.
         }
       }
+      ws.onerror = () => {}
 
       ws.onclose = () => {
         setConnected(false)

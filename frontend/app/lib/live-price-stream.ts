@@ -16,6 +16,7 @@ let ws: WebSocket | null = null
 let reconnectTimer: number | null = null
 let closedByManager = false
 let currentStreamKey = ""
+let reconnectDelayMs = 1500
 const cache: TickerMap = {}
 const dirtySymbols = new Set<string>()
 let emitTimer: number | null = null
@@ -103,7 +104,8 @@ function mergedSymbols(): string[] {
 }
 
 function connectForSymbols(symbols: string[]) {
-  const streamKey = symbols.join("|")
+  const limitedSymbols = symbols.slice(0, 80)
+  const streamKey = limitedSymbols.join("|")
   if (streamKey === currentStreamKey) return
   currentStreamKey = streamKey
 
@@ -116,10 +118,13 @@ function connectForSymbols(symbols: string[]) {
   ws = null
   closedByManager = false
 
-  if (symbols.length === 0) return
+  if (limitedSymbols.length === 0) return
 
-  const streams = symbols.map((s) => `${s.toLowerCase()}@ticker`).join("/")
+  const streams = limitedSymbols.map((s) => `${s.toLowerCase()}@ticker`).join("/")
   ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`)
+  ws.onopen = () => {
+    reconnectDelayMs = 1500
+  }
   ws.onmessage = (event) => {
     try {
       const payload = JSON.parse(event.data) as unknown
@@ -144,18 +149,27 @@ function connectForSymbols(symbols: string[]) {
       // Ignore malformed packets.
     }
   }
+  ws.onerror = () => {}
   ws.onclose = () => {
     if (closedByManager) return
-    reconnectTimer = window.setTimeout(() => connectForSymbols(mergedSymbols()), 1500)
+    reconnectTimer = window.setTimeout(() => connectForSymbols(mergedSymbols()), reconnectDelayMs)
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, 10000)
   }
 }
 
 function normalizeSymbols(symbols: string[]): string[] {
+  const allowedQuotes = ["USDT", "USDC", "BUSD", "TRY", "EUR", "GBP", "JPY", "RUB", "CAD", "AUD", "CHF", "CNY"]
   return Array.from(
     new Set(
       symbols
         .map((s) => s.trim().toUpperCase())
-        .filter((s) => /^[A-Z0-9]+$/.test(s)),
+        .filter((s) => {
+          if (!/^[A-Z0-9]+$/.test(s)) return false
+          const quote = allowedQuotes.find((q) => s.endsWith(q))
+          if (!quote) return false
+          const base = s.slice(0, s.length - quote.length)
+          return /^[A-Z0-9]{2,12}$/.test(base)
+        }),
     ),
   ).sort()
 }

@@ -3,6 +3,7 @@ import { apiGet, type AssetResponse, type PaginatedResponse, type MarketDataResp
 import { type MarketData } from "~/components/assets"
 
 type TimeRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "MAX"
+let coingeckoCooldownUntil = 0
 
 export function useMarketData() {
   const [marketDataMap, setMarketDataMap] = React.useState<Record<string, MarketData>>({})
@@ -11,6 +12,8 @@ export function useMarketData() {
   const [marketStats, setMarketStats] = React.useState<any>(null)
 
   const fetchEnrichedMarketData = React.useCallback(async (assetsToEnrich: AssetResponse[]) => {
+    if (Date.now() < coingeckoCooldownUntil) return
+
     const ids = assetsToEnrich
       .map((a) => a.coingecko_id)
       .filter(Boolean)
@@ -22,7 +25,10 @@ export function useMarketData() {
       const res = await fetch(
         `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=1h,24h,7d,14d,30d,1y`
       )
-      if (!res.ok) throw new Error("CoinGecko rate limit or error")
+      if (!res.ok) {
+        if (res.status === 429) coingeckoCooldownUntil = Date.now() + 60_000
+        throw new Error(`CoinGecko HTTP ${res.status}`)
+      }
       const data = await res.json()
 
       const newMap: Record<string, any> = {}
@@ -46,6 +52,7 @@ export function useMarketData() {
       })
       setMarketDataMap((prev) => ({ ...prev, ...newMap }))
     } catch (err) {
+      coingeckoCooldownUntil = Math.max(coingeckoCooldownUntil, Date.now() + 30_000)
       console.error("Failed to fetch enriched market data:", err)
     }
   }, [])

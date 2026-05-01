@@ -9,6 +9,7 @@ import { apiGet, apiPost, type AssetResponse, type PaginatedResponse } from "~/l
 
 const TRENDING_COINS_COUNT = 20
 const AUTO_ENSURE_COINS_COUNT = 150
+let highlightsCooldownUntil = 0
 
 interface CoinHighlight {
   id: string
@@ -188,15 +189,20 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
     let cancelled = false
 
     const fetchHighlights = async () => {
+      if (Date.now() < highlightsCooldownUntil) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       try {
-        // Try fetching top markets from CoinGecko.
-        // UI shows top 20, but we auto-ensure a wider popular set.
         const res = await fetch(
           "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h"
         )
 
-        if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
+        if (!res.ok) {
+          if (res.status === 429) highlightsCooldownUntil = Date.now() + 60_000
+          throw new Error(`CoinGecko HTTP ${res.status}`)
+        }
         const data = await res.json()
 
         if (!Array.isArray(data)) throw new Error("CoinGecko did not return an array")
@@ -217,6 +223,7 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
         setTrending(topCoins)
         void autoEnsureTrendingAssets(ensureCandidates)
       } catch (err) {
+        highlightsCooldownUntil = Math.max(highlightsCooldownUntil, Date.now() + 30_000)
         console.error("Highlights fetch failed:", err)
         try {
           const assetsRes = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 20 })
