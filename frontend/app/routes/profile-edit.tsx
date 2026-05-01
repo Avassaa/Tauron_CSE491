@@ -15,6 +15,7 @@ import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Skeleton } from "~/components/ui/skeleton"
 import { getMe, patchMe } from "~/lib/auth-client"
+import { AuthGuard } from "~/components/auth-guard"
 
 type EditableProfile = {
   username: string
@@ -125,115 +126,117 @@ export default function ProfileEditPage() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <MarketMarqueeBanner />
-      <SidebarInset
-        style={{
-          paddingTop: "var(--market-banner-offset, 0px)",
-        }}
-      >
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <span className="font-medium">Edit Profile</span>
-          </div>
-          <NotificationInbox />
-        </header>
-        <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
-          <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="space-y-1">
-              <button
-                type="button"
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
-              >
-                Profile Information
-              </button>
-            </aside>
-            <section className="space-y-5">
-              {loading ? (
-                <div className="rounded-xl border">
-                  <div className="border-b px-5 py-4">
-                    <Skeleton className="h-6 w-40" />
-                    <Skeleton className="mt-2 h-4 w-72" />
-                  </div>
-                  <div className="space-y-4 px-5 py-4">
-                    <Skeleton className="h-16 w-full rounded-lg" />
-                    <Skeleton className="h-16 w-full rounded-lg" />
-                    <Skeleton className="h-16 w-full rounded-lg" />
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Skeleton className="h-10 w-24 rounded-md" />
-                      <Skeleton className="h-10 w-32 rounded-md" />
+    <AuthGuard>
+      <SidebarProvider>
+        <AppSidebar />
+        <MarketMarqueeBanner />
+        <SidebarInset
+          style={{
+            paddingTop: "var(--market-banner-offset, 0px)",
+          }}
+        >
+          <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <span className="font-medium">Edit Profile</span>
+            </div>
+            <NotificationInbox />
+          </header>
+          <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
+            <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <aside className="space-y-1">
+                <button
+                  type="button"
+                  className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
+                >
+                  Profile Information
+                </button>
+              </aside>
+              <section className="space-y-5">
+                {loading ? (
+                  <div className="rounded-xl border">
+                    <div className="border-b px-5 py-4">
+                      <Skeleton className="h-6 w-40" />
+                      <Skeleton className="mt-2 h-4 w-72" />
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-xl border">
-                  <div className="border-b px-5 py-4">
-                    <div className="text-xl font-semibold">Edit Profile</div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Update your username and full name. Email is read-only.
-                    </p>
-                  </div>
-
-                  <div className="space-y-5 px-5 py-4">
-                    <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
-                      <div className="rounded-md border p-2 text-muted-foreground">
-                        <UserRound className="size-4" />
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Public identity details shown in your account profile.
+                    <div className="space-y-4 px-5 py-4">
+                      <Skeleton className="h-16 w-full rounded-lg" />
+                      <Skeleton className="h-16 w-full rounded-lg" />
+                      <Skeleton className="h-16 w-full rounded-lg" />
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Skeleton className="h-10 w-24 rounded-md" />
+                        <Skeleton className="h-10 w-32 rounded-md" />
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="profile-username">Username</Label>
-                      <Input
-                        id="profile-username"
-                        value={profile.username}
-                        onChange={(event) => {
-                          setProfile((prev) => ({ ...prev, username: event.target.value }))
-                        }}
-                        disabled={saving}
-                        maxLength={50}
-                      />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border">
+                    <div className="border-b px-5 py-4">
+                      <div className="text-xl font-semibold">Edit Profile</div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Update your username and full name. Email is read-only.
+                      </p>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="profile-full-name">Full Name</Label>
-                      <Input
-                        id="profile-full-name"
-                        value={profile.fullName}
-                        onChange={(event) => {
-                          setProfile((prev) => ({ ...prev, fullName: event.target.value }))
-                        }}
-                        disabled={saving}
-                        maxLength={100}
-                      />
-                    </div>
+                    <div className="space-y-5 px-5 py-4">
+                      <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
+                        <div className="rounded-md border p-2 text-muted-foreground">
+                          <UserRound className="size-4" />
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Public identity details shown in your account profile.
+                        </div>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="profile-email">Email</Label>
-                      <Input id="profile-email" value={profile.email} disabled readOnly />
-                    </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-username">Username</Label>
+                        <Input
+                          id="profile-username"
+                          value={profile.username}
+                          onChange={(event) => {
+                            setProfile((prev) => ({ ...prev, username: event.target.value }))
+                          }}
+                          disabled={saving}
+                          maxLength={50}
+                        />
+                      </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button variant="outline" asChild>
-                        <Link to="/profile">Cancel</Link>
-                      </Button>
-                      <Button type="button" onClick={handleSave} disabled={saving} className="gap-2">
-                        <Save className="size-4" />
-                        {saving ? "Saving..." : "Save Changes"}
-                      </Button>
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-full-name">Full Name</Label>
+                        <Input
+                          id="profile-full-name"
+                          value={profile.fullName}
+                          onChange={(event) => {
+                            setProfile((prev) => ({ ...prev, fullName: event.target.value }))
+                          }}
+                          disabled={saving}
+                          maxLength={100}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-email">Email</Label>
+                        <Input id="profile-email" value={profile.email} disabled readOnly />
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" asChild>
+                          <Link to="/profile">Cancel</Link>
+                        </Button>
+                        <Button type="button" onClick={handleSave} disabled={saving} className="gap-2">
+                          <Save className="size-4" />
+                          {saving ? "Saving..." : "Save Changes"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </section>
+                )}
+              </section>
+            </div>
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </AuthGuard>
   )
 }

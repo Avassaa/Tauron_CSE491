@@ -21,21 +21,49 @@ export function AuthGuard({
   )
   const navigate = useNavigate()
 
-  React.useEffect(() => {
+  const checkAuth = React.useCallback(() => {
     try {
       const token = localStorage.getItem("access_token")
       if (token && token.trim().length > 0) {
         setStatus("authenticated")
-        return
+      } else {
+        setStatus("unauthenticated")
+        void navigate("/", { replace: true })
       }
-      setStatus("unauthenticated")
-      void navigate("/login", { replace: true })
     } catch {
       // If localStorage is blocked (privacy mode, sandbox), never stay stuck in "checking".
       setStatus("unauthenticated")
-      window.location.replace("/login")
+      window.location.replace("/")
     }
   }, [navigate])
+
+  React.useEffect(() => {
+    // Initial check
+    checkAuth()
+
+    // Listen for custom auth events (same-tab logout)
+    window.addEventListener("tauron:auth-changed", checkAuth)
+
+    // Listen for storage events (cross-tab logout)
+    window.addEventListener("storage", (event) => {
+      if (event.key === "access_token") {
+        checkAuth()
+      }
+    })
+
+    // Listen for pageshow events (BFCache handling)
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) {
+        checkAuth()
+      }
+    })
+
+    return () => {
+      window.removeEventListener("tauron:auth-changed", checkAuth)
+      window.removeEventListener("storage", checkAuth)
+      window.removeEventListener("pageshow", checkAuth)
+    }
+  }, [checkAuth])
 
   if (status === "checking") {
     return (
