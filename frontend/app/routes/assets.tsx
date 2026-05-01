@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
-import { apiGet, type AssetResponse, type PaginatedResponse, type MlModelResponse } from "~/lib/api-client"
+import { apiGet, apiPost, type AssetResponse, type PaginatedResponse, type MlModelResponse } from "~/lib/api-client"
 import { toast } from "sonner"
 import { MOCK_MODELS } from "~/lib/mock-data"
 import { formatCompactCurrency, formatCurrency, type CurrencyCode } from "~/lib/currency"
@@ -23,6 +23,7 @@ import { useMarketData } from "~/hooks/use-market-data"
 const PAGE_SIZE = 20
 type TimeRange = "24H" | "7D" | "1M" | "3M" | "1Y" | "MAX"
 const TIME_RANGES: TimeRange[] = ["24H", "7D", "1M", "3M", "1Y", "MAX"]
+const ensuredPopularSymbols = new Set<string>()
 
 function AssetsPageClient() {
   const [assets, setAssets] = React.useState<AssetResponse[]>([])
@@ -40,8 +41,10 @@ function AssetsPageClient() {
   const [sortConfig, setSortConfig] = React.useState<{
     key: string
     direction: "asc" | "desc"
-  } | null>(null)
+  } | null>({ key: "rank", direction: "asc" })
   const isPopularSort = sortConfig?.key === "rank" && sortConfig.direction === "asc"
+  const isGainersSort = sortConfig?.key === "change24h" && sortConfig.direction === "desc"
+  const isLosersSort = sortConfig?.key === "change24h" && sortConfig.direction === "asc"
 
   const [createWatchlistDialogOpen, setCreateWatchlistDialogOpen] = React.useState(false)
 
@@ -76,11 +79,59 @@ function AssetsPageClient() {
     setLoading(true)
     setError(null)
     try {
+      // Keep assets table aligned with Binance popular list.
+      // Missing assets are auto-ensured, which also queues 5Y on-chain backfill.
+      if (!searchQuery.trim() && isPopularSort) {
+        try {
+          const liveRows = await apiGet<any[]>("/assets/live-market", { limit: 250 })
+          if (Array.isArray(liveRows) && liveRows.length > 0) {
+            const start = Math.max(0, (currentPage - 1) * PAGE_SIZE)
+            const end = start + PAGE_SIZE
+            const pageCoins = liveRows.slice(start, end)
+            const toEnsure = pageCoins
+              .map((coin) => ({
+                symbol: String(coin?.symbol ?? "").toUpperCase(),
+                name: String(coin?.name ?? "").trim(),
+              }))
+              .filter((coin) =>
+                /^[A-Z0-9]{1,10}$/.test(coin.symbol) &&
+                coin.name.length > 0 &&
+                !ensuredPopularSymbols.has(coin.symbol)
+              )
+
+            if (toEnsure.length > 0) {
+              for (const coin of toEnsure) {
+                try {
+                  await apiPost<AssetResponse>("/assets/ensure", {
+                    symbol: coin.symbol,
+                    name: coin.name,
+                    category: "Crypto",
+                    coingecko_id: null,
+                    is_active: true,
+                  })
+                  ensuredPopularSymbols.add(coin.symbol)
+                } catch {
+                  // Ignore per-coin failures; table still loads existing assets.
+                }
+              }
+            }
+          }
+        } catch {
+          // Non-blocking; continue with regular assets fetch.
+        }
+      }
+
       const data = await apiGet<PaginatedResponse<AssetResponse>>("/assets", {
         page: currentPage,
         page_size: PAGE_SIZE,
         search: searchQuery || undefined,
-        sort: isPopularSort ? "popular" : undefined,
+        sort: isPopularSort
+          ? "popular"
+          : isGainersSort
+            ? "gainers_24h"
+            : isLosersSort
+              ? "losers_24h"
+              : undefined,
       })
       setAssets(data.items)
       setTotal(data.total)
@@ -92,7 +143,7 @@ function AssetsPageClient() {
     } finally {
       setLoading(false)
     }
-  }, [isPopularSort])
+  }, [isPopularSort, isGainersSort, isLosersSort])
 
   // Effects
   React.useEffect(() => {
@@ -152,7 +203,7 @@ function AssetsPageClient() {
 
   const sortedAssets = React.useMemo(() => {
     if (!sortConfig) return assets
-    if (isPopularSort) return assets
+    if (isPopularSort || isGainersSort || isLosersSort) return assets
     return [...assets].sort((a, b) => {
       let valA: any = (marketDataMap[a.id] as any)?.[sortConfig.key] ?? a[sortConfig.key as keyof AssetResponse]
       let valB: any = (marketDataMap[b.id] as any)?.[sortConfig.key] ?? b[sortConfig.key as keyof AssetResponse]
@@ -169,7 +220,7 @@ function AssetsPageClient() {
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1
       return 0
     })
-  }, [assets, sortConfig, marketDataMap, isPopularSort])
+  }, [assets, sortConfig, marketDataMap, isPopularSort, isGainersSort, isLosersSort])
 
   const selectedAssetWatchlistMembership = React.useMemo(() => {
     if (!selectedAsset) return {}

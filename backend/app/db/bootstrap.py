@@ -28,7 +28,8 @@ from app.db.session import _postgres_connect_args_for_url
 logger = logging.getLogger(__name__)
 _COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
 _COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
-_COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets"
+_BINANCE_EXCHANGE_INFO_URL = "https://api.binance.com/api/v3/exchangeInfo"
+_BINANCE_TICKER_24H_URL = "https://api.binance.com/api/v3/ticker/24hr"
 _COINMETRICS_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _METRIC_BATCH_SIZE = 30
 _FALLBACK_METRICS = ["ReferenceRateUSD", "CapMrktCurUSD", "SplyCur", "TxCnt"]
@@ -104,6 +105,7 @@ _MISSING_DATABASE_HINT = (
 )
 
 _SAFE_DATABASE_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_SAFE_ASSET_SYMBOL = re.compile(r"^[A-Z0-9]{1,10}$")
 
 
 def _is_duplicate_database_error(primary_exception: BaseException) -> bool:
@@ -485,45 +487,65 @@ def _asset_seed_rows_for_symbols(symbols: list[str]) -> list[dict[str, str | Non
     return rows
 
 
-def _fetch_top_markets_from_coingecko_sync(limit: int) -> list[dict[str, str]]:
-    safe_limit = min(max(int(limit), 1), 250)
-    params = (
-        "vs_currency=usd"
-        "&order=market_cap_desc"
-        f"&per_page={safe_limit}"
-        "&page=1"
-        "&sparkline=false"
-    )
-    request = Request(
-        f"{_COINGECKO_MARKETS_URL}?{params}",
+def _fetch_top_markets_from_binance_sync(limit: int) -> list[dict[str, str | None]]:
+    requested = max(int(limit), 1)
+    exchange_req = Request(
+        _BINANCE_EXCHANGE_INFO_URL,
         headers={"User-Agent": "tauron-bootstrap/1.0"},
     )
-    with urlopen(request, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    if not isinstance(payload, list):
+    with urlopen(exchange_req, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
+        exchange_payload = json.loads(response.read().decode("utf-8"))
+    symbols_payload = exchange_payload.get("symbols") if isinstance(exchange_payload, dict) else None
+    if not isinstance(symbols_payload, list):
         return []
 
-    rows: list[dict[str, str]] = []
-    for coin in payload:
-        if not isinstance(coin, dict):
+    tradable_pairs: set[str] = set()
+    for row in symbols_payload:
+        if not isinstance(row, dict):
             continue
-        symbol = coin.get("symbol")
-        name = coin.get("name")
-        coingecko_id = coin.get("id")
-        if not isinstance(symbol, str) or not symbol.strip():
+        symbol = row.get("symbol")
+        status = row.get("status")
+        quote = row.get("quoteAsset")
+        if not isinstance(symbol, str) or status != "TRADING":
             continue
-        if not isinstance(name, str) or not name.strip():
+        if quote not in {"USDT", "USD"}:
             continue
-        if not isinstance(coingecko_id, str) or not coingecko_id.strip():
+        tradable_pairs.add(symbol.upper())
+
+    ticker_req = Request(
+        _BINANCE_TICKER_24H_URL,
+        headers={"User-Agent": "tauron-bootstrap/1.0"},
+    )
+    with urlopen(ticker_req, timeout=45, context=_COINMETRICS_SSL_CONTEXT) as response:
+        ticker_payload = json.loads(response.read().decode("utf-8"))
+    if not isinstance(ticker_payload, list):
+        return []
+
+    best_by_base: dict[str, float] = {}
+    for row in ticker_payload:
+        if not isinstance(row, dict):
             continue
-        rows.append(
-            {
-                "symbol": symbol.strip().upper(),
-                "name": name.strip(),
-                "coingecko_id": coingecko_id.strip(),
-            }
-        )
-    return rows
+        pair = row.get("symbol")
+        if not isinstance(pair, str):
+            continue
+        pair = pair.upper()
+        if pair not in tradable_pairs:
+            continue
+        quote = "USDT" if pair.endswith("USDT") else ("USD" if pair.endswith("USD") else None)
+        if quote is None:
+            continue
+        base = pair[: -len(quote)]
+        if not _SAFE_ASSET_SYMBOL.match(base):
+            continue
+        try:
+            qv = float(row.get("quoteVolume") or 0.0)
+        except (TypeError, ValueError):
+            qv = 0.0
+        if qv > best_by_base.get(base, -1.0):
+            best_by_base[base] = qv
+
+    ranked = sorted(best_by_base.items(), key=lambda kv: kv[1], reverse=True)[:requested]
+    return [{"symbol": base, "name": base, "coingecko_id": None} for base, _ in ranked]
 
 
 def _to_decimal(value: str | None) -> float | None:
@@ -630,24 +652,24 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
     schema = settings.effective_database_schema
     configured_symbols = _parse_csv_setting(settings.AUTO_POPULATE_ONCHAIN_SYMBOLS)
     symbols = _unique_upper(configured_symbols)
-    fetched_top_coins: list[dict[str, str]] = []
+    fetched_top_coins: list[dict[str, str | None]] = []
     if not symbols:
         top_n = max(settings.AUTO_POPULATE_ONCHAIN_TOP_MARKETS, 1)
         try:
             fetched_top_coins = await asyncio.to_thread(
-                _fetch_top_markets_from_coingecko_sync,
+                _fetch_top_markets_from_binance_sync,
                 top_n,
             )
             symbols = _unique_upper([coin["symbol"] for coin in fetched_top_coins])
             logger.info(
-                "Auto-populate symbols sourced from CoinGecko top markets: requested=%s fetched=%s unique=%s",
+                "Auto-populate symbols sourced from Binance top markets: requested=%s fetched=%s unique=%s",
                 top_n,
                 len(fetched_top_coins),
                 len(symbols),
             )
         except Exception as exc:
             logger.warning(
-                "Auto-populate CoinGecko fetch failed; falling back to defaults: %s",
+                "Auto-populate Binance fetch failed; falling back to defaults: %s",
                 exc,
             )
             symbols = _unique_upper(_DEFAULT_ONCHAIN_SYMBOLS)

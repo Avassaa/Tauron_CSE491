@@ -166,7 +166,7 @@ class Settings(BaseSettings):
         default=150,
         description=(
             "When AUTO_POPULATE_ONCHAIN_SYMBOLS is empty, fetch this many top "
-            "market-cap coins from CoinGecko for startup auto-populate."
+            "market-cap coins from Binance for startup auto-populate."
         ),
     )
 

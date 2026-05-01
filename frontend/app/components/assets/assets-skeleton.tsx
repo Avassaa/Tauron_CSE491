@@ -39,9 +39,6 @@ export function AssetsSkeleton() {
               <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right">
                 24h Volume
               </TableHead>
-              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right">
-                Market Cap
-              </TableHead>
               <TableHead className="font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px] text-center">
                 Last 7 Days
               </TableHead>
@@ -90,11 +87,6 @@ export function AssetsSkeleton() {
                 <TableCell className="py-4 px-4">
                   <div className="flex justify-end">
                     <Skeleton className="h-4 w-20" />
-                  </div>
-                </TableCell>
-                <TableCell className="py-4 px-4">
-                  <div className="flex justify-end">
-                    <Skeleton className="h-4 w-24" />
                   </div>
                 </TableCell>
                 <TableCell className="py-4 px-6">

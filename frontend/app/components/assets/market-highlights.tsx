@@ -8,8 +8,7 @@ import { cn } from "~/lib/utils"
 import { apiGet, apiPost, type AssetResponse, type PaginatedResponse } from "~/lib/api-client"
 
 const TRENDING_COINS_COUNT = 20
-const AUTO_ENSURE_COINS_COUNT = 150
-let highlightsCooldownUntil = 0
+const AUTO_ENSURE_COINS_COUNT = 20
 
 interface CoinHighlight {
   id: string
@@ -23,6 +22,9 @@ interface CoinHighlight {
 
 const AUTO_ENSURE_CACHE_TTL_MS = 60 * 60 * 1000
 const ensuredCoinCache = new Map<string, number>()
+const AUTO_ENSURE_SESSION_KEY = "assets:auto-ensure:last-run-at"
+const AUTO_ENSURE_SESSION_TTL_MS = 12 * 60 * 60 * 1000
+let ensureInFlight = false
 
 function rememberEnsured(id: string) {
   ensuredCoinCache.set(id, Date.now())
@@ -38,8 +40,18 @@ function recentlyEnsured(id: string): boolean {
 
 async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
   if (!coins.length) return
+  if (ensureInFlight) return
+
+  const now = Date.now()
+  const hasWindow = typeof window !== "undefined"
+  const lastRunRaw = hasWindow ? window.sessionStorage.getItem(AUTO_ENSURE_SESSION_KEY) : null
+  const lastRun = lastRunRaw ? Number.parseInt(lastRunRaw, 10) : 0
+  if (Number.isFinite(lastRun) && now - lastRun < AUTO_ENSURE_SESSION_TTL_MS) return
 
   try {
+    ensureInFlight = true
+    if (hasWindow) window.sessionStorage.setItem(AUTO_ENSURE_SESSION_KEY, String(now))
+
     const existing = await apiGet<PaginatedResponse<AssetResponse>>("/assets", {
       page: 1,
       page_size: 500,
@@ -68,7 +80,7 @@ async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
           symbol,
           name: coin.name,
           category: "Crypto",
-          coingecko_id: coin.id,
+          coingecko_id: null,
           is_active: true,
         })
         knownSymbols.add(symbol)
@@ -84,6 +96,8 @@ async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
     )
   } catch (err) {
     console.warn("Auto-ensure skipped: unable to read existing assets", err)
+  } finally {
+    ensureInFlight = false
   }
 }
 
@@ -189,30 +203,17 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
     let cancelled = false
 
     const fetchHighlights = async () => {
-      if (Date.now() < highlightsCooldownUntil) {
-        setLoading(false)
-        return
-      }
       setLoading(true)
       try {
-        const res = await fetch(
-          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h"
-        )
-
-        if (!res.ok) {
-          if (res.status === 429) highlightsCooldownUntil = Date.now() + 60_000
-          throw new Error(`CoinGecko HTTP ${res.status}`)
-        }
-        const data = await res.json()
-
-        if (!Array.isArray(data)) throw new Error("CoinGecko did not return an array")
+        const data = await apiGet<any[]>("/assets/live-market", { limit: 250 })
+        if (!Array.isArray(data)) throw new Error("Live market endpoint did not return an array")
 
         const coins: CoinHighlight[] = data.map((coin: any, i: number) => ({
-          id: coin.id,
-          symbol: coin.symbol.toUpperCase(),
+          id: String(coin.symbol ?? `${i}`),
+          symbol: String(coin.symbol ?? "").toUpperCase(),
           name: coin.name,
-          price: coin.current_price,
-          changePct: coin.price_change_percentage_24h_in_currency || coin.price_change_percentage_24h || 0,
+          price: typeof coin.price === "number" ? coin.price : null,
+          changePct: typeof coin.price_change_24h === "number" ? coin.price_change_24h : null,
           rank: i + 1,
         }))
 
@@ -223,39 +224,18 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
         setTrending(topCoins)
         void autoEnsureTrendingAssets(ensureCandidates)
       } catch (err) {
-        highlightsCooldownUntil = Math.max(highlightsCooldownUntil, Date.now() + 30_000)
         console.error("Highlights fetch failed:", err)
         try {
-          const assetsRes = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 20 })
-          const ids = assetsRes.items.map(a => a.coingecko_id).filter(Boolean).join(",")
-          if (ids) {
-            const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}`)
-            const data = await res.json()
-            if (Array.isArray(data)) {
-              const coins: CoinHighlight[] = data.map((coin: any, i: number) => ({
-                id: coin.id,
-                symbol: coin.symbol.toUpperCase(),
-                name: coin.name,
-                price: coin.current_price,
-                changePct: coin.price_change_percentage_24h || 0,
-                rank: i + 1,
-              }))
-              const topCoins = coins.slice(0, TRENDING_COINS_COUNT)
-              const ensureCandidates = coins.slice(0, AUTO_ENSURE_COINS_COUNT)
-              setTrending(topCoins)
-              void autoEnsureTrendingAssets(ensureCandidates)
-            }
-          } else {
-            const topCoins = assetsRes.items.slice(0, TRENDING_COINS_COUNT).map((asset, index) => ({
-                id: asset.id,
-                symbol: asset.symbol.toUpperCase(),
-                name: asset.name,
-                price: null,
-                changePct: null,
-                rank: index + 1,
-              }))
-            setTrending(topCoins)
-          }
+          const assetsRes = await apiGet<PaginatedResponse<AssetResponse>>("/assets", { page_size: 20, sort: "popular" })
+          const topCoins = assetsRes.items.slice(0, TRENDING_COINS_COUNT).map((asset, index) => ({
+            id: asset.id,
+            symbol: asset.symbol.toUpperCase(),
+            name: asset.name,
+            price: null,
+            changePct: null,
+            rank: index + 1,
+          }))
+          setTrending(topCoins)
         } catch (innerErr) {
           console.error("Highlight deep fallback failed:", innerErr)
           if (!cancelled) {

@@ -27,7 +27,6 @@ interface AssetControlsProps {
 
 const MARKET_SORT_OPTIONS = [
   { label: "Most popular", description: "Lowest market rank first", key: "rank", direction: "asc" as const },
-  { label: "Market cap", description: "Largest market cap first", key: "market_cap", direction: "desc" as const },
   { label: "Volume", description: "Highest trading volume first", key: "volume", direction: "desc" as const },
   { label: "Top gainers 24h", description: "Best 24h performance", key: "change24h", direction: "desc" as const },
   { label: "Top losers 24h", description: "Worst 24h performance", key: "change24h", direction: "asc" as const },

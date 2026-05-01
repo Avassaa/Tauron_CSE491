@@ -276,57 +276,46 @@ async def _embed_texts_with_gemini(
 ) -> list[Optional[list[float]]]:
     if not settings.GEMINI_API_KEY.strip() or not text_values:
         return [None for _ in text_values]
-    if delay_state is not None:
-        current_delay = float(
-            max(delay_state.get("current_delay", _EMBED_BASE_DELAY_SECONDS), 0.0),
-        )
-        await asyncio.sleep(current_delay)
     endpoint = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_EMBEDDING_MODEL}:embedContent?key={settings.GEMINI_API_KEY}"
     )
-    payload = {
-        "requests": [
-            {
-                "model": f"models/{settings.GEMINI_EMBEDDING_MODEL}",
-                "content": {"parts": [{"text": text_value}]},
-                "outputDimensionality": settings.GEMINI_EMBEDDING_DIMENSIONS,
-            }
-            for text_value in text_values
-        ]
-    }
-    endpoint = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{settings.GEMINI_EMBEDDING_MODEL}:batchEmbedContents?key={settings.GEMINI_API_KEY}"
-    )
-    try:
-        response = await asyncio.to_thread(_gemini_post_json_sync, endpoint, payload)
-    except HTTPError as exc:
-        if exc.code == 429 and delay_state is not None:
+    vectors: list[Optional[list[float]]] = []
+    for text_value in text_values:
+        if delay_state is not None:
             current_delay = float(
                 max(delay_state.get("current_delay", _EMBED_BASE_DELAY_SECONDS), 0.0),
             )
-            next_delay = max(current_delay, _EMBED_BASE_DELAY_SECONDS) * 2
-            delay_state["current_delay"] = next_delay
-            logger.warning(
-                "Gemini embedding rate-limited (429). Increasing embed delay to %.1fs.",
-                next_delay,
-            )
-        logger.warning("Gemini embedding request failed: %s", exc)
-        return [None for _ in text_values]
-    except (HTTPError, URLError, TimeoutError) as exc:
-        logger.warning("Gemini embedding request failed: %s", exc)
-        return [None for _ in text_values]
+            await asyncio.sleep(current_delay)
 
-    embeddings_raw = response.get("embeddings")
-    if not isinstance(embeddings_raw, list):
-        logger.warning("Gemini batch embedding response missing embeddings array.")
-        return [None for _ in text_values]
+        payload = {
+            "model": f"models/{settings.GEMINI_EMBEDDING_MODEL}",
+            "content": {"parts": [{"text": text_value}]},
+            "outputDimensionality": settings.GEMINI_EMBEDDING_DIMENSIONS,
+        }
+        try:
+            response = await asyncio.to_thread(_gemini_post_json_sync, endpoint, payload)
+        except HTTPError as exc:
+            if exc.code == 429 and delay_state is not None:
+                current_delay = float(
+                    max(delay_state.get("current_delay", _EMBED_BASE_DELAY_SECONDS), 0.0),
+                )
+                next_delay = max(current_delay, _EMBED_BASE_DELAY_SECONDS) * 2
+                delay_state["current_delay"] = next_delay
+                logger.warning(
+                    "Gemini embedding rate-limited (429). Increasing embed delay to %.1fs.",
+                    next_delay,
+                )
+            logger.warning("Gemini embedding request failed: %s", exc)
+            vectors.append(None)
+            continue
+        except (URLError, TimeoutError) as exc:
+            logger.warning("Gemini embedding request failed: %s", exc)
+            vectors.append(None)
+            continue
 
-    vectors = [_parse_embedding_vector(item) for item in embeddings_raw]
-    if len(vectors) < len(text_values):
-        vectors.extend([None] * (len(text_values) - len(vectors)))
-    return vectors[: len(text_values)]
+        vectors.append(_parse_embedding_vector(response))
+    return vectors
 
 
 def _extract_text_from_gemini_response(payload: dict[str, Any]) -> str:

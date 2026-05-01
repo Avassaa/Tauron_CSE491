@@ -49,6 +49,16 @@ export interface MarketData {
   sparkline: number[]
 }
 
+function normalizeBinanceBaseSymbol(raw: string): string | null {
+  const normalized = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "")
+  if (!normalized || normalized.length < 2 || normalized.length > 12) return null
+  return normalized
+}
+
+function toBinanceUsdtPair(baseSymbol: string): string {
+  return baseSymbol === "USDT" ? "USDTUSD" : `${baseSymbol}USDT`
+}
+
 /**
  * Price Change Component: Displays color and icon (up/down arrow) based on percentage change.
  */
@@ -118,7 +128,10 @@ export function AssetTable({
 
   // --- LIVE DATA (WEBSOCKET) ---
   const streamSymbols = React.useMemo(() => {
-    const assetUsdtSymbols = assets.map((asset) => `${asset.symbol.toUpperCase()}USDT`)
+    const assetUsdtSymbols = assets
+      .map((asset) => normalizeBinanceBaseSymbol(asset.symbol))
+      .filter((symbol): symbol is string => Boolean(symbol))
+      .map((symbol) => toBinanceUsdtPair(symbol))
     const conversionSymbols = isUsdPeggedQuote(normalizedQuoteCurrency)
       ? []
       : [`${normalizedQuoteCurrency.toUpperCase()}USDT`, `USDT${normalizedQuoteCurrency.toUpperCase()}`]
@@ -202,16 +215,13 @@ export function AssetTable({
               <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("volume")}>
                 <div className="flex items-center justify-end gap-1">24h Volume <SortIcon column="volume" /></div>
               </TableHead>
-              <TableHead className="font-black text-foreground/70 py-4 px-4 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("market_cap")}>
-                <div className="flex items-center justify-end gap-1">Market Cap <SortIcon column="market_cap" /></div>
-              </TableHead>
               <TableHead className="font-black text-foreground/70 py-4 px-6 uppercase tracking-widest text-[9px] text-center">Last 7 Days</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {assets.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={10} className="h-72 text-center">
+                <TableCell colSpan={9} className="h-72 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 animate-in fade-in zoom-in duration-500">
                     <div className="rounded-full bg-muted/50 p-4 ring-1 ring-border">
                       <Search className="size-8 text-muted-foreground/60" />
@@ -225,13 +235,17 @@ export function AssetTable({
               </TableRow>
             ) : (
               assets.map((asset, index) => (
+                (() => {
+                  const normalizedBase = normalizeBinanceBaseSymbol(asset.symbol)
+                  const liveTickerSymbol = normalizedBase ? `${normalizedBase}USDT` : `${asset.symbol.toUpperCase()}USDT`
+                  return (
                 <AssetTableRow
                   key={asset.id}
                   asset={asset}
                   index={index}
                   mData={marketDataMap[asset.id]}
                   isWatched={watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase())}
-                  liveTickerSymbol={`${asset.symbol.toUpperCase()}USDT`}
+                  liveTickerSymbol={normalizedBase ? toBinanceUsdtPair(normalizedBase) : liveTickerSymbol}
                   liveTickers={liveTickers}
                   quotePerUsd={quotePerUsd}
                   currencyCode={currencyCode}
@@ -245,6 +259,8 @@ export function AssetTable({
                   onAddToWatchlistList={onAddToWatchlistList}
                   onCreateWatchlistList={onCreateWatchlistList}
                 />
+                  )
+                })()
               ))
             )}
           </TableBody>
@@ -398,7 +414,6 @@ function AssetTableRow({
       <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_24h} /></TableCell>
       <TableCell className="py-4 px-4"><PriceChange value={mData?.price_change_7d} /></TableCell>
       <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
-      <TableCell className="py-4 px-4 text-right"><span className="font-mono font-bold text-xs text-foreground/80">{formatCompact(mData?.market_cap)}</span></TableCell>
       <TableCell className="py-4 px-6">
         <div className="flex justify-center">
           <Sparkline data={mData?.sparkline || []} isUp={(mData?.price_change_7d || 0) >= 0} />

@@ -4,8 +4,7 @@ import logging
 import asyncio
 import uuid
 import json
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+import time
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,51 +21,44 @@ from app.models.response.table_responses import AssetResponse, PaginatedResponse
 
 router = APIRouter(prefix="/assets")
 logger = logging.getLogger(__name__)
-_COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets"
+_BINANCE_TICKER_24H_URL = "https://api.binance.com/api/v3/ticker/24hr"
+_BINANCE_TICKER_CACHE_TTL_SECONDS = 20.0
+_binance_ticker_cache: tuple[float, list[dict]] | None = None
+_binance_ticker_inflight: asyncio.Task[list[dict]] | None = None
+_binance_ticker_lock = asyncio.Lock()
 
 
-def _fetch_coingecko_markets_by_ids_sync(ids: list[str]) -> list[dict]:
-    if not ids:
-        return []
-    params = urlencode(
-        {
-            "vs_currency": "usd",
-            "ids": ",".join(ids),
-            "order": "market_cap_desc",
-            "per_page": len(ids),
-            "page": 1,
-            "sparkline": "false",
-            "price_change_percentage": "24h",
-        }
-    )
+def _fetch_binance_ticker_24h_sync() -> list[dict]:
     req = Request(
-        f"{_COINGECKO_MARKETS_URL}?{params}",
-        headers={"User-Agent": "tauron-assets-popular/1.0"},
+        _BINANCE_TICKER_24H_URL,
+        headers={"User-Agent": "tauron-assets-binance/1.0"},
     )
-    with urlopen(req, timeout=30) as response:
+    with urlopen(req, timeout=45) as response:
         payload = json.loads(response.read().decode("utf-8"))
     return payload if isinstance(payload, list) else []
 
 
-async def _fetch_coingecko_markets_by_ids_with_retry(ids: list[str]) -> list[dict]:
-    retries = 4
-    delay_s = 1.0
-    for attempt in range(retries + 1):
-        try:
-            return await asyncio.to_thread(_fetch_coingecko_markets_by_ids_sync, ids)
-        except HTTPError as exc:
-            if exc.code == 429 and attempt < retries:
-                await asyncio.sleep(delay_s)
-                delay_s = min(delay_s * 2, 8.0)
-                continue
-            raise
-        except URLError:
-            if attempt < retries:
-                await asyncio.sleep(delay_s)
-                delay_s = min(delay_s * 2, 8.0)
-                continue
-            raise
-    return []
+async def _fetch_binance_ticker_24h_cached() -> list[dict]:
+    global _binance_ticker_cache, _binance_ticker_inflight
+    now = time.monotonic()
+    task: asyncio.Task[list[dict]] | None = None
+    async with _binance_ticker_lock:
+        if _binance_ticker_cache and (now - _binance_ticker_cache[0]) <= _BINANCE_TICKER_CACHE_TTL_SECONDS:
+            return _binance_ticker_cache[1]
+        if _binance_ticker_inflight is None:
+            _binance_ticker_inflight = asyncio.create_task(asyncio.to_thread(_fetch_binance_ticker_24h_sync))
+        task = _binance_ticker_inflight
+
+    try:
+        rows = await task
+    finally:
+        async with _binance_ticker_lock:
+            if _binance_ticker_inflight is task:
+                _binance_ticker_inflight = None
+
+    async with _binance_ticker_lock:
+        _binance_ticker_cache = (time.monotonic(), rows)
+    return rows
 
 
 @router.get("", response_model=PaginatedResponse[AssetResponse])
@@ -82,41 +74,87 @@ async def list_assets(
     repository = AssetRepository(session)
     total = await repository.count(is_active=is_active, search=search)
 
-    if sort == "popular":
+    if sort in {"popular", "gainers_24h", "losers_24h"}:
         all_rows = await repository.list_page(
             offset=0,
             limit=max(total, pagination.page_size),
             is_active=is_active,
             search=search,
         )
-        cg_assets = [row for row in all_rows if row.coingecko_id]
-        rank_by_cg_id: dict[str, int] = {}
-
-        for start in range(0, len(cg_assets), 100):
-            chunk = cg_assets[start : start + 100]
-            ids = [row.coingecko_id for row in chunk if row.coingecko_id]
-            if not ids:
+        rank_by_symbol: dict[str, int] = {}
+        change24h_by_symbol: dict[str, float] = {}
+        quote_volume_by_symbol: dict[str, float] = {}
+        try:
+            markets = await _fetch_binance_ticker_24h_cached()
+        except Exception as exc:
+            logger.warning("assets sort Binance fetch failed: %s", exc)
+            markets = []
+        for item in markets:
+            if not isinstance(item, dict):
                 continue
-            try:
-                markets = await _fetch_coingecko_markets_by_ids_with_retry(ids)
-            except Exception as exc:
-                logger.warning("popular sort CoinGecko chunk failed: %s", exc)
+            pair = item.get("symbol")
+            if not isinstance(pair, str):
                 continue
-            for row in markets:
-                if not isinstance(row, dict):
-                    continue
-                cg_id = row.get("id")
-                rank = row.get("market_cap_rank")
-                if isinstance(cg_id, str) and isinstance(rank, int):
-                    rank_by_cg_id[cg_id] = rank
+            quote = "USDT" if pair.endswith("USDT") else ("USD" if pair.endswith("USD") else None)
+            if quote is None:
+                continue
+            base = pair[: -len(quote)].upper()
+            if not base:
+                continue
+            change_raw = item.get("priceChangePercent")
+            volume_raw = item.get("quoteVolume")
+            if isinstance(change_raw, str):
+                try:
+                    change_by = float(change_raw)
+                    change24h_by_symbol[base] = change_by
+                except ValueError:
+                    pass
+            if isinstance(volume_raw, str):
+                try:
+                    volume = float(volume_raw)
+                    if volume > quote_volume_by_symbol.get(base, -1.0):
+                        quote_volume_by_symbol[base] = volume
+                except ValueError:
+                    pass
+        sorted_bases = sorted(quote_volume_by_symbol.items(), key=lambda kv: kv[1], reverse=True)
+        for idx, (base, _vol) in enumerate(sorted_bases, start=1):
+            rank_by_symbol[base] = idx
 
-        rows_sorted = sorted(
-            all_rows,
-            key=lambda row: (
-                rank_by_cg_id.get(row.coingecko_id or "", 10**9),
-                row.symbol.upper(),
-            ),
-        )
+        if sort == "popular":
+            rows_sorted = sorted(
+                all_rows,
+                key=lambda row: (
+                    rank_by_symbol.get((row.symbol or "").upper(), 10**9),
+                    -quote_volume_by_symbol.get((row.symbol or "").upper(), -1.0),
+                    row.symbol.upper(),
+                ),
+            )
+        elif sort == "gainers_24h":
+            rows_sorted = sorted(
+                all_rows,
+                key=lambda row: (
+                    -(
+                        change24h_by_symbol.get(
+                            (row.symbol or "").upper(),
+                            change24h_by_symbol.get((row.symbol or "").upper(), -10**9),
+                        )
+                    ),
+                    rank_by_symbol.get((row.symbol or "").upper(), 10**9),
+                    row.symbol.upper(),
+                ),
+            )
+        else:
+            rows_sorted = sorted(
+                all_rows,
+                key=lambda row: (
+                    change24h_by_symbol.get(
+                        (row.symbol or "").upper(),
+                        change24h_by_symbol.get((row.symbol or "").upper(), 10**9),
+                    ),
+                    rank_by_symbol.get((row.symbol or "").upper(), 10**9),
+                    row.symbol.upper(),
+                ),
+            )
         rows = rows_sorted[pagination.offset : pagination.offset + pagination.page_size]
     else:
         rows = await repository.list_page(
@@ -131,6 +169,88 @@ async def list_assets(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/live-market")
+async def get_live_market(
+    symbols: str = Query(default="", description="Comma-separated asset symbols."),
+    limit: int = Query(default=200, ge=1, le=500, description="Maximum number of rows to return."),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    parsed_symbols = {s.strip().upper() for s in symbols.split(",") if s.strip()}
+    try:
+        rows = await _fetch_binance_ticker_24h_cached()
+    except Exception as exc:
+        logger.warning("live market endpoint Binance fetch failed: %s", exc)
+        return []
+
+    best_by_base: dict[str, dict] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        pair = row.get("symbol")
+        if not isinstance(pair, str):
+            continue
+        quote = "USDT" if pair.endswith("USDT") else ("USD" if pair.endswith("USD") else None)
+        if quote is None:
+            continue
+        symbol = pair[: -len(quote)].upper()
+        if not symbol:
+            continue
+        if parsed_symbols and symbol not in parsed_symbols:
+            continue
+        quote_volume = None
+        try:
+            quote_volume = float(row.get("quoteVolume"))
+        except (TypeError, ValueError):
+            quote_volume = None
+        current_best = best_by_base.get(symbol)
+        current_best_volume = None
+        if current_best is not None:
+            try:
+                current_best_volume = float(current_best.get("quoteVolume"))
+            except (TypeError, ValueError):
+                current_best_volume = None
+        if current_best is None or (quote_volume is not None and (current_best_volume is None or quote_volume > current_best_volume)):
+            best_by_base[symbol] = row
+
+    sorted_rows = sorted(
+        best_by_base.items(),
+        key=lambda kv: float(kv[1].get("quoteVolume") or 0.0),
+        reverse=True,
+    )
+    out: list[dict] = []
+    for idx, (symbol, row) in enumerate(sorted_rows, start=1):
+        if not parsed_symbols and idx > limit:
+            break
+        try:
+            price = float(row.get("lastPrice"))
+        except (TypeError, ValueError):
+            price = None
+        try:
+            change24h = float(row.get("priceChangePercent"))
+        except (TypeError, ValueError):
+            change24h = None
+        try:
+            volume = float(row.get("quoteVolume"))
+        except (TypeError, ValueError):
+            volume = None
+        out.append(
+            {
+                "symbol": symbol,
+                "price": price,
+                "volume": volume,
+                "market_cap": None,
+                "rank": idx,
+                "name": symbol,
+                "price_change_1h": None,
+                "price_change_24h": change24h,
+                "price_change_7d": None,
+                "price_change_30d": None,
+                "price_change_1y": None,
+            }
+        )
+    return out
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
