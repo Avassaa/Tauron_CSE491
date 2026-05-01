@@ -41,6 +41,7 @@ function AssetsPageClient() {
     key: string
     direction: "asc" | "desc"
   } | null>(null)
+  const isPopularSort = sortConfig?.key === "rank" && sortConfig.direction === "asc"
 
   const [createWatchlistDialogOpen, setCreateWatchlistDialogOpen] = React.useState(false)
 
@@ -68,7 +69,10 @@ function AssetsPageClient() {
   } = useMarketData()
 
   // Asset Fetching
-  const fetchAssets = React.useCallback(async (currentPage: number, searchQuery: string = "") => {
+  const fetchAssets = React.useCallback(async (
+    currentPage: number,
+    searchQuery: string = "",
+  ) => {
     setLoading(true)
     setError(null)
     try {
@@ -76,6 +80,7 @@ function AssetsPageClient() {
         page: currentPage,
         page_size: PAGE_SIZE,
         search: searchQuery || undefined,
+        sort: isPopularSort ? "popular" : undefined,
       })
       setAssets(data.items)
       setTotal(data.total)
@@ -87,12 +92,12 @@ function AssetsPageClient() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isPopularSort])
 
   // Effects
   React.useEffect(() => {
     void fetchAssets(page, search)
-  }, [page])
+  }, [page, sortConfig, fetchAssets, search])
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
@@ -147,6 +152,7 @@ function AssetsPageClient() {
 
   const sortedAssets = React.useMemo(() => {
     if (!sortConfig) return assets
+    if (isPopularSort) return assets
     return [...assets].sort((a, b) => {
       let valA: any = (marketDataMap[a.id] as any)?.[sortConfig.key] ?? a[sortConfig.key as keyof AssetResponse]
       let valB: any = (marketDataMap[b.id] as any)?.[sortConfig.key] ?? b[sortConfig.key as keyof AssetResponse]
@@ -163,7 +169,7 @@ function AssetsPageClient() {
       if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1
       return 0
     })
-  }, [assets, sortConfig, marketDataMap])
+  }, [assets, sortConfig, marketDataMap, isPopularSort])
 
   const selectedAssetWatchlistMembership = React.useMemo(() => {
     if (!selectedAsset) return {}

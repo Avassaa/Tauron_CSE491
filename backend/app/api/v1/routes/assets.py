@@ -3,6 +3,10 @@
 import logging
 import asyncio
 import uuid
+import json
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +22,51 @@ from app.models.response.table_responses import AssetResponse, PaginatedResponse
 
 router = APIRouter(prefix="/assets")
 logger = logging.getLogger(__name__)
+_COINGECKO_MARKETS_URL = "https://api.coingecko.com/api/v3/coins/markets"
+
+
+def _fetch_coingecko_markets_by_ids_sync(ids: list[str]) -> list[dict]:
+    if not ids:
+        return []
+    params = urlencode(
+        {
+            "vs_currency": "usd",
+            "ids": ",".join(ids),
+            "order": "market_cap_desc",
+            "per_page": len(ids),
+            "page": 1,
+            "sparkline": "false",
+            "price_change_percentage": "24h",
+        }
+    )
+    req = Request(
+        f"{_COINGECKO_MARKETS_URL}?{params}",
+        headers={"User-Agent": "tauron-assets-popular/1.0"},
+    )
+    with urlopen(req, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return payload if isinstance(payload, list) else []
+
+
+async def _fetch_coingecko_markets_by_ids_with_retry(ids: list[str]) -> list[dict]:
+    retries = 4
+    delay_s = 1.0
+    for attempt in range(retries + 1):
+        try:
+            return await asyncio.to_thread(_fetch_coingecko_markets_by_ids_sync, ids)
+        except HTTPError as exc:
+            if exc.code == 429 and attempt < retries:
+                await asyncio.sleep(delay_s)
+                delay_s = min(delay_s * 2, 8.0)
+                continue
+            raise
+        except URLError:
+            if attempt < retries:
+                await asyncio.sleep(delay_s)
+                delay_s = min(delay_s * 2, 8.0)
+                continue
+            raise
+    return []
 
 
 @router.get("", response_model=PaginatedResponse[AssetResponse])
@@ -25,18 +74,57 @@ async def list_assets(
     pagination: PaginationParams = Depends(get_pagination),
     is_active: bool | None = Query(default=None),
     search: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
     session: AsyncSession = Depends(get_db_session),
     _user_id: uuid.UUID = Depends(get_current_user_id),
 ):
     """List assets with pagination and optional search."""
     repository = AssetRepository(session)
     total = await repository.count(is_active=is_active, search=search)
-    rows = await repository.list_page(
-        offset=pagination.offset,
-        limit=pagination.page_size,
-        is_active=is_active,
-        search=search,
-    )
+
+    if sort == "popular":
+        all_rows = await repository.list_page(
+            offset=0,
+            limit=max(total, pagination.page_size),
+            is_active=is_active,
+            search=search,
+        )
+        cg_assets = [row for row in all_rows if row.coingecko_id]
+        rank_by_cg_id: dict[str, int] = {}
+
+        for start in range(0, len(cg_assets), 100):
+            chunk = cg_assets[start : start + 100]
+            ids = [row.coingecko_id for row in chunk if row.coingecko_id]
+            if not ids:
+                continue
+            try:
+                markets = await _fetch_coingecko_markets_by_ids_with_retry(ids)
+            except Exception as exc:
+                logger.warning("popular sort CoinGecko chunk failed: %s", exc)
+                continue
+            for row in markets:
+                if not isinstance(row, dict):
+                    continue
+                cg_id = row.get("id")
+                rank = row.get("market_cap_rank")
+                if isinstance(cg_id, str) and isinstance(rank, int):
+                    rank_by_cg_id[cg_id] = rank
+
+        rows_sorted = sorted(
+            all_rows,
+            key=lambda row: (
+                rank_by_cg_id.get(row.coingecko_id or "", 10**9),
+                row.symbol.upper(),
+            ),
+        )
+        rows = rows_sorted[pagination.offset : pagination.offset + pagination.page_size]
+    else:
+        rows = await repository.list_page(
+            offset=pagination.offset,
+            limit=pagination.page_size,
+            is_active=is_active,
+            search=search,
+        )
     return PaginatedResponse(
         items=[AssetResponse.model_validate(r) for r in rows],
         total=total,
