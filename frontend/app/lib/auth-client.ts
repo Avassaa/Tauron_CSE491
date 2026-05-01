@@ -18,6 +18,7 @@ export type AuthSuccess = {
   access_token: string
   token_type: string
   user_id: string
+  refresh_token?: string
 }
 
 export type RegisterSuccess = AuthSuccess & {
@@ -71,6 +72,19 @@ export async function register(payload: RegisterPayload): Promise<RegisterSucces
   return request<RegisterSuccess>("/auth/register", payload)
 }
 
+export async function refreshToken(refreshToken: string): Promise<AuthSuccess> {
+  return request<AuthSuccess>("/auth/refresh", { refresh_token: refreshToken })
+}
+
+
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  return request<{ message: string }>("/auth/forgot-password", { email })
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  return request<{ message: string }>("/auth/reset-password", { token, new_password: newPassword })
+}
+
 export async function getMe(token: string): Promise<UserProfile> {
   const response = await fetch(`${apiBaseUrl}/users/me`, {
     method: "GET",
@@ -114,7 +128,7 @@ export async function patchMe(token: string, payload: UpdateProfilePayload): Pro
 export function persistSession(
   token: string,
   userId: string,
-  extra?: { username?: string; email?: string },
+  extra?: { username?: string; email?: string; refresh_token?: string },
 ): void {
   localStorage.setItem("access_token", token)
   localStorage.setItem("token_type", "bearer")
@@ -125,6 +139,9 @@ export function persistSession(
   if (extra?.email) {
     localStorage.setItem("email", extra.email)
   }
+  if (extra?.refresh_token) {
+    localStorage.setItem("refresh_token", extra.refresh_token)
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }
@@ -132,6 +149,7 @@ export function persistSession(
 
 export function clearSession(): void {
   localStorage.removeItem("access_token")
+  localStorage.removeItem("refresh_token")
   localStorage.removeItem("token_type")
   localStorage.removeItem("user_id")
   localStorage.removeItem("username")

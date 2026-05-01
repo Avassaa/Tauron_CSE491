@@ -24,6 +24,23 @@ function getAdminKey(): string | null {
   return localStorage.getItem("admin_api_key") || null
 }
 
+function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null
+  return localStorage.getItem("refresh_token")
+}
+
+function clearSessionLocally(): void {
+  if (typeof window === "undefined") return
+  localStorage.removeItem("access_token")
+  localStorage.removeItem("refresh_token")
+  localStorage.removeItem("token_type")
+  localStorage.removeItem("user_id")
+  localStorage.removeItem("username")
+  localStorage.removeItem("email")
+  window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
+}
+
+
 function authHeaders(forceAdmin = false): HeadersInit {
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   const token = getToken()
@@ -85,56 +102,105 @@ function buildUrl(
   return qsStr ? `${url}?${qsStr}` : url
 }
 
+// ─── Auto-Refresh Fetch Wrapper ───────────────────────────────────────────────
+
+let isRefreshing = false
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) return null
+  
+  try {
+    const res = await fetch(`${apiBaseUrl}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    
+    if (!res.ok) {
+      clearSessionLocally()
+      return null
+    }
+    
+    const data = await res.json()
+    localStorage.setItem("access_token", data.access_token)
+    if (data.refresh_token) {
+      localStorage.setItem("refresh_token", data.refresh_token)
+    }
+    window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
+    return data.access_token
+  } catch (error) {
+    clearSessionLocally()
+    return null
+  }
+}
+
+async function fetchWithAuth(url: string, options: RequestInit): Promise<Response> {
+  options.headers = authHeaders()
+  options.signal = timeoutSignal()
+  
+  let res = await fetch(url, options)
+  
+  if (res.status === 401) {
+    // Attempt to refresh token
+    if (!isRefreshing) {
+      isRefreshing = true
+      refreshPromise = refreshAccessToken().finally(() => {
+        isRefreshing = false
+        refreshPromise = null
+      })
+    }
+    
+    const newToken = await refreshPromise
+    if (newToken) {
+      // Retry request with new token
+      options.headers = authHeaders()
+      options.signal = timeoutSignal() // new signal for retry
+      res = await fetch(url, options)
+    }
+  }
+  
+  return res
+}
+
+
 // ─── User-facing (JWT) ────────────────────────────────────────────────────────
 
 export async function apiGet<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
-  const res = await fetch(buildUrl(path, params), {
-    headers: authHeaders(),
-    signal: timeoutSignal(),
-  })
+  const res = await fetchWithAuth(buildUrl(path, params), { method: "GET" })
   return handleResponse<T>(res)
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
     method: "POST",
-    headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
 
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
     method: "PUT",
-    headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
 
-
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
     method: "PATCH",
-    headers: authHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }
 
 export async function apiDelete<T = void>(path: string): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
-    method: "DELETE",
-    headers: authHeaders(),
-    signal: timeoutSignal(),
-  })
+  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, { method: "DELETE" })
   return handleResponse<T>(res)
 }
 
