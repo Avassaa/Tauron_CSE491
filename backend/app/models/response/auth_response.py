@@ -11,6 +11,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user_id: uuid.UUID
+    refresh_token: str | None = None
 
 
 class RegisterResponse(BaseModel):
@@ -21,3 +22,10 @@ class RegisterResponse(BaseModel):
     user_id: uuid.UUID
     username: str
     email: EmailStr
+    refresh_token: str | None = None
+
+
+class MessageResponse(BaseModel):
+    """Simple message response."""
+
+    message: str

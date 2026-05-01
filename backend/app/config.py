@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     JWT_SECRET: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    RESET_PASSWORD_TOKEN_EXPIRE_MINUTES: int = 15
 
     ADMIN_API_KEY: str = Field(
         default="",
@@ -141,6 +143,17 @@ class Settings(BaseSettings):
     GEMINI_EMBEDDING_DIMENSIONS: int = Field(
         default=1536,
         description="Target output dimensions for embeddings stored in pgvector.",
+    )
+
+    # Email Settings
+    SMTP_HOST: str = Field(default="", description="SMTP server host (e.g., smtp.gmail.com)")
+    SMTP_PORT: int = Field(default=587, description="SMTP server port")
+    SMTP_USER: str = Field(default="", description="SMTP username / email")
+    SMTP_PASSWORD: str = Field(default="", description="SMTP password or app password")
+    SMTP_FROM_EMAIL: str = Field(default="", description="Sender email address")
+    FRONTEND_URL: str = Field(
+        default="http://localhost:5173",
+        description="Base URL of the frontend application for email links",
     )
 
     AUTO_POPULATE_ONCHAIN_ON_EMPTY_DB: bool = Field(

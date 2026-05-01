@@ -77,6 +77,7 @@ def create_access_token(subject_user_id: uuid.UUID) -> str:
     payload = {
         "sub": str(subject_user_id),
         "exp": expire,
+        "type": "access",
     }
     return jwt.encode(
         payload,
@@ -92,6 +93,92 @@ def decode_access_token(token: str) -> dict:
         settings.JWT_SECRET,
         algorithms=[settings.JWT_ALGORITHM],
     )
+
+
+def create_refresh_token(subject_user_id: uuid.UUID) -> str:
+    """Issue a signed refresh JWT with ``sub`` set to the user id string."""
+    if not settings.JWT_SECRET.strip():
+        raise RuntimeError("JWT_SECRET is not configured")
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=settings.REFRESH_TOKEN_EXPIRE_DAYS,
+    )
+    payload = {
+        "sub": str(subject_user_id),
+        "exp": expire,
+        "type": "refresh",
+    }
+    return jwt.encode(
+        payload,
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+
+def decode_refresh_token(token: str) -> uuid.UUID:
+    """Decode and validate a refresh JWT, returning the user id."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+        subject = payload.get("sub")
+        if not subject or not isinstance(subject, str):
+            raise ValueError()
+        return uuid.UUID(subject)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        ) from exc
+
+
+def create_password_reset_token(email: str) -> str:
+    """Issue a signed password reset JWT with ``sub`` set to the email string."""
+    if not settings.JWT_SECRET.strip():
+        raise RuntimeError("JWT_SECRET is not configured")
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.RESET_PASSWORD_TOKEN_EXPIRE_MINUTES,
+    )
+    payload = {
+        "sub": email,
+        "exp": expire,
+        "type": "password_reset",
+    }
+    return jwt.encode(
+        payload,
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+
+def decode_password_reset_token(token: str) -> str:
+    """Decode and validate a password reset JWT, returning the email."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        if payload.get("type") != "password_reset":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token type",
+            )
+        subject = payload.get("sub")
+        if not subject or not isinstance(subject, str):
+            raise ValueError()
+        return subject
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
+        ) from exc
 
 
 _http_bearer = HTTPBearer(auto_error=True)
@@ -115,6 +202,12 @@ def _token_to_user_id(token: str) -> uuid.UUID:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         ) from exc
+    token_type = payload.get("type")
+    if token_type not in (None, "access"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type for this operation",
+        )
     subject = payload.get("sub")
     if not subject or not isinstance(subject, str):
         raise HTTPException(
