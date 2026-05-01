@@ -97,6 +97,14 @@ function computePctChange(first: number, latest: number): number | null {
   return ((latest - first) / first) * 100
 }
 
+function computeTrailingChangeFromDailyCloses(closes: number[], days: number): number | null {
+  if (!Array.isArray(closes) || closes.length < 2) return null
+  const latest = closes[closes.length - 1]
+  const startIdx = Math.max(0, closes.length - 1 - days)
+  const first = closes[startIdx]
+  return computePctChange(first, latest)
+}
+
 async function fetchBinanceDerivedChanges(symbol: string): Promise<{ sparkline: number[]; change1h: number | null; change7d: number | null }> {
   const normalized = normalizeBinanceBaseSymbol(symbol)
   if (!normalized) return { sparkline: [], change1h: null, change7d: null }
@@ -247,9 +255,10 @@ export function useMarketData() {
         range === "3M" ? 540 :
         range === "1Y" ? 365 : 1000
 
-      const [tickerRes, klinesRes] = await Promise.all([
+      const [tickerRes, klinesRes, dailyKlines] = await Promise.all([
         fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`),
         fetchBinanceKlinesWithFallback(pair, binInterval, binLimit),
+        fetchBinanceKlinesWithFallback(pair, "1d", 370),
       ])
       if (!tickerRes.ok || !Array.isArray(klinesRes) || klinesRes.length === 0) {
         throw new Error("Binance fallback unavailable")
@@ -270,12 +279,23 @@ export function useMarketData() {
       const first = points[0]
       const latest = points[points.length - 1]
       const rangeChange = first.price > 0 ? ((latest.price - first.price) / first.price) * 100 : 0
+      const dailyCloses = Array.isArray(dailyKlines)
+        ? dailyKlines
+            .map((k: any) => Number.parseFloat(String(k?.[4] ?? "")))
+            .filter((v: number) => Number.isFinite(v))
+        : []
+      const change14d = computeTrailingChangeFromDailyCloses(dailyCloses, 14)
+      const change30d = computeTrailingChangeFromDailyCloses(dailyCloses, 30)
+      const change1y = computeTrailingChangeFromDailyCloses(dailyCloses, 365)
 
       setMarketStats((prev: any) => ({
         ...prev,
         price: prev?.price || Number.parseFloat(String(ticker.lastPrice ?? "")),
         change24h: prev?.change24h || Number.parseFloat(String(ticker.priceChangePercent ?? "")),
         rangeChange,
+        change14d: change14d ?? prev?.change14d,
+        change30d: change30d ?? prev?.change30d,
+        change1y: change1y ?? prev?.change1y,
         volume: prev?.volume || Number.parseFloat(String(ticker.quoteVolume ?? "")),
       }))
       setChartData(points)
