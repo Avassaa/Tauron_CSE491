@@ -5,6 +5,13 @@ import { LoginForm } from "~/components/login-form"
 import { AnimatedThemeToggler } from "~/components/ui/animated-theme-toggler"
 import type { Route } from "./+types/login"
 
+export function meta({ }: Route.MetaArgs) {
+  return [
+    { title: "Tauron - Login" },
+    { name: "description", content: "Sign in to your Tauron account." },
+  ]
+}
+
 type LoginActionData = {
   error?: string
 }
@@ -34,7 +41,7 @@ export async function clientAction(args: Route.ClientActionArgs) {
     const { toast } = await import("sonner")
     toast.success("Signed in successfully.")
   }
-  return redirect("/dashboard")
+  throw redirect("/dashboard")
 }
 
 export async function clientLoader() {

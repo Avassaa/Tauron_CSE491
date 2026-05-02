@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "~/components/ui/select"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import { AuthGuard } from "~/components/auth-guard"
 import {
   apiDelete,
   apiGet,
@@ -884,7 +885,8 @@ export default function ToolsPage() {
   }, [])
 
   return (
-    <SidebarProvider>
+    <AuthGuard>
+      <SidebarProvider>
       <AppSidebar />
       <MarketMarqueeBanner />
       <SidebarInset
@@ -1625,5 +1627,6 @@ export default function ToolsPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+    </AuthGuard>
   )
 }

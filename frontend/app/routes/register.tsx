@@ -34,7 +34,7 @@ export async function clientAction(args: Route.ClientActionArgs) {
     const { toast } = await import("sonner")
     toast.success("Account created successfully.")
   }
-  return redirect("/dashboard")
+  throw redirect("/dashboard")
 }
 
 export async function clientLoader() {

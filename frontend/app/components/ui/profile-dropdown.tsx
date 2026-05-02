@@ -140,6 +140,8 @@ export function ProfileDropdown({
               <Link
                 to={logoutTo}
                 onClick={onLogout}
+                // Use replace to prevent the user from navigating back to protected pages after logout
+                replace
                 className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent bg-red-500/10 p-3 transition-all duration-200 hover:border-red-500/30 hover:bg-red-500/20 hover:shadow-sm"
               >
                 <LogOut className="h-4 w-4 text-red-500 group-hover:text-red-600" />

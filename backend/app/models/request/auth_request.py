@@ -16,3 +16,22 @@ class LoginRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+
+class RefreshRequest(BaseModel):
+    """Payload for refreshing an access token."""
+
+    refresh_token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Payload for requesting a password reset email."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Payload for resetting a password using a token."""
+
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)

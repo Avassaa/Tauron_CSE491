@@ -13,6 +13,7 @@ import { Skeleton } from "~/components/ui/skeleton"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
 import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
+import { AuthGuard } from "~/components/auth-guard"
 
 function formatRelativeTime(value: string): string {
   const createdAt = new Date(value).getTime()
@@ -91,151 +92,153 @@ export default function NotificationsPage() {
   const unreadCount = items.filter((item) => !item.is_read).length
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <MarketMarqueeBanner />
-      <SidebarInset
-        style={{
-          paddingTop: "var(--market-banner-offset, 0px)",
-        }}
-      >
-        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <span className="font-medium">Notifications</span>
-          </div>
-          <NotificationInbox />
-        </header>
+    <AuthGuard>
+      <SidebarProvider>
+        <AppSidebar />
+        <MarketMarqueeBanner />
+        <SidebarInset
+          style={{
+            paddingTop: "var(--market-banner-offset, 0px)",
+          }}
+        >
+          <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <span className="font-medium">Notifications</span>
+            </div>
+            <NotificationInbox />
+          </header>
 
-        <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
-          <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="space-y-1">
-              <button
-                type="button"
-                className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
-              >
-                Inbox
-              </button>
-            </aside>
-            <section className="space-y-5">
-              <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <Bell className="size-4 text-primary" />
-                    Notification inbox
+          <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
+            <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <aside className="space-y-1">
+                <button
+                  type="button"
+                  className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
+                >
+                  Inbox
+                </button>
+              </aside>
+              <section className="space-y-5">
+                <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Bell className="size-4 text-primary" />
+                      Notification inbox
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {unreadCount > 0
+                        ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
+                        : "You are all caught up."}
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {unreadCount > 0
-                      ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
-                      : "You are all caught up."}
-                  </div>
-                </div>
-                <Button type="button" variant="outline" className="gap-2" onClick={markAllRead} disabled={unreadCount === 0}>
-                  <CheckCheck className="size-4" />
-                  Mark all read
-                </Button>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border">
-                <div className="border-b px-5 py-4">
-                  <div className="text-xl font-semibold">All notifications</div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Price alert notifications and future system messages appear here.
-                  </p>
+                  <Button type="button" variant="outline" className="gap-2" onClick={markAllRead} disabled={unreadCount === 0}>
+                    <CheckCheck className="size-4" />
+                    Mark all read
+                  </Button>
                 </div>
 
-                {error ? (
-                  <div className="border-b border-destructive/30 bg-destructive/10 px-5 py-3 text-sm text-destructive">
-                    {error}
+                <div className="overflow-hidden rounded-xl border">
+                  <div className="border-b px-5 py-4">
+                    <div className="text-xl font-semibold">All notifications</div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Price alert notifications and future system messages appear here.
+                    </p>
                   </div>
-                ) : null}
 
-                {loading ? (
-                  <div className="space-y-3 p-5">
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                  </div>
-                ) : items.length === 0 ? (
-                  <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                    No notifications yet.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {items.map((item) => (
-                      (() => {
-                        const condition = getNotificationCondition(item)
-                        return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={cn(
-                          "relative flex w-full gap-4 px-5 py-4 text-left transition-colors",
-                          item.is_read
-                            ? "bg-background text-muted-foreground hover:bg-muted/40"
-                            : "bg-blue-500/10 text-foreground shadow-[inset_4px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
-                        )}
-                        onClick={() => {
-                          if (!item.is_read) void markRead(item.id)
-                        }}
-                      >
-                        <div
+                  {error ? (
+                    <div className="border-b border-destructive/30 bg-destructive/10 px-5 py-3 text-sm text-destructive">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  {loading ? (
+                    <div className="space-y-3 p-5">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : items.length === 0 ? (
+                    <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                      No notifications yet.
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {items.map((item) => (
+                        (() => {
+                          const condition = getNotificationCondition(item)
+                          return (
+                        <button
+                          key={item.id}
+                          type="button"
                           className={cn(
-                            "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border",
+                            "relative flex w-full gap-4 px-5 py-4 text-left transition-colors",
                             item.is_read
-                              ? "border-border text-muted-foreground"
-                              : "border-primary/15 bg-primary/10 text-primary"
+                              ? "bg-background text-muted-foreground hover:bg-muted/40"
+                              : "bg-blue-500/10 text-foreground shadow-[inset_4px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
                           )}
+                          onClick={() => {
+                            if (!item.is_read) void markRead(item.id)
+                          }}
                         >
-                          <NotificationIcon item={item} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span
-                                className={cn(
-                                  "truncate",
-                                  item.is_read ? "font-medium text-muted-foreground" : "font-semibold text-foreground"
-                                )}
-                              >
-                                {item.title}
-                              </span>
-                              {condition ? (
+                          <div
+                            className={cn(
+                              "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border",
+                              item.is_read
+                                ? "border-border text-muted-foreground"
+                                : "border-primary/15 bg-primary/10 text-primary"
+                            )}
+                          >
+                            <NotificationIcon item={item} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-2">
                                 <span
                                   className={cn(
-                                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
-                                    condition === "above"
-                                      ? "bg-green-500/10 text-green-600"
-                                      : "bg-red-500/10 text-red-600"
+                                    "truncate",
+                                    item.is_read ? "font-medium text-muted-foreground" : "font-semibold text-foreground"
                                   )}
                                 >
-                                  {condition}
+                                  {item.title}
                                 </span>
-                              ) : null}
-                              {!item.is_read ? (
-                                <span className="size-2 rounded-full bg-blue-500" aria-label="Unread" />
-                              ) : null}
+                                {condition ? (
+                                  <span
+                                    className={cn(
+                                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                      condition === "above"
+                                        ? "bg-green-500/10 text-green-600"
+                                        : "bg-red-500/10 text-red-600"
+                                    )}
+                                  >
+                                    {condition}
+                                  </span>
+                                ) : null}
+                                {!item.is_read ? (
+                                  <span className="size-2 rounded-full bg-blue-500" aria-label="Unread" />
+                                ) : null}
+                              </div>
+                              <span className={cn("shrink-0 text-sm", item.is_read ? "text-muted-foreground" : "font-medium text-foreground")}>
+                                {formatRelativeTime(item.created_at)}
+                              </span>
                             </div>
-                            <span className={cn("shrink-0 text-sm", item.is_read ? "text-muted-foreground" : "font-medium text-foreground")}>
-                              {formatRelativeTime(item.created_at)}
-                            </span>
+                            <p className={cn("mt-1 text-sm", item.is_read ? "text-muted-foreground" : "text-foreground/80")}>
+                              {item.message}
+                            </p>
                           </div>
-                          <p className={cn("mt-1 text-sm", item.is_read ? "text-muted-foreground" : "text-foreground/80")}>
-                            {item.message}
-                          </p>
-                        </div>
-                      </button>
-                        )
-                      })()
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
+                        </button>
+                          )
+                        })()
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </AuthGuard>
   )
 }
