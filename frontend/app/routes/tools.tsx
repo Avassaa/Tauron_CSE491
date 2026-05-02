@@ -19,6 +19,7 @@ import {
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
+import { AssistantDockToolbarButton, AssistantDockSplitMain } from "~/components/assistant/assistant-dock-ui"
 import { Button } from "~/components/ui/button"
 import { glassSurfaceVariants } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
@@ -900,9 +901,13 @@ export default function ToolsPage() {
             <Separator orientation="vertical" className="mr-2 h-4" />
             <span className="font-medium">Tools</span>
           </div>
-          <NotificationInbox />
+          <div className="flex shrink-0 items-center gap-2">
+            <AssistantDockToolbarButton />
+            <NotificationInbox />
+          </div>
         </header>
-        <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
+        <AssistantDockSplitMain outerClassName="min-h-[calc(100svh-3.5rem)] flex-1">
+          <div className="flex min-h-0 flex-1 overflow-auto p-4">
           <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="h-fit self-start">
               <div className="space-y-1 lg:fixed lg:top-[calc(var(--market-banner-offset,0px)+5rem)] lg:z-10 lg:w-[220px]">
@@ -1624,7 +1629,8 @@ export default function ToolsPage() {
               </div>
             </section>
           </div>
-        </div>
+          </div>
+        </AssistantDockSplitMain>
       </SidebarInset>
     </SidebarProvider>
     </AuthGuard>

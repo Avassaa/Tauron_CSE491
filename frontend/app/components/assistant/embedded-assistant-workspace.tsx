@@ -2,24 +2,26 @@
 
 import * as React from "react"
 import type { UIMessage } from "@ai-sdk/react"
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 
 import { GeminiChatPanel } from "~/components/assistant/gemini-chat-panel"
 import { ChatHistorySidebar, type ChatSession } from "~/components/assistant/chat-history-sidebar"
-import { AppSidebar } from "~/components/dashboard/app-sidebar"
-import { NotificationInbox } from "~/components/dashboard/notification-inbox"
-import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
-import { AuthGuard } from "~/components/auth-guard"
-import { Separator } from "~/components/ui/separator"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import { Button } from "~/components/ui/button"
 import {
   CHAT_LAST_SESSION_KEY,
   chatItemsToUIMessages,
   HISTORY_PAGE_SIZE,
 } from "~/lib/assistant-chat-helpers"
 import { getPublicApiBaseUrl } from "~/lib/public-api-base-url"
+import { cn } from "~/lib/utils"
 
-export default function ChatPage() {
+export function EmbeddedAssistantWorkspace({
+  onRequestClose,
+  className,
+}: {
+  onRequestClose?: () => void
+  className?: string
+}) {
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(null)
   const [initialMessages, setInitialMessages] = React.useState<UIMessage[]>([])
@@ -35,10 +37,9 @@ export default function ChatPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (res.ok) {
-        const data = (await res.json()) as ChatSession[]
-        setSessions(data)
+        setSessions((await res.json()) as ChatSession[])
       } else {
-        console.error("[chat] reloadSessionList failed:", res.status, await res.text())
+        console.error("[assistant-dock] reloadSessionList failed:", res.status, await res.text())
       }
     } catch (e) {
       console.error("Failed to load chat sessions:", e)
@@ -57,7 +58,6 @@ export default function ChatPage() {
         return
       }
       const apiBaseUrl = getPublicApiBaseUrl()
-
       const sessRes = await fetch(`${apiBaseUrl}/chat-history/sessions`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -65,12 +65,7 @@ export default function ChatPage() {
       if (sessRes.ok) {
         list = (await sessRes.json()) as ChatSession[]
       } else {
-        console.error(
-          "[chat] GET /chat-history/sessions failed:",
-          sessRes.status,
-          sessRes.statusText,
-          await sessRes.text(),
-        )
+        console.error("[assistant-dock] GET sessions failed:", sessRes.status, await sessRes.text())
       }
       setSessions(list)
 
@@ -101,16 +96,11 @@ export default function ChatPage() {
           setInitialMessages(chatItemsToUIMessages(data.items ?? []))
         } else {
           setInitialMessages([])
-          console.error(
-            "[chat] GET /chat-history failed:",
-            histRes.status,
-            histRes.statusText,
-            await histRes.text(),
-          )
+          console.error("[assistant-dock] GET history failed:", histRes.status, await histRes.text())
         }
       }
     } catch (e) {
-      console.error("Failed to bootstrap chat:", e)
+      console.error("Assistant dock bootstrap:", e)
       const id = crypto.randomUUID()
       setCurrentSessionId(id)
       setInitialMessages([])
@@ -178,56 +168,49 @@ export default function ChatPage() {
   }, [currentSessionId])
 
   return (
-    <AuthGuard>
-      <SidebarProvider>
-        <AppSidebar />
-        <MarketMarqueeBanner />
-        <SidebarInset
-          style={{
-            paddingTop: "var(--market-banner-offset, 0px)",
-          }}
-        >
-          <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              <span className="font-medium">AI Chat</span>
-            </div>
-            <NotificationInbox />
-          </header>
-          
-          <div className="flex flex-1 min-h-0 w-full overflow-hidden">
-            <ChatHistorySidebar
-              sessions={sessions}
-              currentSessionId={currentSessionId ?? ""}
-              onSelectSession={handleSelectSession}
-              onNewChat={handleNewChat}
-              isLoading={isLoadingSessions}
+    <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)}>
+      {onRequestClose ? (
+        <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b px-2 sm:px-3">
+          <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            AI assistant
+          </span>
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onRequestClose} aria-label="Close assistant panel">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden pb-2">
+        <ChatHistorySidebar
+          className="w-[5.75rem] shrink-0 sm:w-36"
+          compact
+          sessions={sessions}
+          currentSessionId={currentSessionId ?? ""}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+          isLoading={isLoadingSessions}
+        />
+        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden px-2 pt-0 sm:px-3">
+          <p className="sr-only">
+            Ask markets, news, or watchlists. History syncs with the Chat page.
+          </p>
+          {chatReady && currentSessionId ? (
+            <GeminiChatPanel
+              key={currentSessionId}
+              variant="dock"
+              id={currentSessionId}
+              initialMessages={initialMessages}
+              onActivity={handleActivity}
+              onNewMessage={handleOptimisticSession}
+              className="min-h-0 min-w-0 flex-1 basis-0"
             />
-            
-            <div className="flex min-w-0 flex-1 flex-col gap-3 px-5 py-5 pb-8 sm:px-8 sm:py-6 md:px-10">
-              <p className="shrink-0 text-sm text-muted-foreground">
-                Chat with Tauron&apos;s assistant—quick answers and explanations, right in your workspace.
-              </p>
-              {chatReady && currentSessionId ? (
-                /* Force remount when session changes to reset internal SDK state safely */
-                <GeminiChatPanel
-                  key={currentSessionId}
-                  id={currentSessionId}
-                  initialMessages={initialMessages}
-                  onActivity={handleActivity}
-                  onNewMessage={handleOptimisticSession}
-                  className="min-h-0 flex-1"
-                />
-              ) : (
-                <div className="flex min-h-[min(280px,calc(100svh-280px))] flex-1 items-center justify-center text-muted-foreground">
-                  <Loader2 className="h-8 w-8 animate-spin" aria-hidden />
-                </div>
-              )}
+          ) : (
+            <div className="flex min-h-0 flex-1 basis-0 items-center justify-center text-muted-foreground">
+              <Loader2 className="h-7 w-7 animate-spin" aria-hidden />
             </div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </AuthGuard>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

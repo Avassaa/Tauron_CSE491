@@ -19,22 +19,34 @@ export function ChatHistorySidebar({
   onSelectSession,
   onNewChat,
   isLoading,
+  className,
+  compact,
 }: {
   sessions: ChatSession[]
   currentSessionId: string
   onSelectSession: (id: string) => void
   onNewChat: () => void
   isLoading?: boolean
+  className?: string
+  /** Icon-only new chat (narrow sidebars / dock). */
+  compact?: boolean
 }) {
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-r bg-muted/20">
-      <div className="p-4">
-        <Button onClick={onNewChat} className="w-full justify-start gap-2" variant="outline">
+    <div className={cn("flex h-full w-64 shrink-0 flex-col border-r bg-muted/20", className)}>
+      <div className={cn("p-4", compact && "p-2")}>
+        <Button
+          onClick={onNewChat}
+          className={cn("w-full justify-start gap-2", compact && "justify-center px-0")}
+          variant="outline"
+          size={compact ? "icon" : "default"}
+          title="New chat"
+          aria-label="New chat"
+        >
           <MessageSquarePlus className="h-4 w-4" />
-          New Chat
+          {!compact ? <span>New Chat</span> : null}
         </Button>
       </div>
-      <ScrollArea className="flex-1 px-3 pb-4">
+      <ScrollArea className={cn("flex-1 px-3 pb-4", compact && "px-1.5")}>
         {isLoading ? (
           <div className="flex items-center justify-center p-4 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />

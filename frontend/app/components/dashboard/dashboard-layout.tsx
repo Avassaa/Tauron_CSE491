@@ -8,6 +8,10 @@ import { Separator } from "~/components/ui/separator"
 import { DashboardClientOnly } from "./dashboard-client-only"
 import { AuthGuard } from "~/components/auth-guard"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
+import {
+  AssistantDockSplitMain,
+  AssistantDockToolbarButton,
+} from "~/components/assistant/assistant-dock-ui"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -25,10 +29,10 @@ export function DashboardLayout({
   return (
     <DashboardClientOnly fallback={fallback || <DefaultFallback title={typeof title === 'string' ? title : "Loading"} />}>
       <AuthGuard>
-        <SidebarProvider>
+        <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
           <AppSidebar />
           <MarketMarqueeBanner />
-          <div className="glass-page-bg flex min-w-0 flex-1 flex-col">
+          <div className="glass-page-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <header className="app-subtle-header sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/50 px-4 backdrop-blur-md">
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <SidebarTrigger className="-ml-1 shrink-0" />
@@ -43,11 +47,14 @@ export function DashboardLayout({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {actions}
+                <AssistantDockToolbarButton />
                 <NotificationInbox />
               </div>
             </header>
-            <main className="flex flex-1 flex-col overflow-hidden pt-10">
-              {children}
+            <main className="flex min-h-0 flex-1 flex-col overflow-hidden pt-10">
+              <AssistantDockSplitMain>
+                <div className="relative min-h-0 flex-1 basis-0 overflow-y-auto">{children}</div>
+              </AssistantDockSplitMain>
             </main>
           </div>
         </SidebarProvider>

@@ -450,9 +450,18 @@ interface PromptInputBoxProps {
   isLoading?: boolean;
   placeholder?: string;
   className?: string;
+  /** Max height for autosizing textarea (default 240). Lower for compact side panels. */
+  textareaMaxHeight?: number;
 }
 export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref: React.Ref<HTMLDivElement>) => {
-  const { onSend = () => {}, onStop, isLoading = false, placeholder = "Type your message here...", className } = props;
+  const {
+    onSend = () => {},
+    onStop,
+    isLoading = false,
+    placeholder = "Type your message here...",
+    className,
+    textareaMaxHeight,
+  } = props;
   const [input, setInput] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
@@ -570,6 +579,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
         onValueChange={setInput}
         isLoading={isLoading}
         onSubmit={handleSubmit}
+        maxHeight={textareaMaxHeight ?? 240}
         className={cn(
           "w-full border-border bg-white shadow-sm transition-all duration-300 ease-in-out dark:border-[#444444] dark:bg-[#1F2023] dark:shadow-[0_8px_30px_rgba(0,0,0,0.24)]",
           isRecording && "border-red-500/70",
