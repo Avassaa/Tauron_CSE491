@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { GlassBackdropSeed } from "~/components/glass-backdrop-seed"
 import { Toaster } from "~/components/ui/sonner"
 import { applyThemeToDocument } from "~/theme-context"
 
@@ -19,6 +20,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <GlassBackdropSeed />
       {children}
       <Toaster />
     </>

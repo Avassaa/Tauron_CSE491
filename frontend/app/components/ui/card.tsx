@@ -3,11 +3,10 @@ import * as React from "react"
 import { cn } from "~/lib/utils"
 
 /**
- * Same glass recipe as `DashboardLayout` sticky header + notifications strip:
- * translucent surface + strong blur + saturation so the stained page canvas reads through.
+ * Same glass recipe as `DashboardLayout` sticky header: light blur over the page tint.
  */
 export const glassCardSurface =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-background/45 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-150 dark:border-border/50 dark:bg-background/35"
+  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-background/50 text-card-foreground shadow-sm backdrop-blur-md dark:border-border/50 dark:bg-background/40"
 
 function cardVariants() {
   return cn(glassCardSurface, "flex flex-col gap-6 py-6")

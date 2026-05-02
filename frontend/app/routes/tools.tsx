@@ -892,7 +892,7 @@ export default function ToolsPage() {
           paddingTop: "var(--market-banner-offset, 0px)",
         }}
       >
-        <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/45 px-4 backdrop-blur-xl backdrop-saturate-150">
+        <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
