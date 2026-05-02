@@ -939,10 +939,10 @@ export function AssetDetailSheet({
                     {/* Performance Metrics Table */}
                     <div className="space-y-3">
                       <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 px-1">Price Performance</h3>
-                      <div className="rounded-2xl border border-border/50 bg-card/30 overflow-hidden backdrop-blur-md shadow-2xl shadow-primary/5">
+                      <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden backdrop-blur-xl shadow-2xl shadow-primary/5">
                         <Table>
                           <TableHeader>
-                            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/20">
+                            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
                               {["1h", "24h", "7d", "14d", "30d", "1y"].map((t) => (
                                 <TableHead key={t} className="h-auto py-2 px-1 text-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 border-r last:border-r-0 border-border/20">
                                   {t}

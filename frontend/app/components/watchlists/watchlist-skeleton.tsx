@@ -12,7 +12,7 @@ export function WatchlistSkeleton({ viewMode }: WatchlistSkeletonProps) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-4 p-5 rounded-3xl border border-border/50 bg-card/30">
+          <div key={i} className="flex flex-col gap-4 p-5 rounded-3xl border border-border/50 bg-card/75">
             <div className="flex items-center gap-4">
               <Skeleton className="size-12 rounded-2xl bg-muted" />
               <div className="flex flex-col gap-2 flex-1">
@@ -34,7 +34,7 @@ export function WatchlistSkeleton({ viewMode }: WatchlistSkeletonProps) {
   }
 
   return (
-    <div className="rounded-3xl border border-border/50 bg-card/30 overflow-hidden">
+    <div className="rounded-3xl border border-border/50 bg-card/80 overflow-hidden">
       <div className="p-4 space-y-4">
         {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} className="flex items-center gap-4">

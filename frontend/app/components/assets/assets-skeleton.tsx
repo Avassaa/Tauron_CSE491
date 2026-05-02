@@ -12,11 +12,11 @@ import {
 
 export function AssetsSkeleton() {
   return (
-    <div className="rounded-2xl border border-border/50 bg-card/30 backdrop-blur-md overflow-hidden">
+    <div className="rounded-2xl border border-border/50 bg-card/80 backdrop-blur-xl overflow-hidden">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/20">
+            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
               <TableHead className="w-[32px] px-1 text-center"></TableHead>
               <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center">
                 #

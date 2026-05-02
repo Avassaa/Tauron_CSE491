@@ -450,7 +450,7 @@ function WatchlistPageClient() {
                     <TooltipContent>Create watchlist</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <div className="flex rounded-2xl border border-border/50 bg-card/40 p-1 shadow-sm relative gap-1">
+                <div className="flex rounded-2xl border border-border/50 bg-card/75 p-1 shadow-sm relative gap-1">
                   <div className="absolute inset-1 flex items-center gap-1 z-0">
                     <motion.div
                       className="h-full rounded-xl bg-foreground shadow-lg"
@@ -507,7 +507,7 @@ function WatchlistPageClient() {
             <div className="flex min-w-0 flex-1 flex-col gap-4">
               {showListOverview ? (
                 watchlistLists.length === 0 ? (
-                  <div className="flex min-h-[360px] items-center justify-center rounded-3xl border border-dashed border-border bg-card/30 p-10 text-center">
+                  <div className="flex min-h-[360px] items-center justify-center rounded-3xl border border-dashed border-border bg-card/75 p-10 text-center">
                     <div className="space-y-3">
                       <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                         <ListChecks className="size-6" />
@@ -537,11 +537,11 @@ function WatchlistPageClient() {
                         className="w-full"
                       >
                         {overviewViewMode === "list" ? (
-                  <div className="overflow-x-auto rounded-3xl border border-border/50 bg-card/30 shadow-2xl shadow-primary/5">
+                  <div className="overflow-x-auto rounded-3xl border border-border/50 bg-card/80 shadow-2xl shadow-primary/5">
                     <div className="min-w-[600px]">
                       <Table>
                         <TableHeader>
-                          <TableRow className="hover:bg-transparent border-border/50 bg-muted/20">
+                          <TableRow className="hover:bg-transparent border-border/50 bg-muted/45">
                             <TableHead className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-foreground/70">
                               Name
                             </TableHead>

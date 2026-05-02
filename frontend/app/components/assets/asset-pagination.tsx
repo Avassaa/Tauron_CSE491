@@ -103,7 +103,7 @@ export function AssetPagination({
         size="sm"
         onClick={() => setPage(page - 1)}
         disabled={page === 1 || loading}
-        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/30 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/75 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft className="size-3.5" />
         Prev
@@ -118,7 +118,7 @@ export function AssetPagination({
         size="sm"
         onClick={() => setPage(page + 1)}
         disabled={page === totalPages || loading}
-        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/30 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/75 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         Next
         <ChevronRight className="size-3.5" />
