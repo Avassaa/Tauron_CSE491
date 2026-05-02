@@ -12,6 +12,7 @@ import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { AuthGuard } from "~/components/auth-guard"
 import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import {
   CHAT_LAST_SESSION_KEY,
   chatItemsToUIMessages,
@@ -189,15 +190,36 @@ export default function ChatPage() {
         >
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex rounded-md">
+                    <SidebarTrigger className="-ml-1" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent variant="inverted" side="bottom">
+                  Toggle navigation sidebar
+                </TooltipContent>
+              </Tooltip>
               <Separator orientation="vertical" className="mr-2 h-4" />
-              <span className="font-medium">AI Chat</span>
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex rounded-md">
+                    <span className="font-medium">AI Chat</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent variant="inverted" side="bottom">
+                  Full-screen assistant workspace
+                </TooltipContent>
+              </Tooltip>
             </div>
             <NotificationInbox />
           </header>
           
           <div className="flex flex-1 min-h-0 w-full overflow-hidden">
             <ChatHistorySidebar
+              collapsible
+              defaultOpen={true}
+              density="standard"
               sessions={sessions}
               currentSessionId={currentSessionId ?? ""}
               onSelectSession={handleSelectSession}

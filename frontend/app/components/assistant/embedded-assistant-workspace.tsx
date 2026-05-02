@@ -7,6 +7,7 @@ import { Loader2, X } from "lucide-react"
 import { GeminiChatPanel } from "~/components/assistant/gemini-chat-panel"
 import { ChatHistorySidebar, type ChatSession } from "~/components/assistant/chat-history-sidebar"
 import { Button } from "~/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import {
   CHAT_LAST_SESSION_KEY,
   chatItemsToUIMessages,
@@ -174,16 +175,29 @@ export function EmbeddedAssistantWorkspace({
           <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             AI assistant
           </span>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onRequestClose} aria-label="Close assistant panel">
-            <X className="h-4 w-4" />
-          </Button>
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={onRequestClose}
+                aria-label="Close assistant panel"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent variant="inverted">Close assistant panel</TooltipContent>
+          </Tooltip>
         </div>
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden pb-2">
         <ChatHistorySidebar
-          className="w-[5.75rem] shrink-0 sm:w-36"
-          compact
+          collapsible
+          defaultOpen={false}
+          density="dock"
           sessions={sessions}
           currentSessionId={currentSessionId ?? ""}
           onSelectSession={handleSelectSession}
