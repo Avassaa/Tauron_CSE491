@@ -39,5 +39,8 @@ htmlcov/
 .ruff_cache/
 
 *.log
+
+data/comment_images/
+
 .DS_Store
 Thumbs.db

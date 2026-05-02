@@ -14,10 +14,17 @@ from app.core.security import get_current_user_id, require_admin_api_key
 from app.db.models.asset import Asset
 from app.db.models.curated_news import CuratedNews
 from app.db.models.news_data import NewsData
+from app.db.models.news_comment import NewsComment
 from app.db.repositories.curated_news_repository import CuratedNewsRepository
+from app.db.repositories.news_comment_repository import NewsCommentRepository
 from app.db.session import get_db_session
-from app.models.request.table_requests import CreateCuratedNewsRequest, UpdateCuratedNewsRequest
-from app.models.response.table_responses import CuratedNewsResponse, PaginatedResponse
+from app.models.request.table_requests import (
+    CreateCuratedNewsRequest,
+    CreateNewsCommentRequest,
+    UpdateCuratedNewsRequest,
+    UpdateNewsCommentRequest,
+)
+from app.models.response.table_responses import CuratedNewsResponse, NewsCommentResponse, PaginatedResponse
 
 router = APIRouter(prefix="/curated-news")
 
@@ -39,6 +46,25 @@ def _response(
     base = CuratedNewsResponse.model_validate(row)
     sym = symbol_map.get(row.asset_id) if row.asset_id else None
     return base.model_copy(update={"asset_symbol": sym, "article_content": article_content})
+
+
+def _comment_response(
+    row: NewsComment,
+    username: str,
+    *,
+    parent_username: str | None = None,
+) -> NewsCommentResponse:
+    return NewsCommentResponse(
+        id=row.id,
+        curated_news_id=row.curated_news_id,
+        user_id=row.user_id,
+        username=username,
+        content=row.content,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        parent_comment_id=row.parent_id,
+        parent_username=parent_username,
+    )
 
 
 async def _news_data_content(session: AsyncSession, row: CuratedNews) -> Optional[str]:
@@ -87,6 +113,133 @@ async def list_curated_news(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get(
+    "/{news_id}/comments",
+    response_model=PaginatedResponse[NewsCommentResponse],
+)
+async def list_news_comments(
+    news_id: uuid.UUID,
+    pagination: PaginationParams = Depends(get_pagination),
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """List comments for a curated news item (oldest first)."""
+    comment_repo = NewsCommentRepository(session)
+    if not await comment_repo.curated_news_exists(news_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    total = await comment_repo.count_for_news(news_id)
+    rows = await comment_repo.list_page(
+        news_id,
+        offset=pagination.offset,
+        limit=pagination.page_size,
+    )
+    return PaginatedResponse(
+        items=[_comment_response(r, uname, parent_username=pu) for r, uname, pu in rows],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
+
+
+@router.post(
+    "/{news_id}/comments",
+    response_model=NewsCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_news_comment(
+    news_id: uuid.UUID,
+    body: CreateNewsCommentRequest,
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Add a comment on a curated news article (authenticated)."""
+    text = body.content.strip()
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Comment cannot be empty",
+        )
+    comment_repo = NewsCommentRepository(session)
+    if not await comment_repo.curated_news_exists(news_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    parent_id = body.parent_comment_id
+    parent_username: str | None = None
+    if parent_id is not None:
+        parent = await comment_repo.get_by_id(parent_id)
+        if parent is None or parent.curated_news_id != news_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+        parent_username = await comment_repo.username_for_user(parent.user_id)
+    row = await comment_repo.create(
+        curated_news_id=news_id,
+        user_id=user_id,
+        content=text,
+        parent_id=parent_id,
+    )
+    username = await comment_repo.username_for_user(user_id)
+    if username is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return _comment_response(row, username, parent_username=parent_username)
+
+
+@router.patch(
+    "/{news_id}/comments/{comment_id}",
+    response_model=NewsCommentResponse,
+)
+async def update_news_comment(
+    news_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    body: UpdateNewsCommentRequest,
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Edit your own comment on a curated news article."""
+    text = body.content.strip()
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Comment cannot be empty",
+        )
+    comment_repo = NewsCommentRepository(session)
+    row = await comment_repo.update_content_if_owned(
+        comment_id=comment_id,
+        curated_news_id=news_id,
+        user_id=user_id,
+        content=text,
+    )
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    username = await comment_repo.username_for_user(user_id)
+    if username is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    parent_username: str | None = None
+    if row.parent_id is not None:
+        parent = await comment_repo.get_by_id(row.parent_id)
+        if parent is not None:
+            parent_username = await comment_repo.username_for_user(parent.user_id)
+    return _comment_response(row, username, parent_username=parent_username)
+
+
+@router.delete(
+    "/{news_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_news_comment(
+    news_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Delete your own comment on a curated news article."""
+    comment_repo = NewsCommentRepository(session)
+    ok = await comment_repo.delete_if_owned(
+        comment_id=comment_id,
+        curated_news_id=news_id,
+        user_id=user_id,
+    )
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
 
 @router.get("/{news_id}", response_model=CuratedNewsResponse)

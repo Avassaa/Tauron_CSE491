@@ -224,6 +224,21 @@ class UpdateCuratedNewsRequest(BaseModel):
     published_at: Optional[datetime] = None
 
 
+class CreateNewsCommentRequest(BaseModel):
+    """Post a comment on a curated news article (authenticated user)."""
+
+    # Large limit: markdown may embed base64 images.
+    content: str = Field(min_length=1, max_length=2_000_000)
+    parent_comment_id: Optional[uuid.UUID] = None
+    """Reply to an existing comment on the same story (optional)."""
+
+
+class UpdateNewsCommentRequest(BaseModel):
+    """Edit your own comment on a curated news article."""
+
+    content: str = Field(min_length=1, max_length=2_000_000)
+
+
 class CreateKnowledgeBaseRequest(BaseModel):
     """Create a knowledge row (admin). JSON field ``metadata`` maps to ``extra_metadata``."""
 

@@ -187,6 +187,24 @@ class CuratedNewsResponse(BaseModel):
     """Full raw article body from ``news_data`` when linked (detail responses)."""
 
 
+class NewsCommentResponse(BaseModel):
+    """A user comment on a curated news item."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    curated_news_id: uuid.UUID
+    user_id: uuid.UUID
+    username: str
+    content: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    parent_comment_id: Optional[uuid.UUID] = None
+    """Present when this comment is a reply to another."""
+    parent_username: Optional[str] = None
+    """Author of the parent comment (for UI context)."""
+
+
 class KnowledgeBaseResponse(BaseModel):
     """Knowledge chunk for list views (no embedding)."""
 

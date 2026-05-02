@@ -156,6 +156,14 @@ class Settings(BaseSettings):
         description="Base URL of the frontend application for email links",
     )
 
+    COMMENT_IMAGE_STORAGE_DIR: str = Field(
+        default="",
+        description=(
+            "Absolute or cwd-relative directory for news comment images. "
+            "Empty uses backend/data/comment_images."
+        ),
+    )
+
     AUTO_POPULATE_ONCHAIN_ON_EMPTY_DB: bool = Field(
         default=True,
         description=(

@@ -1,8 +1,3 @@
-/**
- * Centralized API client for Tauron backend.
- * Reads access_token from localStorage and attaches Bearer header.
- * All requests time out after REQUEST_TIMEOUT_MS milliseconds.
- */
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
 const REQUEST_TIMEOUT_MS = 8000
@@ -136,6 +131,12 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+function authHeadersWithoutJsonContentType(): Record<string, string> {
+  const h = { ...(authHeaders() as Record<string, string>) }
+  delete h["Content-Type"]
+  return h
+}
+
 async function fetchWithAuth(url: string, options: RequestInit): Promise<Response> {
   options.headers = authHeaders()
   options.signal = timeoutSignal()
@@ -164,6 +165,32 @@ async function fetchWithAuth(url: string, options: RequestInit): Promise<Respons
   return res
 }
 
+async function fetchWithAuthForm(url: string, form: FormData): Promise<Response> {
+  const init: RequestInit = {
+    method: "POST",
+    headers: authHeadersWithoutJsonContentType(),
+    body: form,
+    signal: timeoutSignal(),
+  }
+  let res = await fetch(url, init)
+  if (res.status === 401) {
+    if (!isRefreshing) {
+      isRefreshing = true
+      refreshPromise = refreshAccessToken().finally(() => {
+        isRefreshing = false
+        refreshPromise = null
+      })
+    }
+    const newToken = await refreshPromise
+    if (newToken) {
+      init.headers = authHeadersWithoutJsonContentType()
+      init.signal = timeoutSignal()
+      res = await fetch(url, init)
+    }
+  }
+  return res
+}
+
 
 // ─── User-facing (JWT) ────────────────────────────────────────────────────────
 
@@ -181,6 +208,18 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   return handleResponse<T>(res)
+}
+
+export async function apiPostFormData<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetchWithAuthForm(`${apiBaseUrl}${path}`, form)
+  return handleResponse<T>(res)
+}
+
+export async function uploadCommentImage(file: File): Promise<string> {
+  const form = new FormData()
+  form.append("file", file, file.name)
+  const data = await apiPostFormData<{ url: string }>("/comment-images", form)
+  return data.url
 }
 
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
@@ -359,6 +398,19 @@ export interface CuratedNewsResponse {
   created_at: string
   /** Raw scraped article body when linked to ``news_data`` (detail GET only). */
   article_content?: string | null
+}
+
+/** User comment on a curated news story (`POST/GET …/curated-news/:id/comments`). */
+export interface NewsCommentResponse {
+  id: string
+  curated_news_id: string
+  user_id: string
+  username: string
+  content: string
+  created_at: string
+  updated_at?: string | null
+  parent_comment_id?: string | null
+  parent_username?: string | null
 }
 
 export interface PredictionResponse {

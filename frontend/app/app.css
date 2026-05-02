@@ -353,6 +353,88 @@
   }
 }
 
+
+html[data-news-read-mode] .glass-page-bg::before {
+  display: none !important;
+}
+
+html[data-news-read-mode],
+html[data-news-read-mode] body {
+  background-color: #000000 !important;
+}
+
+html[data-news-read-mode] .glass-page-bg {
+  background-color: #000000 !important;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-wrapper"] {
+  background-color: #000000 !important;
+}
+
+html[data-news-read-mode] [data-market-marquee-banner] {
+  filter: none !important;
+  background-color: #000000 !important;
+  border-bottom-color: rgb(38 38 38) !important;
+  backdrop-filter: none !important;
+}
+
+html[data-news-read-mode] .glass-page-bg > header {
+  filter: none !important;
+  background-color: #000000 !important;
+  border-bottom-color: rgb(38 38 38) !important;
+  backdrop-filter: none !important;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-inner"] {
+  filter: none !important;
+  background-color: #000000 !important;
+  backdrop-filter: none !important;
+}
+
+html[data-news-read-mode] [data-sidebar="sidebar"][data-mobile="true"] {
+  background-color: #000000 !important;
+  backdrop-filter: none !important;
+}
+
+html[data-news-read-mode] [data-market-marquee-banner] {
+  isolation: isolate;
+}
+
+html[data-news-read-mode] [data-market-marquee-banner]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background-color: #000000;
+  pointer-events: auto;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-gap"] {
+  isolation: isolate;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-gap"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background-color: #000000;
+  pointer-events: auto;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-container"] {
+  isolation: isolate;
+}
+
+html[data-news-read-mode] [data-slot="sidebar-container"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background-color: #000000;
+  pointer-events: auto;
+}
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }

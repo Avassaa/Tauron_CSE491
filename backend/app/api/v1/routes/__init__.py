@@ -5,6 +5,7 @@ from .auth import router as auth_router
 from .backtest_results import router as backtest_results_router
 from .chat_history import admin_router as chat_history_admin_router
 from .chat_history import router as chat_history_router
+from .comment_images import router as comment_images_router
 from .curated_news import router as curated_news_router
 from .health import router as health_router
 from .knowledge_base import router as knowledge_base_router
@@ -28,6 +29,7 @@ __all__ = [
     "backtest_results_router",
     "chat_history_admin_router",
     "chat_history_router",
+    "comment_images_router",
     "curated_news_router",
     "health_router",
     "knowledge_base_router",

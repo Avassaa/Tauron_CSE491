@@ -315,6 +315,7 @@ export function MarketMarqueeBanner() {
   return (
     <div
       ref={bannerRef}
+      data-market-marquee-banner
       className="fixed inset-x-0 top-0 z-[11] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
     >
       <div className="overflow-hidden py-2">

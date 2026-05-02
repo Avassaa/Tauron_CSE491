@@ -245,6 +245,7 @@ def _register_all_orm_models() -> None:
     import app.db.models.knowledge_base
     import app.db.models.market_data
     import app.db.models.ml_models
+    import app.db.models.news_comment
     import app.db.models.news_data
     import app.db.models.on_chain_metrics
     import app.db.models.predictions
@@ -332,6 +333,7 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
         await conn.run_sync(create_all_tables)
 
     curated_table = f'"{schema}".curated_news' if schema else "curated_news"
+    news_comments_table = f'"{schema}".news_comments' if schema else "news_comments"
     async with engine.begin() as conn:
         await conn.execute(
             text(
@@ -339,6 +341,34 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
                 "ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ"
             )
         )
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                f"ALTER TABLE {news_comments_table} "
+                "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ"
+            )
+        )
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                f"ALTER TABLE {news_comments_table} "
+                "ADD COLUMN IF NOT EXISTS parent_id UUID"
+            )
+        )
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(
+                text(
+                    f"ALTER TABLE {news_comments_table} ADD CONSTRAINT "
+                    "news_comments_parent_id_fkey FOREIGN KEY (parent_id) "
+                    f"REFERENCES {news_comments_table} (id) ON DELETE CASCADE"
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "news_comments.parent_id foreign key not added (may already exist): %s",
+                exc,
+            )
     async with engine.begin() as conn:
         if schema:
             await conn.execute(text(f'SET search_path TO "{schema}", public'))

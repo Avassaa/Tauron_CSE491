@@ -16,6 +16,7 @@ from app.api.v1.routes import (
     backtest_results_router,
     chat_history_admin_router,
     chat_history_router,
+    comment_images_router,
     curated_news_router,
     health_router,
     knowledge_base_router,
@@ -94,6 +95,7 @@ app.include_router(on_chain_metrics_router, prefix="/api/v1", tags=["On-chain me
 app.include_router(curated_news_router, prefix="/api/v1", tags=["Curated news"])
 app.include_router(knowledge_base_router, prefix="/api/v1", tags=["Knowledge base"])
 app.include_router(chat_history_router, prefix="/api/v1", tags=["Chat history"])
+app.include_router(comment_images_router, prefix="/api/v1")
 app.include_router(chat_history_admin_router, prefix="/api/v1", tags=["Chat history (admin)"])
 app.include_router(backtest_results_router, prefix="/api/v1", tags=["Backtest results"])
 app.include_router(scraper_logs_router, prefix="/api/v1", tags=["Scraper logs"])
