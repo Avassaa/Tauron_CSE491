@@ -154,7 +154,7 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
+          "flex h-full w-(--sidebar-width) flex-col bg-white/75 text-sidebar-foreground backdrop-blur-xl backdrop-saturate-125 dark:bg-sidebar/65 dark:backdrop-blur-xl dark:backdrop-saturate-125",
           className
         )}
         {...props}
@@ -171,7 +171,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) border-border/50 bg-white p-0 text-sidebar-foreground dark:bg-sidebar [&>button]:hidden"
+          className="w-(--sidebar-width) border-border/50 bg-white/78 p-0 text-sidebar-foreground backdrop-blur-xl backdrop-saturate-125 dark:bg-sidebar/65 dark:backdrop-blur-xl [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -228,7 +228,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm group-data-[variant=inset]:rounded-xl group-data-[variant=inset]:border group-data-[variant=inset]:border-sidebar-border group-data-[variant=inset]:shadow-sm"
+          className="flex h-full w-full flex-col bg-white/75 backdrop-blur-xl backdrop-saturate-125 dark:bg-sidebar/65 dark:backdrop-blur-xl dark:backdrop-saturate-125 group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm group-data-[variant=inset]:rounded-xl group-data-[variant=inset]:border group-data-[variant=inset]:border-sidebar-border group-data-[variant=inset]:shadow-sm"
         >
           {children}
         </div>
