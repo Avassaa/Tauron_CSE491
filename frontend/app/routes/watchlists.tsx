@@ -541,7 +541,7 @@ function WatchlistPageClient() {
                     <div className="min-w-[600px]">
                       <Table>
                         <TableHeader>
-                          <TableRow className="hover:bg-transparent border-border/50 bg-muted/45">
+                          <TableRow className="hover:bg-transparent border-border/50 bg-white/28 dark:bg-muted/40">
                             <TableHead className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-foreground/70">
                               Name
                             </TableHead>

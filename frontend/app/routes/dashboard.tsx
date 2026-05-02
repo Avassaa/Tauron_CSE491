@@ -29,6 +29,7 @@ import {
   DashboardFiltersSection,
   type DashboardApplyPayload,
 } from "~/components/dashboard/dashboard-filters-section"
+import { glassPanelSurface } from "~/components/ui/card"
 import { DashboardChartsSkeleton } from "~/components/dashboard/dashboard-charts-skeleton"
 import { DashboardResultsTable } from "~/components/dashboard/dashboard-results-table"
 import { DashboardTableSkeleton } from "~/components/dashboard/dashboard-table-skeleton"
@@ -126,7 +127,10 @@ function DashboardPageClient() {
             </div>
             {dataBusy ? (
               <div
-                className="absolute inset-0 z-10 overflow-auto rounded-lg bg-background/95 p-0.5 shadow-md ring-1 ring-border backdrop-blur-[2px]"
+                className={cn(
+                  "absolute inset-0 z-10 isolate overflow-auto rounded-xl p-1 ring-1 ring-border/50",
+                  glassPanelSurface,
+                )}
                 role="status"
                 aria-busy
                 aria-label={applyBusy ? "Updating results" : "Loading results"}
@@ -156,7 +160,10 @@ function DashboardPageClient() {
                 </div>
                 {dataBusy ? (
                   <div
-                    className="absolute inset-0 z-10 overflow-auto rounded-lg bg-background/95 p-0.5 shadow-md ring-1 ring-border backdrop-blur-[2px]"
+                    className={cn(
+                      "absolute inset-0 z-10 isolate overflow-auto rounded-xl p-1 ring-1 ring-border/50",
+                      glassPanelSurface,
+                    )}
                     role="status"
                     aria-busy
                     aria-label={

@@ -39,7 +39,7 @@ export function WatchlistTable({
     <div className="rounded-3xl border border-border/50 bg-card/80 backdrop-blur-xl overflow-hidden shadow-2xl shadow-primary/5">
       <Table>
         <TableHeader>
-          <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
+          <TableRow className="hover:bg-transparent border-b border-border/50 bg-white/28 dark:bg-muted/40">
             <TableHead className="font-black text-foreground/70 py-5 px-6 uppercase tracking-widest text-[10px]">
               Asset
             </TableHead>

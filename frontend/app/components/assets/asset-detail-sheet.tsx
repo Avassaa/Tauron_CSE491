@@ -22,6 +22,7 @@ import { AssetIcon } from "~/components/asset-icon"
 import {
   Card,
   CardContent,
+  glassPanelSurface,
 } from "~/components/ui/card"
 import {
   Table,
@@ -428,7 +429,13 @@ export function AssetDetailSheet({
 
   return (
     <Sheet open={!!selectedAsset} onOpenChange={(open) => !open && setSelectedAsset(null)}>
-      <SheetContent side="right" className="w-full sm:max-w-[680px] p-0 border-l border-border bg-background text-foreground overflow-y-auto scrollbar-none">
+      <SheetContent
+        side="right"
+        className={cn(
+          "w-full sm:max-w-[680px] border-l p-0 text-foreground overflow-y-auto scrollbar-none isolate shadow-xl",
+          glassPanelSurface,
+        )}
+      >
         {selectedAsset && (
           <div className="relative px-4 sm:px-8 pt-8 sm:pt-10 pb-10 sm:pb-12 flex flex-col">
             <SheetHeader className="items-start text-left mb-8 p-0">
@@ -556,7 +563,7 @@ export function AssetDetailSheet({
 
             {detailView === "alerts" ? (
               <div className="space-y-5">
-                <div className="rounded-2xl border border-border bg-card/50 p-5">
+                <div className={cn("rounded-2xl p-5", glassPanelSurface)}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2 text-lg font-black tracking-tight">
@@ -569,7 +576,7 @@ export function AssetDetailSheet({
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-3 rounded-xl border bg-card/50 p-3 sm:grid-cols-2 sm:items-stretch">
+                  <div className={cn("mt-5 grid gap-3 rounded-xl p-3 sm:grid-cols-2 sm:items-stretch", glassPanelSurface)}>
                     <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
                       <div className="shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground">
                         Current Binance price
@@ -648,7 +655,7 @@ export function AssetDetailSheet({
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-border bg-card/50">
+                <div className={cn("rounded-2xl overflow-hidden", glassPanelSurface)}>
                   <div className="flex items-center justify-between border-b px-5 py-4">
                     <div className="font-black">Existing alarms</div>
                     {assetAlerts.length > 0 ? (
@@ -781,20 +788,20 @@ export function AssetDetailSheet({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {chartLoading && !marketStats ? (
                   Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="rounded-2xl border border-border bg-card/50 px-4 py-2.5 h-[58px]">
+                    <div key={i} className={cn("rounded-2xl px-4 py-2.5 h-[58px]", glassPanelSurface)}>
                       <Skeleton className="h-2 w-12 rounded mt-1 opacity-40" />
                       <Skeleton className="h-4 w-20 rounded mt-2" />
                     </div>
                   ))
                 ) : (
                   <>
-                    <div className={cn("rounded-2xl border border-border bg-card/50 px-4 py-2.5 space-y-0.5 transition-opacity", chartLoading && "opacity-50")}>
+                    <div className={cn("rounded-2xl px-4 py-2.5 space-y-0.5 transition-opacity", glassPanelSurface, chartLoading && "opacity-50")}>
                       <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Price</span>
                       <div className="text-base font-black tracking-tight">
                         {formatCurrency(marketStats?.price)}
                       </div>
                     </div>
-                    <div className={cn("rounded-2xl border border-border bg-card/50 px-4 py-2.5 space-y-0.5 transition-opacity", chartLoading && "opacity-50")}>
+                    <div className={cn("rounded-2xl px-4 py-2.5 space-y-0.5 transition-opacity", glassPanelSurface, chartLoading && "opacity-50")}>
                       <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">{timeRange} Change</span>
                       {(() => {
                         const displayVal =
@@ -814,7 +821,7 @@ export function AssetDetailSheet({
                         );
                       })()}
                     </div>
-                    <div className={cn("rounded-2xl border border-border bg-card/50 px-4 py-2.5 space-y-0.5 transition-opacity", chartLoading && "opacity-50")}>
+                    <div className={cn("rounded-2xl px-4 py-2.5 space-y-0.5 transition-opacity", glassPanelSurface, chartLoading && "opacity-50")}>
                       <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">24H Volume</span>
                       <div className="text-base font-black tracking-tight truncate">
                         {formatCompactCurrency(marketStats?.volume)}
@@ -939,10 +946,10 @@ export function AssetDetailSheet({
                     {/* Performance Metrics Table */}
                     <div className="space-y-3">
                       <h3 className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 px-1">Price Performance</h3>
-                      <div className="rounded-2xl border border-border/50 bg-card/80 overflow-hidden backdrop-blur-xl shadow-2xl shadow-primary/5">
+                      <div className={cn("rounded-2xl overflow-hidden shadow-2xl shadow-primary/5", glassPanelSurface)}>
                         <Table>
                           <TableHeader>
-                            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
+                            <TableRow className="hover:bg-transparent border-b border-border/50 bg-white/28 dark:bg-muted/40">
                               {["1h", "24h", "7d", "14d", "30d", "1y"].map((t) => (
                                 <TableHead key={t} className="h-auto py-2 px-1 text-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 border-r last:border-r-0 border-border/20">
                                   {t}
@@ -988,7 +995,7 @@ export function AssetDetailSheet({
                 ) :
                   // TODO : prediction model's info later to be done
                   (
-                    <div className="rounded-2xl border border-border bg-card/50 p-6 space-y-6">
+                    <div className={cn("rounded-2xl p-6 space-y-6", glassPanelSurface)}>
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -1047,7 +1054,7 @@ export function AssetDetailSheet({
                         </Card>
                       </div>
 
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+                      <div className={cn("rounded-xl p-4 space-y-2", glassPanelSurface)}>
                         <div className="flex items-center gap-2 text-primary">
                           <div className="size-1.5 rounded-full bg-primary animate-pulse" />
                           <span className="text-[9px] font-black uppercase tracking-[0.2em]">Real-time prediction ready.</span>

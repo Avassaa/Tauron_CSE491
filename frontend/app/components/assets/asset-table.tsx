@@ -192,7 +192,7 @@ export function AssetTable({
       <div className="overflow-x-auto scrollbar-thin">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
+            <TableRow className="hover:bg-transparent border-b border-border/50 bg-white/28 dark:bg-muted/40">
               <TableHead className="w-[48px] pl-6 text-left"></TableHead>
               <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors" onClick={() => handleSort("rank")}>
                 <div className="flex items-center justify-center gap-0.5"># <SortIcon column="rank" /></div>
@@ -312,7 +312,7 @@ function AssetTableRow({
   return (
     <TableRow
       key={asset.id}
-      className="group cursor-pointer border-border/40 transition-colors hover:bg-muted/30"
+      className="group cursor-pointer border-border/40 transition-colors hover:bg-white/22 dark:hover:bg-muted/28"
       onClick={() => setSelectedAsset(asset)}
     >
       <TableCell className="py-4 pl-6 px-0 w-[48px] text-left" onClick={(e) => e.stopPropagation()}>

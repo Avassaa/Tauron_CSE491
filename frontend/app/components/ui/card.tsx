@@ -3,10 +3,10 @@ import * as React from "react"
 import { cn } from "~/lib/utils"
 
 /**
- * Stronger blur keeps body text readable over the blue glass backdrop; fill stays translucent.
+ * Light: translucent white (opacity only—no gray shift); dark: token fill. Blur keeps text readable.
  */
 export const glassCardSurface =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-background/55 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/45"
+  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-white/78 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/45"
 
 function cardVariants() {
   return cn(glassCardSurface, "flex flex-col gap-6 py-6")
@@ -16,6 +16,10 @@ function cardVariants() {
 export function glassSurfaceVariants(): string {
   return glassCardSurface
 }
+
+/** Nested panels, sheet bodies, loading overlays — light: frosted white at lower opacity; dark unchanged. */
+export const glassPanelSurface =
+  "border border-border/50 bg-white/78 backdrop-blur-xl backdrop-saturate-125 shadow-sm dark:border-border/50 dark:bg-background/45"
 
 export interface CardProps extends React.ComponentProps<"div"> {}
 

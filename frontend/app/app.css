@@ -244,7 +244,7 @@
 /**
  * Blue “light on glass” (police-style reflection): soft wide radials + streaks,
  * `--chart-seed-hue` only. `screen` reads additive like light hitting the pane.
- * Positions: `--glass-light-1..4` from `GlassBackdropSeed`.
+ * Positions: `--glass-light-1..6` from `GlassBackdropSeed`.
  */
 @layer components {
   .glass-page-bg {
@@ -259,34 +259,49 @@
     pointer-events: none;
     border-radius: inherit;
     mix-blend-mode: screen;
+    /* Six layers + slightly stronger cores; pale stops keep chroma (blue, not gray). */
     background-image:
       radial-gradient(
         ellipse 92% 28% at var(--glass-light-3-x, 55%) var(--glass-light-3-y, 42%),
-        oklch(0.94 0.13 var(--chart-seed-hue) / 0.28) 0%,
-        oklch(0.98 0.065 var(--chart-seed-hue) / 0.105) 38%,
-        oklch(1 0.025 var(--chart-seed-hue) / 0.035) 68%,
+        oklch(0.94 0.14 var(--chart-seed-hue) / 0.205) 0%,
+        oklch(0.98 0.09 var(--chart-seed-hue) / 0.082) 38%,
+        oklch(1 0.055 var(--chart-seed-hue) / 0.028) 68%,
         transparent 82%
       ),
       radial-gradient(
         ellipse 78% 32% at var(--glass-light-4-x, 35%) var(--glass-light-4-y, 62%),
-        oklch(0.95 0.12 var(--chart-seed-hue) / 0.26) 0%,
-        oklch(0.98 0.06 var(--chart-seed-hue) / 0.095) 42%,
-        oklch(1 0.022 var(--chart-seed-hue) / 0.03) 70%,
+        oklch(0.95 0.13 var(--chart-seed-hue) / 0.195) 0%,
+        oklch(0.98 0.085 var(--chart-seed-hue) / 0.075) 42%,
+        oklch(1 0.05 var(--chart-seed-hue) / 0.024) 70%,
         transparent 84%
       ),
       radial-gradient(
         ellipse 52% 48% at var(--glass-light-1-x, 72%) var(--glass-light-1-y, 28%),
-        oklch(0.93 0.14 var(--chart-seed-hue) / 0.27) 0%,
-        oklch(0.97 0.075 var(--chart-seed-hue) / 0.125) 36%,
-        oklch(1 0.026 var(--chart-seed-hue) / 0.038) 62%,
+        oklch(0.93 0.15 var(--chart-seed-hue) / 0.2) 0%,
+        oklch(0.97 0.1 var(--chart-seed-hue) / 0.095) 36%,
+        oklch(1 0.058 var(--chart-seed-hue) / 0.03) 62%,
         transparent 80%
       ),
       radial-gradient(
         ellipse 46% 54% at var(--glass-light-2-x, 28%) var(--glass-light-2-y, 58%),
-        oklch(0.94 0.12 var(--chart-seed-hue) / 0.24) 0%,
-        oklch(0.98 0.065 var(--chart-seed-hue) / 0.1) 40%,
-        oklch(1 0.022 var(--chart-seed-hue) / 0.028) 65%,
+        oklch(0.94 0.13 var(--chart-seed-hue) / 0.185) 0%,
+        oklch(0.98 0.09 var(--chart-seed-hue) / 0.078) 40%,
+        oklch(1 0.05 var(--chart-seed-hue) / 0.022) 65%,
         transparent 82%
+      ),
+      radial-gradient(
+        ellipse 58% 44% at var(--glass-light-5-x, 50%) var(--glass-light-5-y, 50%),
+        oklch(0.94 0.14 var(--chart-seed-hue) / 0.168) 0%,
+        oklch(0.98 0.095 var(--chart-seed-hue) / 0.065) 40%,
+        oklch(1 0.052 var(--chart-seed-hue) / 0.02) 68%,
+        transparent 84%
+      ),
+      radial-gradient(
+        ellipse 40% 38% at var(--glass-light-6-x, 22%) var(--glass-light-6-y, 78%),
+        oklch(0.93 0.14 var(--chart-seed-hue) / 0.155) 0%,
+        oklch(0.97 0.09 var(--chart-seed-hue) / 0.058) 42%,
+        oklch(1 0.05 var(--chart-seed-hue) / 0.018) 72%,
+        transparent 86%
       );
   }
 
@@ -295,31 +310,45 @@
     background-image:
       radial-gradient(
         ellipse 92% 28% at var(--glass-light-3-x, 55%) var(--glass-light-3-y, 42%),
-        oklch(0.42 0.15 var(--chart-seed-hue) / 0.34) 0%,
-        oklch(0.52 0.08 var(--chart-seed-hue) / 0.135) 40%,
-        oklch(0.62 0.032 var(--chart-seed-hue) / 0.048) 68%,
+        oklch(0.42 0.16 var(--chart-seed-hue) / 0.27) 0%,
+        oklch(0.52 0.11 var(--chart-seed-hue) / 0.105) 40%,
+        oklch(0.62 0.05 var(--chart-seed-hue) / 0.038) 68%,
         transparent 82%
       ),
       radial-gradient(
         ellipse 78% 32% at var(--glass-light-4-x, 35%) var(--glass-light-4-y, 62%),
-        oklch(0.4 0.14 var(--chart-seed-hue) / 0.32) 0%,
-        oklch(0.5 0.075 var(--chart-seed-hue) / 0.115) 42%,
-        oklch(0.58 0.028 var(--chart-seed-hue) / 0.038) 70%,
+        oklch(0.4 0.15 var(--chart-seed-hue) / 0.255) 0%,
+        oklch(0.5 0.1 var(--chart-seed-hue) / 0.09) 42%,
+        oklch(0.58 0.045 var(--chart-seed-hue) / 0.03) 70%,
         transparent 84%
       ),
       radial-gradient(
         ellipse 52% 48% at var(--glass-light-1-x, 72%) var(--glass-light-1-y, 28%),
-        oklch(0.38 0.16 var(--chart-seed-hue) / 0.33) 0%,
-        oklch(0.48 0.085 var(--chart-seed-hue) / 0.145) 38%,
-        oklch(0.58 0.032 var(--chart-seed-hue) / 0.05) 62%,
+        oklch(0.38 0.17 var(--chart-seed-hue) / 0.265) 0%,
+        oklch(0.48 0.11 var(--chart-seed-hue) / 0.115) 38%,
+        oklch(0.58 0.048 var(--chart-seed-hue) / 0.04) 62%,
         transparent 80%
       ),
       radial-gradient(
         ellipse 46% 54% at var(--glass-light-2-x, 28%) var(--glass-light-2-y, 58%),
-        oklch(0.4 0.14 var(--chart-seed-hue) / 0.3) 0%,
-        oklch(0.5 0.075 var(--chart-seed-hue) / 0.12) 40%,
-        oklch(0.6 0.028 var(--chart-seed-hue) / 0.042) 65%,
+        oklch(0.4 0.15 var(--chart-seed-hue) / 0.245) 0%,
+        oklch(0.5 0.1 var(--chart-seed-hue) / 0.092) 40%,
+        oklch(0.6 0.045 var(--chart-seed-hue) / 0.033) 65%,
         transparent 82%
+      ),
+      radial-gradient(
+        ellipse 58% 44% at var(--glass-light-5-x, 50%) var(--glass-light-5-y, 50%),
+        oklch(0.4 0.16 var(--chart-seed-hue) / 0.22) 0%,
+        oklch(0.5 0.105 var(--chart-seed-hue) / 0.082) 40%,
+        oklch(0.58 0.048 var(--chart-seed-hue) / 0.028) 68%,
+        transparent 84%
+      ),
+      radial-gradient(
+        ellipse 40% 38% at var(--glass-light-6-x, 22%) var(--glass-light-6-y, 78%),
+        oklch(0.38 0.16 var(--chart-seed-hue) / 0.2) 0%,
+        oklch(0.48 0.1 var(--chart-seed-hue) / 0.072) 42%,
+        oklch(0.56 0.045 var(--chart-seed-hue) / 0.026) 72%,
+        transparent 86%
       );
   }
 }

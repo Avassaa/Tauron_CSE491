@@ -16,7 +16,7 @@ export function AssetsSkeleton() {
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-b border-border/50 bg-muted/45">
+            <TableRow className="hover:bg-transparent border-b border-border/50 bg-white/28 dark:bg-muted/40">
               <TableHead className="w-[32px] px-1 text-center"></TableHead>
               <TableHead className="w-[32px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center">
                 #
