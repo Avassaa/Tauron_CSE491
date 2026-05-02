@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { GlassBackdropSeed } from "~/components/glass-backdrop-seed"
+import { LiquidGlassHtmlSync } from "~/components/liquid-glass-html-sync"
 import { Toaster } from "~/components/ui/sonner"
 import { applyThemeToDocument } from "~/theme-context"
 
@@ -20,6 +21,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <LiquidGlassHtmlSync />
       <GlassBackdropSeed />
       {children}
       <Toaster />

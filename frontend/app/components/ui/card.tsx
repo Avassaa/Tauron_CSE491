@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils"
  * Light: solid #fff (no translucency over the page—avoids muddy gray); dark: glass fill + blur.
  */
 export const glassCardSurface =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-white text-card-foreground shadow-sm dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
+  "glass-surface relative isolate overflow-hidden rounded-xl border border-border/50 bg-white text-card-foreground shadow-sm dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
 
 function cardVariants() {
   return cn(glassCardSurface, "flex flex-col gap-6 py-6")
@@ -19,7 +19,7 @@ export function glassSurfaceVariants(): string {
 
 /** Nested panels, sheet bodies, loading overlays — light: opaque white; dark: glass. */
 export const glassPanelSurface =
-  "border border-border/50 bg-white shadow-sm dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
+  "glass-panel-surface border border-border/50 bg-white shadow-sm dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
 
 export interface CardProps extends React.ComponentProps<"div"> {}
 

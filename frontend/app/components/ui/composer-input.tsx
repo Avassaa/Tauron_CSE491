@@ -11,11 +11,11 @@ import { Textarea } from "~/components/ui/textarea"
 
 /** Frosted glass panel — translucent fill + blur/saturate (light & dark). */
 const composerGlassSurface =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-white/88 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/85 dark:backdrop-blur-xl dark:backdrop-saturate-125"
+  "composer-glass-shell relative isolate overflow-hidden rounded-xl border border-border/50 bg-white/88 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/85 dark:backdrop-blur-xl dark:backdrop-saturate-125"
 
 /** Stronger fill when the composer sits on a busy page (e.g. news comments). */
 const composerEmbeddedSurface =
-  "relative isolate overflow-hidden rounded-b-lg border border-border/50 bg-white/[0.94] text-card-foreground shadow-md shadow-black/5 backdrop-blur-xl backdrop-saturate-150 dark:border-border/55 dark:bg-zinc-950/92 dark:shadow-black/30"
+  "composer-glass-shell relative isolate overflow-hidden rounded-b-lg border border-border/50 bg-white/[0.94] text-card-foreground shadow-md shadow-black/5 backdrop-blur-xl backdrop-saturate-150 dark:border-border/55 dark:bg-zinc-950/92 dark:shadow-black/30"
 
 export interface Attachment {
   id: string

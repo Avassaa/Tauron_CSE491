@@ -76,10 +76,10 @@ function SendShortcutHint({ mod }: { mod: "⌘" | "Ctrl" | null }) {
 }
 
 const composerGlassSurfaceFull =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-white/88 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/85 dark:backdrop-blur-xl dark:backdrop-saturate-125"
+  "composer-glass-shell relative isolate overflow-hidden rounded-xl border border-border/50 bg-white/88 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/85 dark:backdrop-blur-xl dark:backdrop-saturate-125"
 
 const composerEmbeddedSurfaceFull =
-  "relative isolate overflow-hidden rounded-b-lg border border-border/50 bg-white/[0.94] text-card-foreground shadow-md shadow-black/5 backdrop-blur-xl backdrop-saturate-150 dark:border-border/55 dark:bg-zinc-950/92 dark:shadow-black/30"
+  "composer-glass-shell relative isolate overflow-hidden rounded-b-lg border border-border/50 bg-white/[0.94] text-card-foreground shadow-md shadow-black/5 backdrop-blur-xl backdrop-saturate-150 dark:border-border/55 dark:bg-zinc-950/92 dark:shadow-black/30"
 
 const editorShellClass =
   "min-h-[100px] w-full px-2 py-2 text-sm text-foreground outline-none [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/35 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border/60 [&_pre]:bg-muted/40 [&_pre]:p-2 [&_pre]:font-mono [&_pre]:text-xs [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_strong]:font-semibold [&_code]:rounded [&_code]:border [&_code]:border-border/60 [&_code]:bg-muted/60 [&_code]:px-1 [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.9em]"

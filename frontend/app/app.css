@@ -435,6 +435,56 @@ html[data-news-read-mode] [data-slot="sidebar-container"]::after {
   pointer-events: auto;
 }
 
+/* Display → liquid glass off: remove page glow, solid cards, no backdrop blur. */
+html[data-solid-cards] .glass-page-bg::before {
+  display: none !important;
+}
+
+html[data-solid-cards] .glass-page-bg {
+  background-color: var(--background) !important;
+}
+
+html[data-solid-cards] [data-slot="card"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--card) !important;
+}
+
+html[data-solid-cards] .glass-surface,
+html[data-solid-cards] .glass-panel-surface {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--card) !important;
+}
+
+html[data-solid-cards] .composer-glass-shell {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--card) !important;
+}
+
+html[data-solid-cards] .app-subtle-header {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--background) !important;
+}
+
+html[data-solid-cards] [data-slot="sidebar-inner"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--sidebar) !important;
+}
+
+html[data-solid-cards] [data-market-marquee-banner] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-color: var(--background) !important;
+}
+
+html[data-solid-cards] [data-page-blue-backdrop] {
+  display: none !important;
+}
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }

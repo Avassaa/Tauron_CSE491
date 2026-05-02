@@ -11,6 +11,11 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/s
 import { Separator } from "~/components/ui/separator"
 import { AuthGuard } from "~/components/auth-guard"
 import {
+  isLiquidGlassEnabled,
+  onLiquidGlassChange,
+  setLiquidGlassEnabled,
+} from "~/lib/liquid-glass-preferences"
+import {
   isMarketBannerVisible,
   onMarketBannerVisibilityChange,
   setMarketBannerVisible,
@@ -18,11 +23,19 @@ import {
 
 export default function SettingsPage() {
   const [showMarketBanner, setShowMarketBannerState] = React.useState(true)
+  const [liquidGlass, setLiquidGlassState] = React.useState(true)
 
   React.useEffect(() => {
     setShowMarketBannerState(isMarketBannerVisible())
     return onMarketBannerVisibilityChange((visible) => {
       setShowMarketBannerState(visible)
+    })
+  }, [])
+
+  React.useEffect(() => {
+    setLiquidGlassState(isLiquidGlassEnabled())
+    return onLiquidGlassChange((enabled) => {
+      setLiquidGlassState(enabled)
     })
   }, [])
 
@@ -97,6 +110,26 @@ export default function SettingsPage() {
                       onCheckedChange={(checked) => {
                         setShowMarketBannerState(checked)
                         setMarketBannerVisible(checked)
+                      }}
+                    />
+                  </div>
+                  <div className="flex w-full items-center justify-between gap-3 border-t px-5 py-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="rounded-md border p-2 text-muted-foreground">
+                        <SlidersHorizontal className="size-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Liquid glass</div>
+                        <div className="text-xs text-muted-foreground">
+                          Frosted cards and backdrop blur. Turn off for solid, opaque panels.
+                        </div>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={liquidGlass}
+                      onCheckedChange={(checked) => {
+                        setLiquidGlassState(checked)
+                        setLiquidGlassEnabled(checked)
                       }}
                     />
                   </div>

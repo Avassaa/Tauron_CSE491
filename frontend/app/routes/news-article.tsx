@@ -394,9 +394,19 @@ function NewsArticleBody({
   const [commentToDeleteId, setCommentToDeleteId] = React.useState<string | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = React.useState(false)
   const [composerKey, setComposerKey] = React.useState(0)
+  const composerDockRef = React.useRef<HTMLDivElement>(null)
   const [meId, setMeId] = React.useState<string | null>(() =>
     typeof window !== "undefined" ? localStorage.getItem("user_id") : null,
   )
+
+  const scrollComposerIntoView = React.useCallback(() => {
+    window.setTimeout(() => {
+      composerDockRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      })
+    }, 80)
+  }, [])
 
   React.useEffect(() => {
     document.documentElement.toggleAttribute("data-news-read-mode", readMode)
@@ -765,6 +775,7 @@ function NewsArticleBody({
                           onReply={(id, username) => {
                             setEditingCommentId(null)
                             setReplyingTo({ id, username })
+                            scrollComposerIntoView()
                           }}
                           onEdit={(id) => {
                             setReplyingTo(null)
@@ -776,7 +787,10 @@ function NewsArticleBody({
                     </ul>
                   )}
                   </div>
-                  <div className="mt-auto border-t border-border/50">
+                  <div
+                    ref={composerDockRef}
+                    className="mt-auto scroll-mt-20 border-t border-border/50"
+                  >
                     {editingCommentId ? (
                       <p className="border-b border-border/40 bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
                         Editing a comment — use Save in the composer, or{" "}
