@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
 import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
@@ -96,41 +97,61 @@ export function NotificationInbox() {
 
   return (
     <Popover onOpenChange={(open) => open && void refresh()}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label="Notifications"
-        >
-          <Bell className="size-5" />
-          {unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-background px-1 text-xs font-semibold text-foreground shadow-sm ring-1 ring-border">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          ) : null}
-        </Button>
-      </PopoverTrigger>
+      <Tooltip delayDuration={250}>
+        <TooltipTrigger asChild>
+          <span className="inline-flex rounded-md">
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+                <Bell className="size-5" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-background px-1 text-xs font-semibold text-foreground shadow-sm ring-1 ring-border">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent variant="inverted" side="bottom">
+          Notifications — unread and recent alerts
+        </TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" side="bottom" sideOffset={12} className="w-[360px] overflow-hidden rounded-2xl p-0">
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div className="text-lg font-semibold">Notifications</div>
           <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={markAllRead}
-              disabled={unreadCount === 0}
-              aria-label="Mark all notifications as read"
-            >
-              <CheckCheck className="size-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="size-8" asChild aria-label="Open notifications page">
-              <Link to="/notifications">
-                <LayoutGrid className="size-4" />
-              </Link>
-            </Button>
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={markAllRead}
+                  disabled={unreadCount === 0}
+                  aria-label="Mark all notifications as read"
+                >
+                  <CheckCheck className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent variant="inverted" side="bottom">
+                Mark all as read
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex rounded-md">
+                  <Button variant="ghost" size="icon" className="size-8" asChild aria-label="Open notifications page">
+                    <Link to="/notifications">
+                      <LayoutGrid className="size-4" />
+                    </Link>
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent variant="inverted" side="bottom">
+                Open full notifications page
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
         {loading && items.length === 0 ? (

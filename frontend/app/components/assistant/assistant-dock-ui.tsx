@@ -30,8 +30,8 @@ export function AssistantDockToolbarButton({ className }: { className?: string }
           <Bot className="h-5 w-5" aria-hidden />
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={6}>
-        {open ? "Close assistant" : "Assistant"}
+      <TooltipContent side="bottom" sideOffset={6} variant="inverted">
+        {open ? "Close AI assistant" : "Open AI assistant"}
       </TooltipContent>
     </Tooltip>
   )

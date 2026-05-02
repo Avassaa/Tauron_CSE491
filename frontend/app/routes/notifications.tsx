@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button"
 import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Skeleton } from "~/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } from "~/lib/api-client"
 import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
@@ -103,9 +104,27 @@ export default function NotificationsPage() {
         >
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex rounded-md">
+                    <SidebarTrigger className="-ml-1" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent variant="inverted" side="bottom">
+                  Toggle navigation sidebar
+                </TooltipContent>
+              </Tooltip>
               <Separator orientation="vertical" className="mr-2 h-4" />
-              <span className="font-medium">Notifications</span>
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex rounded-md">
+                    <span className="font-medium">Notifications</span>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent variant="inverted" side="bottom">
+                  All alerts and system messages
+                </TooltipContent>
+              </Tooltip>
             </div>
             <NotificationInbox />
           </header>
@@ -113,12 +132,19 @@ export default function NotificationsPage() {
           <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
             <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
               <aside className="space-y-1">
-                <button
-                  type="button"
-                  className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
-                >
-                  Inbox
-                </button>
+                <Tooltip delayDuration={200}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
+                    >
+                      Inbox
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent variant="inverted" side="right">
+                    Primary notification inbox
+                  </TooltipContent>
+                </Tooltip>
               </aside>
               <section className="space-y-5">
                 <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
@@ -133,10 +159,23 @@ export default function NotificationsPage() {
                         : "You are all caught up."}
                     </div>
                   </div>
-                  <Button type="button" variant="outline" className="gap-2" onClick={markAllRead} disabled={unreadCount === 0}>
-                    <CheckCheck className="size-4" />
-                    Mark all read
-                  </Button>
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={markAllRead}
+                        disabled={unreadCount === 0}
+                      >
+                        <CheckCheck className="size-4" />
+                        Mark all read
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent variant="inverted" side="left">
+                      Mark every notification as read
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
                 <div className="overflow-hidden rounded-xl border">
