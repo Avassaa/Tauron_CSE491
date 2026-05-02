@@ -17,7 +17,7 @@ from typing import Any, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from sqlalchemy import text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -423,6 +423,69 @@ async def _rephrase_news_item_with_gemini(
     }
 
 
+_SHORT_TRADED_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "ADA",
+        "DOGE",
+        "LTC",
+        "TRX",
+        "DOT",
+        "AVAX",
+        "TON",
+        "SHIB",
+        "MATIC",
+        "POL",
+        "USDT",
+        "USDC",
+        "NEAR",
+        "UNI",
+        "OP",
+        "ARB",
+        "APT",
+        "FIL",
+        "ETC",
+    },
+)
+
+
+async def _resolve_asset_id_for_news_text(
+    session: AsyncSession,
+    *text_parts: str,
+) -> Optional[uuid.UUID]:
+    """Pick one asset when its ticker or full name appears in the headline/summary/body."""
+    from app.db.models.asset import Asset
+
+    joined = " ".join(p.strip() for p in text_parts if p)
+    if len(joined) < 2:
+        return None
+    haystack_upper = joined.upper()
+    haystack_mixed = joined
+    result = await session.execute(
+        select(Asset.id, Asset.symbol, Asset.name).where(Asset.is_active.is_(True)),
+    )
+    triples = list(result.all())
+    for asset_id, symbol, _name in sorted(triples, key=lambda r: len(str(r[1])), reverse=True):
+        sym = str(symbol).strip().upper()
+        if len(sym) < 2:
+            continue
+        if len(sym) < 3 and sym not in _SHORT_TRADED_SYMBOLS:
+            continue
+        if re.search(rf"(?<![A-Z0-9]){re.escape(sym)}(?![A-Z0-9])", haystack_upper):
+            return asset_id
+    for asset_id, _symbol, name in sorted(triples, key=lambda r: len(str(r[2] or "")), reverse=True):
+        nm = str(name or "").strip()
+        if len(nm) < 5:
+            continue
+        if re.search(rf"(?<![A-Za-z0-9]){re.escape(nm)}(?![A-Za-z0-9])", haystack_mixed, re.IGNORECASE):
+            return asset_id
+    return None
+
+
 async def _sync_news_into_knowledge_base_and_curated_news(
     *,
     force_curate: bool = False,
@@ -639,10 +702,25 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                     curated_failures += 1
                     continue
 
+                story_published_at = row.get("published_at")
+                if not isinstance(story_published_at, datetime):
+                    story_published_at = row.get("scraped_at")
+                if not isinstance(story_published_at, datetime):
+                    story_published_at = published_at_value
+
+                resolved_asset_id = await _resolve_asset_id_for_news_text(
+                    session,
+                    title,
+                    curated["summary"],
+                    content,
+                )
+
                 session.add(
                     CuratedNews(
                         summary=curated["summary"],
                         sentiment_score=curated["sentiment_score"],
+                        published_at=story_published_at,
+                        asset_id=resolved_asset_id,
                         data_points_used={
                             "news_data_id": str(row["id"]),
                             "source": source,

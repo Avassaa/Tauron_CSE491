@@ -16,4 +16,5 @@ export default [
     route("assets", "routes/assets.tsx"),
     route("watchlists", "routes/watchlists.tsx"),
     route("news", "routes/news.tsx"),
+    route("news/:newsId", "routes/news-article.tsx"),
 ] satisfies RouteConfig;

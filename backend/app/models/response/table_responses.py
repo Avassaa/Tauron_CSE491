@@ -177,9 +177,11 @@ class CuratedNewsResponse(BaseModel):
 
     id: uuid.UUID
     asset_id: Optional[uuid.UUID]
+    asset_symbol: Optional[str] = None
     summary: str
     sentiment_score: Optional[float]
     data_points_used: Optional[dict[str, Any]]
+    published_at: Optional[datetime] = None
     created_at: datetime
 
 

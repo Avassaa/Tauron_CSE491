@@ -38,6 +38,7 @@ import {
   apiPatch,
   apiPost,
   type AssetResponse,
+  type CuratedNewsResponse,
   type MarketDataResponse,
   type PaginatedResponse,
   type PriceAlertResponse,
@@ -68,14 +69,6 @@ const TOOL_SECTIONS: Array<{ id: ToolSectionId; label: string }> = [
   { id: "market-sentiment", label: "Market Sentiment" },
   { id: "watchlist-insights", label: "Watchlist Insights" },
 ]
-
-type CuratedNewsResponse = {
-  id: string
-  asset_id: string | null
-  summary: string
-  sentiment_score: number | null
-  created_at: string
-}
 
 type WatchlistInsightRow = {
   asset: AssetResponse

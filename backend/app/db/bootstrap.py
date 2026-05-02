@@ -331,6 +331,33 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
 
         await conn.run_sync(create_all_tables)
 
+    curated_table = f'"{schema}".curated_news' if schema else "curated_news"
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                f"ALTER TABLE {curated_table} "
+                "ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ"
+            )
+        )
+    async with engine.begin() as conn:
+        if schema:
+            await conn.execute(text(f'SET search_path TO "{schema}", public'))
+        try:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE curated_news cn
+                    SET published_at = nd.published_at
+                    FROM news_data nd
+                    WHERE cn.data_points_used->>'news_data_id' = nd.id::text
+                      AND cn.published_at IS NULL
+                      AND nd.published_at IS NOT NULL
+                    """
+                )
+            )
+        except Exception as exc:
+            logger.warning("curated_news published_at backfill skipped: %s", exc)
+
     async with engine.begin() as conn:
         if schema:
             await conn.execute(

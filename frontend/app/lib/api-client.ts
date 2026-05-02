@@ -285,9 +285,11 @@ export interface MarketDataResponse {
 export interface CuratedNewsResponse {
   id: string
   asset_id: string | null
+  asset_symbol?: string | null
   summary: string
   sentiment_score: number | null
-  data_points_used: number | null
+  data_points_used: Record<string, unknown> | null
+  published_at: string | null
   created_at: string
 }
 

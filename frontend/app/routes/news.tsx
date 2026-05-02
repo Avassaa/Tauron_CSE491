@@ -3,12 +3,14 @@
 import * as React from "react"
 import { formatDistanceToNow } from "date-fns"
 import { Newspaper, RefreshCw } from "lucide-react"
+import { Link } from "react-router"
 import { toast } from "sonner"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { AssetPagination } from "~/components/assets"
 import { apiGet, apiPost, type CuratedNewsResponse, type PaginatedResponse } from "~/lib/api-client"
+import { cn } from "~/lib/utils"
 
 type NewsScrapeAcceptedResponse = {
   status: "accepted"
@@ -20,6 +22,13 @@ function formatSentiment(score: number | null): string {
   if (score > 0.15) return "Bullish"
   if (score < -0.15) return "Bearish"
   return "Neutral"
+}
+
+function sentimentBadgeClass(score: number | null): string {
+  if (score == null || !Number.isFinite(score)) return "bg-muted text-muted-foreground"
+  if (score > 0.15) return "bg-green-500/15 text-green-600 dark:text-green-400 border border-green-600/30"
+  if (score < -0.15) return "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-600/30"
+  return "bg-muted text-muted-foreground"
 }
 
 export default function NewsPage() {
@@ -140,19 +149,55 @@ export default function NewsPage() {
               No curated news yet. Click Get News to trigger scraping and curation.
             </div>
           ) : (
-            newsItems.map((item) => (
-              <article key={item.id} className="rounded-xl border bg-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-                    {formatSentiment(item.sentiment_score)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                  </span>
-                </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6">{item.summary}</p>
-              </article>
-            ))
+            newsItems.map((item) => {
+              const storyRaw = item.published_at ?? item.created_at
+              const storyDate = new Date(storyRaw)
+              const dp = item.data_points_used
+              const headline =
+                typeof dp === "object" && dp && typeof dp.title === "string" ? dp.title : null
+              return (
+                <Link
+                  key={item.id}
+                  to={`/news/${item.id}`}
+                  className="block rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/30"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-1 text-xs font-semibold",
+                          sentimentBadgeClass(item.sentiment_score),
+                        )}
+                      >
+                        {formatSentiment(item.sentiment_score)}
+                      </span>
+                      {item.asset_symbol ? (
+                        <span
+                          className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary"
+                          title="Linked asset (see article page for assets link)"
+                        >
+                          {item.asset_symbol}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {Number.isNaN(storyDate.getTime())
+                        ? "—"
+                        : formatDistanceToNow(storyDate, { addSuffix: true })}
+                    </span>
+                  </div>
+                  {headline ? (
+                    <h2 className="mt-2 text-sm font-semibold leading-snug text-foreground">{headline}</h2>
+                  ) : null}
+                  <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                    {item.summary}
+                  </p>
+                  <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-primary/80">
+                    Read full article →
+                  </p>
+                </Link>
+              )
+            })
           )}
 
           <AssetPagination page={page} totalPages={totalPages} setPage={setPage} loading={loading} />

@@ -29,6 +29,11 @@ class CuratedNews(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     sentiment_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     data_points_used: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Original article publish time from news_data when available.",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

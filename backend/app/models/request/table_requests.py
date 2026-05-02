@@ -211,6 +211,7 @@ class CreateCuratedNewsRequest(BaseModel):
     asset_id: Optional[uuid.UUID] = None
     sentiment_score: Optional[float] = None
     data_points_used: Optional[dict[str, Any]] = None
+    published_at: Optional[datetime] = None
 
 
 class UpdateCuratedNewsRequest(BaseModel):
@@ -220,6 +221,7 @@ class UpdateCuratedNewsRequest(BaseModel):
     summary: Optional[str] = None
     sentiment_score: Optional[float] = None
     data_points_used: Optional[dict[str, Any]] = None
+    published_at: Optional[datetime] = None
 
 
 class CreateKnowledgeBaseRequest(BaseModel):

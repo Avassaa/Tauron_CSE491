@@ -56,12 +56,17 @@ type Pages = {
   "/news": {
     params: {};
   };
+  "/news/:newsId": {
+    params: {
+      "newsId": string;
+    };
+  };
 };
 
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/news/:newsId";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -123,6 +128,10 @@ type RouteFiles = {
     id: "routes/news";
     page: "/news";
   };
+  "routes/news-article.tsx": {
+    id: "routes/news-article";
+    page: "/news/:newsId";
+  };
 };
 
 type RouteModules = {
@@ -142,4 +151,5 @@ type RouteModules = {
   "routes/assets": typeof import("./app/routes/assets.tsx");
   "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
   "routes/news": typeof import("./app/routes/news.tsx");
+  "routes/news-article": typeof import("./app/routes/news-article.tsx");
 };

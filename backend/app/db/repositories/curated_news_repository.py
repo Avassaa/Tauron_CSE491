@@ -42,9 +42,15 @@ class CuratedNewsRepository:
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
     ) -> list[CuratedNews]:
-        """Return a page ordered by ``created_at`` descending."""
+        """Return a page ordered by story date (``published_at``) then ``created_at``."""
         statement = (
-            select(CuratedNews).order_by(CuratedNews.created_at.desc()).offset(offset).limit(limit)
+            select(CuratedNews)
+            .order_by(
+                CuratedNews.published_at.desc().nulls_last(),
+                CuratedNews.created_at.desc(),
+            )
+            .offset(offset)
+            .limit(limit)
         )
         if asset_id is not None:
             statement = statement.where(CuratedNews.asset_id == asset_id)
@@ -66,6 +72,7 @@ class CuratedNewsRepository:
         asset_id: Optional[uuid.UUID] = None,
         sentiment_score: Optional[float] = None,
         data_points_used: Optional[dict[str, Any]] = None,
+        published_at: Optional[datetime] = None,
     ) -> CuratedNews:
         """Insert a news summary."""
         row = CuratedNews(
@@ -73,6 +80,7 @@ class CuratedNewsRepository:
             summary=summary,
             sentiment_score=sentiment_score,
             data_points_used=data_points_used,
+            published_at=published_at,
         )
         self._session.add(row)
         try:
@@ -88,7 +96,7 @@ class CuratedNewsRepository:
         row = await self.get_by_id(news_id)
         if row is None:
             return None
-        allowed = {"asset_id", "summary", "sentiment_score", "data_points_used"}
+        allowed = {"asset_id", "summary", "sentiment_score", "data_points_used", "published_at"}
         for key, value in fields.items():
             if key not in allowed:
                 continue
