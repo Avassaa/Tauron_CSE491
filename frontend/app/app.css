@@ -262,30 +262,30 @@
     background-image:
       radial-gradient(
         ellipse 92% 28% at var(--glass-light-3-x, 55%) var(--glass-light-3-y, 42%),
-        oklch(0.94 0.15 var(--chart-seed-hue) / 0.34) 0%,
-        oklch(0.97 0.08 var(--chart-seed-hue) / 0.13) 38%,
-        oklch(1 0.03 var(--chart-seed-hue) / 0.045) 68%,
+        oklch(0.94 0.13 var(--chart-seed-hue) / 0.28) 0%,
+        oklch(0.98 0.065 var(--chart-seed-hue) / 0.105) 38%,
+        oklch(1 0.025 var(--chart-seed-hue) / 0.035) 68%,
         transparent 82%
       ),
       radial-gradient(
         ellipse 78% 32% at var(--glass-light-4-x, 35%) var(--glass-light-4-y, 62%),
-        oklch(0.95 0.13 var(--chart-seed-hue) / 0.31) 0%,
-        oklch(0.98 0.07 var(--chart-seed-hue) / 0.11) 42%,
-        oklch(1 0.025 var(--chart-seed-hue) / 0.035) 70%,
+        oklch(0.95 0.12 var(--chart-seed-hue) / 0.26) 0%,
+        oklch(0.98 0.06 var(--chart-seed-hue) / 0.095) 42%,
+        oklch(1 0.022 var(--chart-seed-hue) / 0.03) 70%,
         transparent 84%
       ),
       radial-gradient(
         ellipse 52% 48% at var(--glass-light-1-x, 72%) var(--glass-light-1-y, 28%),
-        oklch(0.93 0.16 var(--chart-seed-hue) / 0.32) 0%,
-        oklch(0.97 0.09 var(--chart-seed-hue) / 0.15) 36%,
-        oklch(1 0.03 var(--chart-seed-hue) / 0.055) 62%,
+        oklch(0.93 0.14 var(--chart-seed-hue) / 0.27) 0%,
+        oklch(0.97 0.075 var(--chart-seed-hue) / 0.125) 36%,
+        oklch(1 0.026 var(--chart-seed-hue) / 0.038) 62%,
         transparent 80%
       ),
       radial-gradient(
         ellipse 46% 54% at var(--glass-light-2-x, 28%) var(--glass-light-2-y, 58%),
-        oklch(0.94 0.14 var(--chart-seed-hue) / 0.29) 0%,
-        oklch(0.98 0.08 var(--chart-seed-hue) / 0.12) 40%,
-        oklch(1 0.025 var(--chart-seed-hue) / 0.035) 65%,
+        oklch(0.94 0.12 var(--chart-seed-hue) / 0.24) 0%,
+        oklch(0.98 0.065 var(--chart-seed-hue) / 0.1) 40%,
+        oklch(1 0.022 var(--chart-seed-hue) / 0.028) 65%,
         transparent 82%
       );
   }
@@ -295,30 +295,30 @@
     background-image:
       radial-gradient(
         ellipse 92% 28% at var(--glass-light-3-x, 55%) var(--glass-light-3-y, 42%),
-        oklch(0.42 0.18 var(--chart-seed-hue) / 0.42) 0%,
-        oklch(0.52 0.1 var(--chart-seed-hue) / 0.17) 40%,
-        oklch(0.62 0.04 var(--chart-seed-hue) / 0.06) 68%,
+        oklch(0.42 0.15 var(--chart-seed-hue) / 0.34) 0%,
+        oklch(0.52 0.08 var(--chart-seed-hue) / 0.135) 40%,
+        oklch(0.62 0.032 var(--chart-seed-hue) / 0.048) 68%,
         transparent 82%
       ),
       radial-gradient(
         ellipse 78% 32% at var(--glass-light-4-x, 35%) var(--glass-light-4-y, 62%),
-        oklch(0.4 0.17 var(--chart-seed-hue) / 0.38) 0%,
-        oklch(0.5 0.09 var(--chart-seed-hue) / 0.14) 42%,
-        oklch(0.58 0.03 var(--chart-seed-hue) / 0.045) 70%,
+        oklch(0.4 0.14 var(--chart-seed-hue) / 0.32) 0%,
+        oklch(0.5 0.075 var(--chart-seed-hue) / 0.115) 42%,
+        oklch(0.58 0.028 var(--chart-seed-hue) / 0.038) 70%,
         transparent 84%
       ),
       radial-gradient(
         ellipse 52% 48% at var(--glass-light-1-x, 72%) var(--glass-light-1-y, 28%),
-        oklch(0.38 0.19 var(--chart-seed-hue) / 0.4) 0%,
-        oklch(0.48 0.1 var(--chart-seed-hue) / 0.18) 38%,
-        oklch(0.58 0.04 var(--chart-seed-hue) / 0.065) 62%,
+        oklch(0.38 0.16 var(--chart-seed-hue) / 0.33) 0%,
+        oklch(0.48 0.085 var(--chart-seed-hue) / 0.145) 38%,
+        oklch(0.58 0.032 var(--chart-seed-hue) / 0.05) 62%,
         transparent 80%
       ),
       radial-gradient(
         ellipse 46% 54% at var(--glass-light-2-x, 28%) var(--glass-light-2-y, 58%),
-        oklch(0.4 0.17 var(--chart-seed-hue) / 0.37) 0%,
-        oklch(0.5 0.09 var(--chart-seed-hue) / 0.15) 40%,
-        oklch(0.6 0.03 var(--chart-seed-hue) / 0.055) 65%,
+        oklch(0.4 0.14 var(--chart-seed-hue) / 0.3) 0%,
+        oklch(0.5 0.075 var(--chart-seed-hue) / 0.12) 40%,
+        oklch(0.6 0.028 var(--chart-seed-hue) / 0.042) 65%,
         transparent 82%
       );
   }
