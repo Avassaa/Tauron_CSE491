@@ -1102,7 +1102,7 @@ export default function ToolsPage() {
 
                   <div
                     className={cn(
-                      glassSurfaceVariants({ rim: "none" }),
+                      glassSurfaceVariants(),
                       "grid gap-3 p-3 sm:grid-cols-2 sm:items-stretch",
                     )}
                   >

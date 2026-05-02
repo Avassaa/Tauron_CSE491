@@ -9,7 +9,7 @@ import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
-import { Card, CardContent, sentimentScoreToCardRim } from "~/components/ui/card"
+import { Card, CardContent } from "~/components/ui/card"
 import { apiGet, type CuratedNewsResponse } from "~/lib/api-client"
 import { cn } from "~/lib/utils"
 
@@ -71,8 +71,6 @@ export default function CuratedNewsDetailPage() {
   const storyDateStr = item?.published_at ?? item?.created_at
   const storyDate = storyDateStr ? new Date(storyDateStr) : null
   const displayDate = storyDate && !Number.isNaN(storyDate.getTime()) ? storyDate : null
-  const glassRim = item ? sentimentScoreToCardRim(item.sentiment_score) : "none"
-
   return (
     <DashboardLayout
       title="News article"
@@ -158,7 +156,7 @@ export default function CuratedNewsDetailPage() {
               </div>
 
               {item.article_content ? (
-                <Card rim={glassRim} surface="plain" className="gap-0 py-0">
+                <Card className="gap-0 py-0">
                   <CardContent className="space-y-4 py-6">
                     <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
                       Full article
@@ -172,7 +170,7 @@ export default function CuratedNewsDetailPage() {
                 </p>
               )}
 
-              <Card rim={glassRim} surface="plain" className="gap-0 py-0">
+              <Card className="gap-0 py-0">
                 <CardContent className="space-y-4 py-6">
                   <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
                     Curated summary

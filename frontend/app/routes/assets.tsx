@@ -100,9 +100,14 @@ function AssetsPageClient() {
                 !ensuredPopularSymbols.has(coin.symbol)
               )
 
+            /** Popular-sort paging was firing one POST per missing symbol per page — cap burst size. */
+            const MAX_ENSURE_PER_FETCH = 8
             if (toEnsure.length > 0) {
+              let posted = 0
               for (const coin of toEnsure) {
+                if (posted >= MAX_ENSURE_PER_FETCH) break
                 try {
+                  posted += 1
                   await apiPost<AssetResponse>("/assets/ensure", {
                     symbol: coin.symbol,
                     name: coin.name,

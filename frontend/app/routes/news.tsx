@@ -11,20 +11,9 @@ import { toast } from "sonner"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { AssetPagination } from "~/components/assets"
-import {
-  glassSurfaceVariants,
-  sentimentScoreToCardRim,
-  type CardRim,
-} from "~/components/ui/card"
+import { glassCardSurface } from "~/components/ui/card"
 import { apiGet, apiPost, type CuratedNewsResponse, type PaginatedResponse } from "~/lib/api-client"
 import { cn } from "~/lib/utils"
-
-function newsFeedCardRim(item: CuratedNewsResponse): CardRim {
-  const bySentiment = sentimentScoreToCardRim(item.sentiment_score)
-  if (bySentiment !== "neutral") return bySentiment
-  if (item.asset_symbol) return "primary"
-  return "neutral"
-}
 
 type NewsScrapeAcceptedResponse = {
   status: "accepted"
@@ -40,8 +29,12 @@ function formatSentiment(score: number | null): string {
 
 function sentimentBadgeClass(score: number | null): string {
   if (score == null || !Number.isFinite(score)) return "bg-muted text-muted-foreground"
-  if (score > 0.15) return "bg-green-500/15 text-green-600 dark:text-green-400 border border-green-600/30"
-  if (score < -0.15) return "bg-red-500/15 text-red-600 dark:text-red-400 border border-red-600/30"
+  if (score > 0.15) {
+    return "border border-green-600/25 bg-green-500/12 text-green-600 shadow-[0_0_20px_-12px_rgba(34,197,94,0.28)] dark:border-green-500/30 dark:text-green-400 dark:shadow-[0_0_22px_-10px_rgba(74,222,128,0.22)]"
+  }
+  if (score < -0.15) {
+    return "border border-red-600/25 bg-red-500/12 text-red-600 shadow-[0_0_20px_-12px_rgba(248,113,113,0.22)] dark:text-red-400"
+  }
   return "bg-muted text-muted-foreground"
 }
 
@@ -169,60 +162,57 @@ export default function NewsPage() {
           ) : (
             <div className="flex flex-col gap-4 md:gap-5">
               {newsItems.map((item) => {
-              const storyRaw = item.published_at ?? item.created_at
-              const storyDate = new Date(storyRaw)
-              const dp = item.data_points_used
-              const headline =
-                typeof dp === "object" && dp && typeof dp.title === "string" ? dp.title : null
-              return (
-                <Link
-                  key={item.id}
-                  to={`/news/${item.id}`}
-                  className={cn(
-                    glassSurfaceVariants({
-                      rim: newsFeedCardRim(item),
-                      surface: "plain",
-                    }),
-                    "block px-4 py-4 transition-colors hover:bg-card/60 md:px-5",
-                  )}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-1 text-xs font-semibold",
-                          sentimentBadgeClass(item.sentiment_score),
-                        )}
-                      >
-                        {formatSentiment(item.sentiment_score)}
-                      </span>
-                      {item.asset_symbol ? (
+                const storyRaw = item.published_at ?? item.created_at
+                const storyDate = new Date(storyRaw)
+                const dp = item.data_points_used
+                const headline =
+                  typeof dp === "object" && dp && typeof dp.title === "string" ? dp.title : null
+                return (
+                  <Link
+                    key={item.id}
+                    to={`/news/${item.id}`}
+                    className={cn(
+                      glassCardSurface,
+                      "block px-4 py-4 transition-colors hover:bg-background/70 md:px-5",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="relative z-[1] flex flex-wrap items-center gap-2">
                         <span
-                          className="rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary"
-                          title="Linked asset (see article page for assets link)"
+                          className={cn(
+                            "rounded-full px-2 py-1 text-xs font-semibold",
+                            sentimentBadgeClass(item.sentiment_score),
+                          )}
                         >
-                          {item.asset_symbol}
+                          {formatSentiment(item.sentiment_score)}
                         </span>
-                      ) : null}
+                        {item.asset_symbol ? (
+                          <span
+                            className="rounded-full border border-primary/20 bg-primary/8 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-primary shadow-[0_0_18px_-12px_hsl(var(--primary)/0.28)]"
+                            title="Linked asset (see article page for assets link)"
+                          >
+                            {item.asset_symbol}
+                          </span>
+                        ) : null}
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {Number.isNaN(storyDate.getTime())
+                          ? "—"
+                          : formatDistanceToNow(storyDate, { addSuffix: true, locale: DATE_FNS_LOCALE })}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {Number.isNaN(storyDate.getTime())
-                        ? "—"
-                        : formatDistanceToNow(storyDate, { addSuffix: true, locale: DATE_FNS_LOCALE })}
-                    </span>
-                  </div>
-                  {headline ? (
-                    <h2 className="mt-2 text-sm font-semibold leading-snug text-foreground">{headline}</h2>
-                  ) : null}
-                  <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                    {item.summary}
-                  </p>
-                  <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-primary/80">
-                    Read full article →
-                  </p>
-                </Link>
-              )
-            })}
+                    {headline ? (
+                      <h2 className="mt-2 text-sm font-semibold leading-snug text-foreground">{headline}</h2>
+                    ) : null}
+                    <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                      {item.summary}
+                    </p>
+                    <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-primary/80">
+                      Read full article →
+                    </p>
+                  </Link>
+                )
+              })}
             </div>
           )}
 

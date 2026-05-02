@@ -24,6 +24,8 @@ const AUTO_ENSURE_CACHE_TTL_MS = 60 * 60 * 1000
 const ensuredCoinCache = new Map<string, number>()
 const AUTO_ENSURE_SESSION_KEY = "assets:auto-ensure:last-run-at"
 const AUTO_ENSURE_SESSION_TTL_MS = 12 * 60 * 60 * 1000
+/** Cap ensure POSTs per highlights load — avoids burst traffic on first paint. */
+const MAX_ENSURE_PER_RUN = 8
 let ensureInFlight = false
 
 function rememberEnsured(id: string) {
@@ -48,22 +50,24 @@ async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
   const lastRun = lastRunRaw ? Number.parseInt(lastRunRaw, 10) : 0
   if (Number.isFinite(lastRun) && now - lastRun < AUTO_ENSURE_SESSION_TTL_MS) return
 
+  ensureInFlight = true
   try {
-    ensureInFlight = true
-    if (hasWindow) window.sessionStorage.setItem(AUTO_ENSURE_SESSION_KEY, String(now))
-
     const existing = await apiGet<PaginatedResponse<AssetResponse>>("/assets", {
       page: 1,
       page_size: 500,
     })
+    if (hasWindow) window.sessionStorage.setItem(AUTO_ENSURE_SESSION_KEY, String(now))
+
     const knownSymbols = new Set(existing.items.map((asset) => asset.symbol.toUpperCase()))
 
     let attempted = 0
     let created = 0
     let skippedExisting = 0
     let skippedCached = 0
+    let postCalls = 0
 
-    for (const coin of coins) {
+    for (const coin of coins.slice(0, AUTO_ENSURE_COINS_COUNT)) {
+      if (postCalls >= MAX_ENSURE_PER_RUN) break
       const symbol = coin.symbol.toUpperCase()
       if (knownSymbols.has(symbol)) {
         skippedExisting += 1
@@ -76,6 +80,7 @@ async function autoEnsureTrendingAssets(coins: CoinHighlight[]) {
 
       try {
         attempted += 1
+        postCalls += 1
         await apiPost<AssetResponse>("/assets/ensure", {
           symbol,
           name: coin.name,
