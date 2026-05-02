@@ -6,7 +6,7 @@ import { CardTitleWithTooltip } from "~/components/dashboard/card-title-with-too
 
 export function DashboardResultsTable() {
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+    <Card>
       <CardHeader>
         <CardTitleWithTooltip
           className="text-base font-black tracking-tight"

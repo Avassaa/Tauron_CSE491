@@ -165,7 +165,7 @@ export default function NewsPage() {
                 <Link
                   key={item.id}
                   to={`/news/${item.id}`}
-                  className="block rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 hover:border-primary/30"
+                  className="block rounded-xl border border-border/50 bg-card/50 p-4 backdrop-blur-md transition-colors supports-[backdrop-filter]:bg-card/40 hover:border-primary/30 hover:bg-card/65"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">

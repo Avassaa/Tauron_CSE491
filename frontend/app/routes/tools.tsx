@@ -1099,7 +1099,7 @@ export default function ToolsPage() {
                     </Button>
                   </div>
 
-                  <div className="grid gap-3 rounded-xl border bg-card/50 p-3 sm:grid-cols-2 sm:items-stretch">
+                  <div className="grid gap-3 rounded-xl border border-border/50 bg-card/50 p-3 backdrop-blur-md supports-[backdrop-filter]:bg-card/40 sm:grid-cols-2 sm:items-stretch">
                     <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
                       <div className="shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground">
                         Current price

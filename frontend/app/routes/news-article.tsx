@@ -155,7 +155,7 @@ export default function CuratedNewsDetailPage() {
                 ) : null}
               </div>
 
-              <article className="rounded-xl border bg-card/50 p-6">
+              <article className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
                 <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.summary}</p>
               </article>
             </>

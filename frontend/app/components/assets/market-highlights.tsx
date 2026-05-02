@@ -122,7 +122,7 @@ function formatChange(pct: number | null): string {
 
 function TrendingCoinSkeleton() {
   return (
-    <div className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/30 p-4">
+    <div className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/40 p-4 backdrop-blur-md supports-[backdrop-filter]:bg-card/35">
       <Skeleton className="size-10 shrink-0 rounded-full" />
       <div className="min-w-0 flex-1 space-y-2">
         <Skeleton className="h-4 w-24" />
@@ -148,7 +148,7 @@ function TrendingCoinCard({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/30 p-4 text-left transition-all hover:scale-[1.02] hover:bg-card/50 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.98]"
+      className="flex min-w-[200px] items-center gap-4 rounded-2xl border border-border/50 bg-card/40 p-4 text-left backdrop-blur-md transition-all supports-[backdrop-filter]:bg-card/35 hover:scale-[1.02] hover:bg-card/55 hover:shadow-xl hover:shadow-primary/5 active:scale-[0.98]"
     >
       <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full">
         <AssetIcon
@@ -274,7 +274,7 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
             ))}
           </div>
         ) : trending.length === 0 ? (
-          <div className="rounded-2xl border border-border/50 bg-card/30 px-5 py-4 text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-border/50 bg-card/40 px-5 py-4 text-sm text-muted-foreground backdrop-blur-md supports-[backdrop-filter]:bg-card/35">
             No trending coins available.
           </div>
         ) : (

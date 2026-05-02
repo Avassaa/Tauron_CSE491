@@ -1028,7 +1028,7 @@ export function AssetDetailSheet({
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Card className="bg-card/30 border-border/50 shadow-sm">
+                        <Card>
                           <CardContent className="p-4 space-y-1">
                             <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">Model R² Score</span>
                             <div className="flex items-center gap-1.5 text-xl font-black text-green-500">
@@ -1037,7 +1037,7 @@ export function AssetDetailSheet({
                             </div>
                           </CardContent>
                         </Card>
-                        <Card className="bg-card/30 border-border/50 shadow-sm">
+                        <Card>
                           <CardContent className="p-4 space-y-1">
                             <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest">RMSE Error</span>
                             <div className="text-xl font-black text-foreground">

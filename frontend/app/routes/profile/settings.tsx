@@ -49,7 +49,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-10">
-      <section className="space-y-6 rounded-xl border bg-card p-8 shadow-sm">
+      <section className="space-y-6 rounded-xl border border-border/50 bg-card/50 p-8 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold tracking-tight">Profile Information</h3>
           <Button variant="outline" size="sm" onClick={handlePreview}>Preview Profile</Button>
@@ -119,7 +119,7 @@ export default function SettingsPage() {
       </section>
 
       {/* TODO: Add these to security tab later on */}
-      <section className="space-y-6 rounded-xl border bg-card/50 p-8">
+      <section className="space-y-6 rounded-xl border border-border/50 bg-card/50 p-8 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
             <Shield className="size-5 text-primary" />
