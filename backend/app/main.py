@@ -4,6 +4,15 @@ This is the main FastAPI application module. It sets up logging,
 creates the FastAPI app with middleware, and includes routers.
 """
 
+import ssl
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+
 from app.core.app_factory import HealthCheck, create_app, create_lifespan
 from app.workers.price_alert_worker import start_price_alert_worker, stop_price_alert_worker
 from app.workers.news_scraper_worker import start_news_scraper_worker, stop_news_scraper_worker

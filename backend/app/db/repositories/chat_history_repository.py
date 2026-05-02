@@ -29,6 +29,30 @@ class ChatHistoryRepository:
         result = await self._session.execute(statement)
         return int(result.scalar_one() or 0)
 
+    async def get_sessions_for_user(self, user_id: uuid.UUID) -> list[dict[str, Any]]:
+        """List distinct chat sessions for a user, ordered by most recent."""
+        subq = (
+            select(
+                ChatHistory.session_id,
+                ChatHistory.content.label("title"),
+                ChatHistory.created_at,
+            )
+            .distinct(ChatHistory.session_id)
+            .where(ChatHistory.user_id == user_id, ChatHistory.role == "user")
+            .order_by(ChatHistory.session_id, ChatHistory.created_at.asc())
+            .subquery()
+        )
+
+        statement = (
+            select(subq.c.session_id, subq.c.title, subq.c.created_at)
+            .order_by(subq.c.created_at.desc())
+        )
+
+        result = await self._session.execute(statement)
+        rows = result.all()
+
+        return [{"session_id": row.session_id, "title": row.title[:50] + "..." if len(row.title) > 50 else row.title, "created_at": row.created_at} for row in rows]
+
     async def list_page_for_user(
         self,
         user_id: uuid.UUID,

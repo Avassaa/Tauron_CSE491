@@ -12,6 +12,3 @@ export async function action(args: Route.ActionArgs) {
   return handleGeminiChatPost(args.request)
 }
 
-export default function ApiChatRoute() {
-  return null
-}

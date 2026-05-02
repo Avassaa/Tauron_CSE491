@@ -6,17 +6,20 @@ import { isReasoningUIPart, isTextUIPart, type UIMessage } from "ai"
 
 import { PromptInputBox } from "~/components/ui/ai-prompt-box"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
+import { MarkdownContent } from "~/components/ui/markdown-content"
 import { useGeminiChat } from "~/lib/ai/use-gemini-chat"
 import { cn } from "~/lib/utils"
 
-function textFromMessage(m: UIMessage): string {
-  if (!m.parts?.length) return ""
-  const chunks: string[] = []
-  for (const p of m.parts) {
-    if (isTextUIPart(p)) chunks.push(p.text)
-    else if (isReasoningUIPart(p)) chunks.push(p.text)
+function textFromMessage(m: UIMessage | any): string {
+  if (m.parts && m.parts.length > 0) {
+    const chunks: string[] = []
+    for (const p of m.parts) {
+      if (isTextUIPart(p)) chunks.push(p.text)
+      else if (isReasoningUIPart(p)) chunks.push(p.text)
+    }
+    if (chunks.length > 0) return chunks.join("")
   }
-  return chunks.join("")
+  return typeof m.content === "string" ? m.content : ""
 }
 
 function friendlyChatError(err: Error): string {
@@ -42,8 +45,24 @@ function initialsFromUsername(name: string): string {
   return t.slice(0, 2).toUpperCase()
 }
 
-export function GeminiChatPanel({ className }: { className?: string }) {
-  const { messages, sendMessage, stop, status, error } = useGeminiChat()
+export function GeminiChatPanel({ 
+  className, 
+  id, 
+  initialMessages,
+  onActivity,
+  onNewMessage
+}: { 
+  className?: string
+  id?: string
+  initialMessages?: UIMessage[]
+  onActivity?: () => void
+  onNewMessage?: (text: string) => void
+}) {
+  const { messages, sendMessage, stop, status, error } = useGeminiChat({ 
+    id, 
+    initialMessages,
+    onResponse: () => onActivity?.()
+  })
   const streaming = status === "streaming" || status === "submitted"
   const endRef = React.useRef<HTMLDivElement>(null)
 
@@ -67,6 +86,7 @@ export function GeminiChatPanel({ className }: { className?: string }) {
   const handleSend = async (text: string, files?: File[]) => {
     const t = text.trim()
     if (!t && !files?.length) return
+    onNewMessage?.(t || "Media attachment")
     if (files?.length) {
       const dt = new DataTransfer()
       files.forEach((f) => dt.items.add(f))
@@ -142,8 +162,8 @@ export function GeminiChatPanel({ className }: { className?: string }) {
                             "rounded-2xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground shadow-sm",
                           )}
                         >
-                          <div className="whitespace-pre-wrap break-words">
-                            {showTyping ? <span className="text-muted-foreground">Thinking…</span> : text}
+                          <div className="w-full">
+                            {showTyping ? <span className="text-muted-foreground">Thinking…</span> : <MarkdownContent>{text}</MarkdownContent>}
                           </div>
                         </div>
                       </div>

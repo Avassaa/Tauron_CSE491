@@ -27,9 +27,20 @@ function mergeDotenvForNodeProcess() {
 
 mergeDotenvForNodeProcess();
 
+const internalApiOrigin =
+  process.env.API_INTERNAL_ORIGIN?.trim() || "http://127.0.0.1:8000";
+
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
   resolve: {
     dedupe: ["react", "react-dom"],
+  },
+  server: {
+    proxy: {
+      "/api/v1": {
+        target: internalApiOrigin,
+        changeOrigin: true,
+      },
+    },
   },
 });

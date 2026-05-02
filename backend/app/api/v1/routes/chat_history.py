@@ -11,7 +11,7 @@ from app.core.security import get_current_user_id, require_admin_api_key
 from app.db.repositories.chat_history_repository import ChatHistoryRepository
 from app.db.session import get_db_session
 from app.models.request.table_requests import CreateChatMessageRequest, UpdateChatMessageRequest
-from app.models.response.table_responses import ChatHistoryResponse, PaginatedResponse
+from app.models.response.table_responses import ChatHistoryResponse, ChatSessionResponse, PaginatedResponse
 
 router = APIRouter(prefix="/chat-history")
 admin_router = APIRouter(prefix="/admin/chat-history")
@@ -39,6 +39,17 @@ async def list_my_chat_history(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/sessions", response_model=list[ChatSessionResponse])
+async def list_my_chat_sessions(
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """List distinct chat sessions for the current user."""
+    repository = ChatHistoryRepository(session)
+    sessions = await repository.get_sessions_for_user(user_id)
+    return sessions
 
 
 @router.get("/{message_id}", response_model=ChatHistoryResponse)

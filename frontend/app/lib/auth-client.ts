@@ -1,7 +1,4 @@
-const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
-
-const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || DEFAULT_API_BASE_URL
+import { getPublicApiBaseUrl } from "~/lib/public-api-base-url"
 
 export type LoginPayload = {
   email: string
@@ -51,7 +48,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
 }
 
 async function request<T>(path: string, body: Record<string, string>): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -86,7 +83,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 export async function getMe(token: string): Promise<UserProfile> {
-  const response = await fetch(`${apiBaseUrl}/users/me`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}/users/me`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -105,7 +102,7 @@ export async function getMe(token: string): Promise<UserProfile> {
 }
 
 export async function patchMe(token: string, payload: UpdateProfilePayload): Promise<UserProfile> {
-  const response = await fetch(`${apiBaseUrl}/users/me`, {
+  const response = await fetch(`${getPublicApiBaseUrl()}/users/me`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

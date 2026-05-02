@@ -1,10 +1,6 @@
+import { getPublicApiBaseUrl } from "~/lib/public-api-base-url"
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000/api/v1"
 const REQUEST_TIMEOUT_MS = 8000
-
-export const apiBaseUrl =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
-  DEFAULT_API_BASE_URL
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -87,7 +83,7 @@ function buildUrl(
     }
   }
 
-  const url = `${apiBaseUrl}${path}`
+  const url = `${getPublicApiBaseUrl()}${path}`
   if (!params) return url
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
@@ -107,7 +103,7 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null
   
   try {
-    const res = await fetch(`${apiBaseUrl}/auth/refresh`, {
+    const res = await fetch(`${getPublicApiBaseUrl()}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -203,7 +199,7 @@ export async function apiGet<T>(
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${getPublicApiBaseUrl()}${path}`, {
     method: "POST",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
@@ -211,7 +207,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function apiPostFormData<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetchWithAuthForm(`${apiBaseUrl}${path}`, form)
+  const res = await fetchWithAuthForm(`${getPublicApiBaseUrl()}${path}`, form)
   return handleResponse<T>(res)
 }
 
@@ -223,7 +219,7 @@ export async function uploadCommentImage(file: File): Promise<string> {
 }
 
 export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${getPublicApiBaseUrl()}${path}`, {
     method: "PUT",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
@@ -231,7 +227,7 @@ export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, {
+  const res = await fetchWithAuth(`${getPublicApiBaseUrl()}${path}`, {
     method: "PATCH",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
@@ -239,7 +235,7 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function apiDelete<T = void>(path: string): Promise<T> {
-  const res = await fetchWithAuth(`${apiBaseUrl}${path}`, { method: "DELETE" })
+  const res = await fetchWithAuth(`${getPublicApiBaseUrl()}${path}`, { method: "DELETE" })
   return handleResponse<T>(res)
 }
 
@@ -257,7 +253,7 @@ export async function adminGet<T>(
 }
 
 export async function adminPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetch(`${getPublicApiBaseUrl()}${path}`, {
     method: "POST",
     headers: adminHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -267,7 +263,7 @@ export async function adminPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function adminPatch<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetch(`${getPublicApiBaseUrl()}${path}`, {
     method: "PATCH",
     headers: adminHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -277,7 +273,7 @@ export async function adminPatch<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export async function adminDelete<T = void>(path: string): Promise<T> {
-  const res = await fetch(`${apiBaseUrl}${path}`, {
+  const res = await fetch(`${getPublicApiBaseUrl()}${path}`, {
     method: "DELETE",
     headers: adminHeaders(),
     signal: timeoutSignal(),

@@ -1,6 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 
-/** Default matches common Google AI / project setups; override with `GEMINI_MODEL`. */
 const DEFAULT_MODEL = "gemini-2.0-flash"
 
 export function resolveGeminiApiKey(): string | undefined {

@@ -1,6 +1,6 @@
 "use client"
 
-import { apiBaseUrl } from "~/lib/api-client"
+import { getPublicApiBaseUrl } from "~/lib/public-api-base-url"
 import type { NotificationResponse } from "~/lib/api-client"
 
 type Listener = (notification: NotificationResponse) => void
@@ -26,7 +26,7 @@ function getAccessToken(): string | null {
 }
 
 function buildNotificationsWsUrl(token: string): string {
-  const base = apiBaseUrl.trim()
+  const base = getPublicApiBaseUrl().trim()
   const wsOrigin = base.startsWith("https")
     ? base.replace(/^https/, "wss")
     : base.replace(/^http/, "ws")

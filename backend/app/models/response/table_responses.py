@@ -238,6 +238,14 @@ class ChatHistoryResponse(BaseModel):
     created_at: datetime
 
 
+class ChatSessionResponse(BaseModel):
+    """Summary of a chat session."""
+
+    session_id: uuid.UUID
+    title: str
+    created_at: datetime
+
+
 class BacktestResultResponse(BaseModel):
     """Backtest summary."""
 
