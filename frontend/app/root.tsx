@@ -14,7 +14,6 @@ import type { Route } from "./+types/root";
 import { Header } from "~/components/landing/header";
 import { Button } from "~/components/landing/button";
 import { AppProviders } from "./providers";
-import { useAppTheme } from "~/theme-context";
 import { BeamsBackground } from "~/components/landing/beams-background";
 import { LineShadowText } from "~/routes/home/components/line-shadow-text";
 import "./app.css";
@@ -39,11 +38,11 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
-
-  const { theme } = useAppTheme();
-
+  // Theme on <html> is set by `themeInitScript` (localStorage) before paint, and by
+  // `applyThemeToDocument` when toggling. Do not read theme here — that caused hydration
+  // mismatches and invalid `className="light"` (Tailwind only uses the `dark` class).
   return (
-    <html lang="en" className={theme} data-theme={theme} style={{ colorScheme: theme }} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
