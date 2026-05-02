@@ -39,77 +39,66 @@ const glassSurfaceVariants = cva("relative isolate overflow-hidden rounded-xl te
     },
   },
   compoundVariants: [
-    /* --- Plain: localized “reflection” near badges (blur + skew), not a ruler-straight edge --- */
     {
       surface: "plain",
       rim: "success",
-      class: [
-        "before:pointer-events-none before:absolute before:-left-10 before:-top-12 before:h-[7.5rem] before:w-[min(52vw,15rem)] before:rotate-[-11deg] before:rounded-[42%] before:bg-emerald-400/28 before:blur-2xl before:content-[''] dark:before:bg-emerald-400/20",
-        "after:pointer-events-none after:absolute after:left-0 after:top-0 after:h-[4px] after:w-[min(62%,13rem)] after:origin-left after:rotate-[-1.5deg] after:bg-gradient-to-r after:from-emerald-400/55 after:via-emerald-400/18 after:to-transparent after:content-[''] after:opacity-[0.85]",
-      ],
+      class:
+        "!bg-[radial-gradient(ellipse_95%_72%_at_18%_12%,rgba(16,185,129,0.11),transparent_58%),color-mix(in_oklab,var(--card)_46%,transparent)]",
     },
     {
       surface: "plain",
       rim: "destructive",
-      class: [
-        "before:pointer-events-none before:absolute before:-left-10 before:-top-12 before:h-[7.5rem] before:w-[min(52vw,15rem)] before:rotate-[-11deg] before:rounded-[42%] before:bg-rose-400/26 before:blur-2xl before:content-[''] dark:before:bg-rose-400/18",
-        "after:pointer-events-none after:absolute after:left-0 after:top-0 after:h-[4px] after:w-[min(62%,13rem)] after:origin-left after:rotate-[-1.5deg] after:bg-gradient-to-r after:from-rose-400/50 after:via-rose-400/16 after:to-transparent after:content-[''] after:opacity-[0.85]",
-      ],
+      class:
+        "!bg-[radial-gradient(ellipse_95%_72%_at_18%_12%,rgba(244,63,94,0.10),transparent_58%),color-mix(in_oklab,var(--card)_46%,transparent)]",
     },
     {
       surface: "plain",
       rim: "neutral",
-      class: [
-        "before:pointer-events-none before:absolute before:-left-8 before:-top-10 before:h-24 before:w-[min(48vw,12rem)] before:rotate-[-9deg] before:rounded-[40%] before:bg-slate-400/14 before:blur-2xl before:content-[''] dark:before:bg-slate-500/16",
-        "after:pointer-events-none after:absolute after:left-0 after:top-0 after:h-[3px] after:w-[min(48%,11rem)] after:rotate-[-1deg] after:bg-gradient-to-r after:from-slate-400/35 after:via-slate-400/12 after:to-transparent after:content-[''] dark:after:from-slate-500/40",
-      ],
+      class:
+        "!bg-[radial-gradient(ellipse_90%_68%_at_22%_14%,rgba(148,163,184,0.07),transparent_58%),color-mix(in_oklab,var(--card)_46%,transparent)]",
     },
     {
       surface: "plain",
       rim: "primary",
-      class: [
-        "before:pointer-events-none before:absolute before:-right-8 before:-top-8 before:h-[6.5rem] before:w-[min(46vw,13rem)] before:rotate-[10deg] before:rounded-[44%] before:bg-primary/22 before:blur-2xl before:content-['']",
-        "after:pointer-events-none after:absolute after:right-0 after:top-0 after:h-[4px] after:w-[min(48%,12rem)] after:origin-right after:rotate-[1.5deg] after:bg-gradient-to-l after:from-primary/45 after:via-primary/14 after:to-transparent after:content-['']",
-      ],
+      class:
+        "!bg-[radial-gradient(ellipse_88%_65%_at_92%_14%,color-mix(in_oklab,var(--primary)_22%,transparent),transparent_56%),color-mix(in_oklab,var(--card)_46%,transparent)]",
     },
     {
       surface: "plain",
       rim: "primaryStart",
-      class: [
-        "before:pointer-events-none before:absolute before:-left-8 before:-top-8 before:h-[6.5rem] before:w-[min(46vw,13rem)] before:rotate-[-10deg] before:rounded-[44%] before:bg-primary/22 before:blur-2xl before:content-['']",
-        "after:pointer-events-none after:absolute after:left-0 after:top-0 after:h-[4px] after:w-[min(48%,12rem)] after:origin-left after:rotate-[-1.5deg] after:bg-gradient-to-r after:from-primary/45 after:via-primary/14 after:to-transparent after:content-['']",
-      ],
+      class:
+        "!bg-[radial-gradient(ellipse_88%_65%_at_12%_14%,color-mix(in_oklab,var(--primary)_22%,transparent),transparent_56%),color-mix(in_oklab,var(--card)_46%,transparent)]",
     },
-    /* --- Tinted: keep blue pseudos; only add soft corner light (no extra ::before/::after) --- */
+    /* Tinted + rim: color only into the panel volume (soft inset wash), not a drawn edge */
     {
       surface: "tinted",
       rim: "success",
       class:
-        "shadow-[inset_24px_18px_42px_-28px_rgba(16,185,129,0.13),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_24px_18px_42px_-28px_rgba(16,185,129,0.09),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
+        "shadow-[inset_28px_22px_48px_-30px_rgba(16,185,129,0.08),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_28px_22px_48px_-30px_rgba(16,185,129,0.06),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
     },
     {
       surface: "tinted",
       rim: "destructive",
       class:
-        "shadow-[inset_24px_18px_42px_-28px_rgba(244,63,94,0.11),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_24px_18px_42px_-28px_rgba(244,63,94,0.08),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
+        "shadow-[inset_28px_22px_48px_-30px_rgba(244,63,94,0.07),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_28px_22px_48px_-30px_rgba(244,63,94,0.05),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
     },
     {
       surface: "tinted",
       rim: "neutral",
       class:
-        "shadow-[inset_18px_14px_36px_-26px_rgba(148,163,184,0.09),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_18px_14px_36px_-26px_rgba(148,163,184,0.07),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
+        "shadow-[inset_22px_18px_40px_-28px_rgba(148,163,184,0.06),inset_0_1px_0_0_rgba(255,255,255,0.07)] dark:shadow-[inset_22px_18px_40px_-28px_rgba(148,163,184,0.05),inset_0_1px_0_0_rgba(255,255,255,0.04)]",
     },
     {
       surface: "tinted",
       rim: "primary",
       class:
-        "shadow-[inset_-22px_16px_40px_-26px_color-mix(in_oklab,var(--primary)_18%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.07)]",
+        "shadow-[inset_-26px_20px_44px_-28px_color-mix(in_oklab,var(--primary)_12%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.07)]",
     },
     {
       surface: "tinted",
       rim: "primaryStart",
       class:
-        "shadow-[inset_22px_16px_40px_-26px_color-mix(in_oklab,var(--primary)_18%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.07)]",
+        "shadow-[inset_26px_20px_44px_-28px_color-mix(in_oklab,var(--primary)_12%,transparent),inset_0_1px_0_0_rgba(255,255,255,0.07)]",
     },
   ],
   defaultVariants: {
