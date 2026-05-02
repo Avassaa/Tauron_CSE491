@@ -291,6 +291,8 @@ export interface CuratedNewsResponse {
   data_points_used: Record<string, unknown> | null
   published_at: string | null
   created_at: string
+  /** Raw scraped article body when linked to ``news_data`` (detail GET only). */
+  article_content?: string | null
 }
 
 export interface PredictionResponse {

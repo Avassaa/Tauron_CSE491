@@ -155,9 +155,25 @@ export default function CuratedNewsDetailPage() {
                 ) : null}
               </div>
 
-              <article className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
+              {item.article_content ? (
+                <article className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
+                  <h2 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                    Full article
+                  </h2>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.article_content}</p>
+                </article>
+              ) : (
+                <p className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  Full source article text is not stored for this item (older or manually created entries may omit it).
+                </p>
+              )}
+
+              <section className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
+                <h2 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                  Curated summary
+                </h2>
                 <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.summary}</p>
-              </article>
+              </section>
             </>
           )}
         </div>

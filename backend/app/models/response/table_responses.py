@@ -183,6 +183,8 @@ class CuratedNewsResponse(BaseModel):
     data_points_used: Optional[dict[str, Any]]
     published_at: Optional[datetime] = None
     created_at: datetime
+    article_content: Optional[str] = None
+    """Full raw article body from ``news_data`` when linked (detail responses)."""
 
 
 class KnowledgeBaseResponse(BaseModel):

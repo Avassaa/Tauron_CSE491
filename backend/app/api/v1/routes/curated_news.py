@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -12,6 +13,7 @@ from app.api.v1.dependencies import PaginationParams, get_pagination
 from app.core.security import get_current_user_id, require_admin_api_key
 from app.db.models.asset import Asset
 from app.db.models.curated_news import CuratedNews
+from app.db.models.news_data import NewsData
 from app.db.repositories.curated_news_repository import CuratedNewsRepository
 from app.db.session import get_db_session
 from app.models.request.table_requests import CreateCuratedNewsRequest, UpdateCuratedNewsRequest
@@ -28,10 +30,31 @@ async def _asset_symbols_for_rows(session: AsyncSession, rows: list[CuratedNews]
     return {asset_id: symbol for asset_id, symbol in result.all()}
 
 
-def _response(row: CuratedNews, symbol_map: dict[uuid.UUID, str]) -> CuratedNewsResponse:
+def _response(
+    row: CuratedNews,
+    symbol_map: dict[uuid.UUID, str],
+    *,
+    article_content: Optional[str] = None,
+) -> CuratedNewsResponse:
     base = CuratedNewsResponse.model_validate(row)
     sym = symbol_map.get(row.asset_id) if row.asset_id else None
-    return base.model_copy(update={"asset_symbol": sym})
+    return base.model_copy(update={"asset_symbol": sym, "article_content": article_content})
+
+
+async def _news_data_content(session: AsyncSession, row: CuratedNews) -> Optional[str]:
+    """Return raw ``news_data.content`` when ``data_points_used`` links a row."""
+    dp = row.data_points_used
+    if not isinstance(dp, dict):
+        return None
+    raw_id = dp.get("news_data_id")
+    if raw_id is None:
+        return None
+    try:
+        nid = uuid.UUID(str(raw_id))
+    except ValueError:
+        return None
+    result = await session.execute(select(NewsData.content).where(NewsData.id == nid))
+    return result.scalar_one_or_none()
 
 
 @router.get("", response_model=PaginatedResponse[CuratedNewsResponse])
@@ -59,7 +82,7 @@ async def list_curated_news(
     )
     symbol_map = await _asset_symbols_for_rows(session, rows)
     return PaginatedResponse(
-        items=[_response(r, symbol_map) for r in rows],
+        items=[_response(r, symbol_map, article_content=None) for r in rows],
         total=total,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -78,7 +101,8 @@ async def get_curated_news(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     symbol_map = await _asset_symbols_for_rows(session, [row])
-    return _response(row, symbol_map)
+    article_content = await _news_data_content(session, row)
+    return _response(row, symbol_map, article_content=article_content or None)
 
 
 @router.post("", response_model=CuratedNewsResponse, status_code=status.HTTP_201_CREATED)
