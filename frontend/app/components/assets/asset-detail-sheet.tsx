@@ -396,7 +396,7 @@ export function AssetDetailSheet({
   const selectedAlertTarget = manualTargetIsValid ? parsedManualTarget : null
   const formatAlertPrice = (value?: number | null) =>
     Number.isFinite(value ?? NaN)
-      ? `$${(value as number).toLocaleString(undefined, { maximumFractionDigits: 8 })}`
+      ? `$${(value as number).toLocaleString("en-US", { maximumFractionDigits: 8 })}`
       : "—"
   const selectedAssetAlertCount = selectedAssetAlertIds.size
   const allAssetAlertsSelected =

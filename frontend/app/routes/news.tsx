@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { formatDistanceToNow } from "date-fns"
+
+import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 import { Newspaper, RefreshCw } from "lucide-react"
 import { Link } from "react-router"
 import { toast } from "sonner"
@@ -121,10 +123,14 @@ export default function NewsPage() {
       }
     >
       <div
-        className="flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto"
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 md:p-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/22 blur-[115px] dark:bg-blue-400/18" />
+          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/22 blur-[115px] dark:bg-sky-500/18" />
+        </div>
+        <div className="relative z-[1] mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 md:p-8">
           <div className="rounded-xl border bg-muted/20 p-4">
             <h1 className="flex items-center gap-2 text-xl font-semibold">
               <Newspaper className="size-5 text-primary" />
@@ -183,7 +189,7 @@ export default function NewsPage() {
                     <span className="text-xs text-muted-foreground">
                       {Number.isNaN(storyDate.getTime())
                         ? "—"
-                        : formatDistanceToNow(storyDate, { addSuffix: true })}
+                        : formatDistanceToNow(storyDate, { addSuffix: true, locale: DATE_FNS_LOCALE })}
                     </span>
                   </div>
                   {headline ? (

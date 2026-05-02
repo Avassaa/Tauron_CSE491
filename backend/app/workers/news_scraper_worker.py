@@ -366,13 +366,17 @@ async def _rephrase_news_item_with_gemini(
     if not cleaned_title and not cleaned_content:
         return None
     prompt = (
-        "You are a crypto news editor. Rephrase the following single news article into a concise, "
-        "neutral, end-user friendly summary.\n"
-        "Return strict JSON with keys: summary (string), sentiment_score (number between -1 and 1).\n\n"
+        "You are a crypto news editor. The article below may be written in any language.\n"
+        "Your entire response MUST be in English only: translate where needed.\n"
+        "Return strict JSON with exactly these keys:\n"
+        '  "headline": string — a short English headline for a news feed (max ~120 characters);\n'
+        '  "summary": string — a concise neutral English summary for end users (2–5 sentences);\n'
+        '  "sentiment_score": number — between -1 (bearish) and +1 (bullish).\n'
+        "Do not put non-English text in headline or summary.\n\n"
         f"Source: {source}\n"
         f"Published at: {published_at.isoformat()}\n"
-        f"Title: {cleaned_title}\n"
-        f"Content: {cleaned_content}"
+        f"Original title: {cleaned_title}\n"
+        f"Article body: {cleaned_content}"
     )
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     try:
@@ -409,6 +413,9 @@ async def _rephrase_news_item_with_gemini(
     summary = str(parsed.get("summary") or "").strip()
     if not summary:
         return None
+    headline = str(parsed.get("headline") or parsed.get("title") or "").strip()
+    if not headline:
+        headline = (summary[:118] + "…") if len(summary) > 120 else summary
     sentiment_value = parsed.get("sentiment_score")
     sentiment_score: Optional[float]
     try:
@@ -420,6 +427,7 @@ async def _rephrase_news_item_with_gemini(
     return {
         "summary": summary,
         "sentiment_score": sentiment_score,
+        "headline": headline,
     }
 
 
@@ -708,12 +716,22 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 if not isinstance(story_published_at, datetime):
                     story_published_at = published_at_value
 
+                english_headline = str(curated.get("headline") or "").strip()
                 resolved_asset_id = await _resolve_asset_id_for_news_text(
                     session,
-                    title,
+                    english_headline,
                     curated["summary"],
                     content,
                 )
+
+                dp_used: dict[str, Any] = {
+                    "news_data_id": str(row["id"]),
+                    "source": source,
+                    "title": english_headline or title,
+                }
+                raw_title = str(title or "").strip()
+                if raw_title and raw_title != dp_used["title"]:
+                    dp_used["original_title"] = raw_title
 
                 session.add(
                     CuratedNews(
@@ -721,11 +739,7 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                         sentiment_score=curated["sentiment_score"],
                         published_at=story_published_at,
                         asset_id=resolved_asset_id,
-                        data_points_used={
-                            "news_data_id": str(row["id"]),
-                            "source": source,
-                            "title": title,
-                        },
+                        data_points_used=dp_used,
                     )
                 )
                 inserted_curated += 1

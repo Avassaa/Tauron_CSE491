@@ -5,6 +5,8 @@ import { Link, useParams } from "react-router"
 import { ArrowLeft, Newspaper } from "lucide-react"
 import { format, formatDistanceToNow } from "date-fns"
 
+import { DATE_FNS_LOCALE } from "~/lib/date-locale"
+
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { apiGet, type CuratedNewsResponse } from "~/lib/api-client"
@@ -60,8 +62,10 @@ export default function CuratedNewsDetailPage() {
     }
   }, [newsId])
 
-  const dp = item?.data_points_used
-  const originalTitle = typeof dp?.title === "string" ? dp.title : null
+  const dp = item?.data_points_used as Record<string, unknown> | null | undefined
+  const headline = typeof dp?.title === "string" ? dp.title : null
+  const sourceOriginalTitle =
+    typeof dp?.original_title === "string" ? dp.original_title : null
   const source = typeof dp?.source === "string" ? dp.source : null
   const storyDateStr = item?.published_at ?? item?.created_at
   const storyDate = storyDateStr ? new Date(storyDateStr) : null
@@ -80,10 +84,14 @@ export default function CuratedNewsDetailPage() {
       }
     >
       <div
-        className="flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto"
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/22 blur-[115px] dark:bg-blue-400/18" />
+          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/22 blur-[115px] dark:bg-sky-500/18" />
+        </div>
+        <div className="relative z-[1] mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-8">
           {loading ? (
             <div className="rounded-xl border p-8 text-sm text-muted-foreground">Loading…</div>
           ) : error ? (
@@ -114,14 +122,19 @@ export default function CuratedNewsDetailPage() {
                 ) : null}
               </div>
 
-              {originalTitle ? (
-                <h1 className="text-2xl font-semibold tracking-tight">{originalTitle}</h1>
+              {headline ? (
+                <h1 className="text-2xl font-semibold tracking-tight">{headline}</h1>
               ) : (
                 <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
                   <Newspaper className="size-7 text-primary" />
                   Curated summary
                 </h1>
               )}
+              {sourceOriginalTitle ? (
+                <p className="text-sm text-muted-foreground">
+                  Original headline: {sourceOriginalTitle}
+                </p>
+              ) : null}
 
               <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                 {source ? (
@@ -133,9 +146,11 @@ export default function CuratedNewsDetailPage() {
                   <span>
                     Published:{" "}
                     <time dateTime={displayDate.toISOString()} className="font-medium text-foreground">
-                      {format(displayDate, "MMM d, yyyy · HH:mm")}
+                      {format(displayDate, "MMM d, yyyy · HH:mm", { locale: DATE_FNS_LOCALE })}
                     </time>
-                    <span className="ml-1">({formatDistanceToNow(displayDate, { addSuffix: true })})</span>
+                    <span className="ml-1">
+                      ({formatDistanceToNow(displayDate, { addSuffix: true, locale: DATE_FNS_LOCALE })})
+                    </span>
                   </span>
                 ) : null}
               </div>

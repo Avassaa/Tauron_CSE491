@@ -72,7 +72,7 @@ export function AssetDetailChart({
   config,
   currentPrice: externalCurrentPrice,
   mode = "both",
-  formatCurrency = (value) => `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })}`,
+  formatCurrency = (value) => `$${Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 })}`,
   formatCompactCurrency,
 }: {
   data: any[],

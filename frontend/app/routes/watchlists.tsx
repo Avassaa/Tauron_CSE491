@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router"
 import { ArrowRight, Edit3, ExternalLink, Grid, List, ListChecks, MoreVertical, Plus, Trash2 } from "lucide-react"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
+import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import {
   apiGet,
   apiPut,
@@ -346,8 +347,12 @@ function WatchlistPageClient() {
     <DashboardLayout title={selectedWatchlistList?.name || "Watchlists"}>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-1 flex-col gap-4 px-4 pb-4 pt-8 md:px-8 md:pb-8 md:pt-10">
+      <div
+        className="relative flex-1 overflow-y-auto"
+        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
+      >
+        <PageBlueBackdrop />
+        <div className="relative z-[1] flex flex-1 flex-col gap-4 px-4 pb-4 pt-8 md:px-8 md:pb-8 md:pt-10">
 
           <Breadcrumb className="mt-4 mb-4">
             <BreadcrumbList className="flex-wrap">
@@ -606,11 +611,11 @@ function WatchlistPageClient() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="text-xs font-bold text-muted-foreground">
-                                      {new Date(list.created_at).toLocaleDateString()}
+                                      {new Date(list.created_at).toLocaleDateString("en-US")}
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    Created {new Date(list.created_at).toLocaleString()}
+                                    Created {new Date(list.created_at).toLocaleString("en-US")}
                                   </TooltipContent>
                                 </Tooltip>
                               </TableCell>
@@ -780,11 +785,11 @@ function WatchlistPageClient() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                                    Created {new Date(list.created_at).toLocaleDateString()}
+                                    Created {new Date(list.created_at).toLocaleDateString("en-US")}
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  Created {new Date(list.created_at).toLocaleString()}
+                                  Created {new Date(list.created_at).toLocaleString("en-US")}
                                 </TooltipContent>
                               </Tooltip>
                               <span className="text-[10px] font-black uppercase tracking-wider text-primary opacity-0 transition-opacity group-hover:opacity-100">

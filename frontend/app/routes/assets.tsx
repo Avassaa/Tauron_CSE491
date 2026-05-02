@@ -15,6 +15,7 @@ import {
   MarketHighlights,
   AssetControls,
 } from "~/components/assets"
+import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 
 import { CreateWatchlistDialog } from "~/components/watchlists/create-watchlist-dialog"
 import { useWatchlist } from "~/hooks/use-watchlist"
@@ -243,8 +244,12 @@ function AssetsPageClient() {
         </div>
       }
     >
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
+      <div
+        className="relative flex-1 overflow-y-auto"
+        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
+      >
+        <PageBlueBackdrop />
+        <div className="relative z-[1] flex flex-1 flex-col gap-6 p-4 md:p-8">
           <MarketHighlights
             onCoinClick={async (symbol) => {
               const match = assets.find(a => a.symbol.toUpperCase() === symbol.toUpperCase())

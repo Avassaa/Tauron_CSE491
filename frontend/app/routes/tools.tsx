@@ -505,7 +505,7 @@ export default function ToolsPage() {
   const newsCount = insightRows.filter((row) => row.news).length
 
   const formattedResult = Number.isFinite(converted)
-    ? converted.toLocaleString(undefined, {
+    ? converted.toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 4,
     })
@@ -525,7 +525,7 @@ export default function ToolsPage() {
     const parsed = Number.parseFloat(raw)
     if (Number.isFinite(parsed) && parsed > MAX_CONVERT_AMOUNT) {
       setAmount(String(MAX_CONVERT_AMOUNT))
-      setAmountLimitError(`Maximum amount is ${MAX_CONVERT_AMOUNT.toLocaleString()}.`)
+      setAmountLimitError(`Maximum amount is ${MAX_CONVERT_AMOUNT.toLocaleString("en-US")}.`)
       return
     }
     setAmount(raw)
@@ -948,7 +948,7 @@ export default function ToolsPage() {
                         <p className="text-xs font-medium text-destructive">{amountLimitError}</p>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Max: {MAX_CONVERT_AMOUNT.toLocaleString()}
+                          Max: {MAX_CONVERT_AMOUNT.toLocaleString("en-US")}
                         </p>
                       )}
                     </div>
@@ -1011,7 +1011,7 @@ export default function ToolsPage() {
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {ratesStatus === "live"
-                        ? `Rate basis: live Binance ticker data${lastUpdatedAt ? ` (updated ${lastUpdatedAt.toLocaleTimeString()})` : ""}.`
+                        ? `Rate basis: live Binance ticker data${lastUpdatedAt ? ` (updated ${lastUpdatedAt.toLocaleTimeString("en-US")})` : ""}.`
                         : ratesStatus === "loading"
                           ? "Rate basis: loading Binance data..."
                           : "Rate basis: Binance unavailable, using fallback rates."}
@@ -1245,7 +1245,7 @@ export default function ToolsPage() {
                                 <p className="mt-1 text-sm text-muted-foreground">
                                   Notify when price is {alert.condition} {formatUsd(alert.target_price)}
                                   {alert.triggered_at
-                                    ? `, triggered ${new Date(alert.triggered_at).toLocaleString()}`
+                                    ? `, triggered ${new Date(alert.triggered_at).toLocaleString("en-US")}`
                                     : ""}
                                 </p>
                                 {alert.percentage_change != null && alert.reference_price != null ? (

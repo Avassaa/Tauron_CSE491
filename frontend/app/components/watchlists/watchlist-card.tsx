@@ -107,8 +107,8 @@ export function WatchlistCard({
             {stats.price == null
               ? "—"
               : stats.price < 1 
-                ? `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
-                : `$${stats.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                ? `$${stats.price.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
+                : `$${stats.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <div className={cn(

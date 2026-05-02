@@ -785,7 +785,7 @@ function TooltipContent({ title, rows, children }: TooltipContentProps) {
               </div>
               <span className="font-medium text-chart-tooltip-foreground text-sm tabular-nums">
                 {typeof row.value === "number"
-                  ? row.value.toLocaleString()
+                  ? row.value.toLocaleString("en-US")
                   : row.value}
               </span>
             </div>
@@ -1385,7 +1385,7 @@ export function YAxis({
           ? formatValue(value)
           : value >= 1000
             ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`
-            : value.toLocaleString(),
+            : value.toLocaleString("en-US"),
       };
     });
   }, [yScale, margin.top, numTicks, formatValue]);

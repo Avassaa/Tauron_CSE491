@@ -105,7 +105,7 @@ export function WatchlistTable({
                 <TableCell className="py-5 text-center">
                   <span className="font-black text-sm tracking-tight text-foreground">
                     {ticker
-                      ? `$${ticker.price.toLocaleString(undefined, {
+                      ? `$${ticker.price.toLocaleString("en-US", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 6,
                         })}`

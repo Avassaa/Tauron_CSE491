@@ -5,6 +5,7 @@ import { Search, RefreshCw, Grid, List, Plus, MoreVertical, Edit3, Trash2 } from
 import { Input } from "~/components/ui/input"
 import { Button } from "~/components/ui/button"
 import { format } from "date-fns"
+import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 import { cn } from "~/lib/utils"
 import { motion } from "framer-motion"
 import type { AssetResponse } from "~/lib/api-client"
@@ -123,7 +124,7 @@ export function WatchlistHeader({
             ) : null}
           </div>
           <div className="flex items-center gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
-            Updated {format(lastUpdate, "MMM dd, hh:mm a")}
+            Updated {format(lastUpdate, "MMM dd, hh:mm a", { locale: DATE_FNS_LOCALE })}
             <button onClick={onRefresh} className="hover:text-white transition-colors">
               <RefreshCw className={`size-3 ${loadingWatchlist ? "animate-spin" : ""}`} />
             </button>

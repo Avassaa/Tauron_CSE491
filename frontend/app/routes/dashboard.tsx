@@ -23,6 +23,7 @@ import {
   ContextMenuTrigger,
 } from "~/components/ui/context-menu"
 import { format } from "date-fns"
+import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 import { toast } from "sonner"
 import {
   DashboardFiltersSection,
@@ -31,6 +32,7 @@ import {
 import { DashboardChartsSkeleton } from "~/components/dashboard/dashboard-charts-skeleton"
 import { DashboardResultsTable } from "~/components/dashboard/dashboard-results-table"
 import { DashboardTableSkeleton } from "~/components/dashboard/dashboard-table-skeleton"
+import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import { cn } from "~/lib/utils"
 
 const INITIAL_DATA_MOCK_MS = 1500
@@ -72,9 +74,9 @@ function DashboardPageClient() {
       const { date, placeholderOn } = payload
       const label =
         date?.from && date.to
-          ? `${format(date.from, "MMM d, yyyy")} – ${format(date.to, "MMM d, yyyy")}`
+          ? `${format(date.from, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })} – ${format(date.to, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })}`
           : date?.from
-            ? format(date.from, "MMM d, yyyy")
+            ? format(date.from, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })
             : "No range selected"
       toast.success("Filters applied (demo).", {
         description: `${label}${placeholderOn ? " · Placeholder on" : ""}`,
@@ -103,10 +105,11 @@ function DashboardPageClient() {
       }
     >
       <div
-        className="flex-1 overflow-y-auto"
+        className="relative flex-1 overflow-y-auto"
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-8">
+        <PageBlueBackdrop />
+        <div className="relative z-[1] flex flex-1 flex-col gap-6 p-4 md:p-8">
           <DashboardFiltersSection
             applyBusy={applyBusy}
             onApply={handleApply}
