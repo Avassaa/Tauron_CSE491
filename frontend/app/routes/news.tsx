@@ -11,8 +11,20 @@ import { toast } from "sonner"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { AssetPagination } from "~/components/assets"
+import {
+  glassSurfaceVariants,
+  sentimentScoreToCardRim,
+  type CardRim,
+} from "~/components/ui/card"
 import { apiGet, apiPost, type CuratedNewsResponse, type PaginatedResponse } from "~/lib/api-client"
 import { cn } from "~/lib/utils"
+
+function newsFeedCardRim(item: CuratedNewsResponse): CardRim {
+  const bySentiment = sentimentScoreToCardRim(item.sentiment_score)
+  if (bySentiment !== "neutral") return bySentiment
+  if (item.asset_symbol) return "primary"
+  return "neutral"
+}
 
 type NewsScrapeAcceptedResponse = {
   status: "accepted"
@@ -127,11 +139,11 @@ export default function NewsPage() {
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/22 blur-[115px] dark:bg-blue-400/18" />
-          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/22 blur-[115px] dark:bg-sky-500/18" />
+          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/12 blur-[115px] dark:bg-blue-400/10" />
+          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/12 blur-[115px] dark:bg-sky-500/10" />
         </div>
-        <div className="relative z-[1] mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 md:p-8">
-          <div className="rounded-xl border bg-muted/20 p-4">
+        <div className="relative z-[1] mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 md:gap-6 md:px-8 md:py-8">
+          <div className="rounded-xl border border-border/50 bg-muted/25 p-4 md:p-5">
             <h1 className="flex items-center gap-2 text-xl font-semibold">
               <Newspaper className="size-5 text-primary" />
               Curated News
@@ -155,7 +167,8 @@ export default function NewsPage() {
               No curated news yet. Click Get News to trigger scraping and curation.
             </div>
           ) : (
-            newsItems.map((item) => {
+            <div className="flex flex-col gap-4 md:gap-5">
+              {newsItems.map((item) => {
               const storyRaw = item.published_at ?? item.created_at
               const storyDate = new Date(storyRaw)
               const dp = item.data_points_used
@@ -165,7 +178,13 @@ export default function NewsPage() {
                 <Link
                   key={item.id}
                   to={`/news/${item.id}`}
-                  className="block rounded-xl border border-border/50 bg-card/50 p-4 backdrop-blur-md transition-colors supports-[backdrop-filter]:bg-card/40 hover:border-primary/30 hover:bg-card/65"
+                  className={cn(
+                    glassSurfaceVariants({
+                      rim: newsFeedCardRim(item),
+                      surface: "plain",
+                    }),
+                    "block px-4 py-4 transition-colors hover:bg-card/60 md:px-5",
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -203,7 +222,8 @@ export default function NewsPage() {
                   </p>
                 </Link>
               )
-            })
+            })}
+            </div>
           )}
 
           <AssetPagination page={page} totalPages={totalPages} setPage={setPage} loading={loading} />

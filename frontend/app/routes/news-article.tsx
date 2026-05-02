@@ -9,6 +9,7 @@ import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
+import { Card, CardContent, sentimentScoreToCardRim } from "~/components/ui/card"
 import { apiGet, type CuratedNewsResponse } from "~/lib/api-client"
 import { cn } from "~/lib/utils"
 
@@ -70,6 +71,7 @@ export default function CuratedNewsDetailPage() {
   const storyDateStr = item?.published_at ?? item?.created_at
   const storyDate = storyDateStr ? new Date(storyDateStr) : null
   const displayDate = storyDate && !Number.isNaN(storyDate.getTime()) ? storyDate : null
+  const glassRim = item ? sentimentScoreToCardRim(item.sentiment_score) : "none"
 
   return (
     <DashboardLayout
@@ -88,10 +90,10 @@ export default function CuratedNewsDetailPage() {
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/22 blur-[115px] dark:bg-blue-400/18" />
-          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/22 blur-[115px] dark:bg-sky-500/18" />
+          <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/12 blur-[115px] dark:bg-blue-400/10" />
+          <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/12 blur-[115px] dark:bg-sky-500/10" />
         </div>
-        <div className="relative z-[1] mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 md:p-8">
+        <div className="relative z-[1] mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 md:p-8">
           {loading ? (
             <div className="rounded-xl border p-8 text-sm text-muted-foreground">Loading…</div>
           ) : error ? (
@@ -156,24 +158,28 @@ export default function CuratedNewsDetailPage() {
               </div>
 
               {item.article_content ? (
-                <article className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
-                  <h2 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    Full article
-                  </h2>
-                  <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.article_content}</p>
-                </article>
+                <Card rim={glassRim} surface="plain" className="gap-0 py-0">
+                  <CardContent className="space-y-4 py-6">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                      Full article
+                    </h2>
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.article_content}</p>
+                  </CardContent>
+                </Card>
               ) : (
                 <p className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                   Full source article text is not stored for this item (older or manually created entries may omit it).
                 </p>
               )}
 
-              <section className="rounded-xl border border-border/50 bg-card/50 p-6 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
-                <h2 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                  Curated summary
-                </h2>
-                <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.summary}</p>
-              </section>
+              <Card rim={glassRim} surface="plain" className="gap-0 py-0">
+                <CardContent className="space-y-4 py-6">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                    Curated summary
+                  </h2>
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.summary}</p>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>

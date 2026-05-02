@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Button } from "~/components/ui/button"
+import { Card } from "~/components/ui/card"
 import { Shield } from "lucide-react"
 import { toast } from "sonner"
 
@@ -49,7 +50,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-10">
-      <section className="space-y-6 rounded-xl border border-border/50 bg-card/50 p-8 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
+      <Card className="gap-8 px-8 py-8">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold tracking-tight">Profile Information</h3>
           <Button variant="outline" size="sm" onClick={handlePreview}>Preview Profile</Button>
@@ -116,10 +117,10 @@ export default function SettingsPage() {
             Save Changes
           </Button>
         </div>
-      </section>
+      </Card>
 
       {/* TODO: Add these to security tab later on */}
-      <section className="space-y-6 rounded-xl border border-border/50 bg-card/50 p-8 backdrop-blur-md supports-[backdrop-filter]:bg-card/40">
+      <Card rim="primaryStart" className="gap-6 px-8 py-8">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
             <Shield className="size-5 text-primary" />
@@ -133,7 +134,7 @@ export default function SettingsPage() {
           <Button variant="outline" className="w-full sm:w-auto" onClick={() => handleSecurityAction("Password")}>Update Password</Button>
           <Button variant="outline" className="w-full sm:w-auto" onClick={() => handleSecurityAction("2FA")}>Enable 2FA</Button>
         </div>
-      </section>
+      </Card>
     </div>
   )
 }
