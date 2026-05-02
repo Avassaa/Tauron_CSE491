@@ -4,10 +4,10 @@ import { cn } from "~/lib/utils"
 
 /**
  * Same glass recipe as `DashboardLayout` sticky header + notifications strip:
- * `bg-background/50 backdrop-blur-md` — translucent bar over content behind it.
+ * translucent surface + strong blur + saturation so the stained page canvas reads through.
  */
 export const glassCardSurface =
-  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-background/50 backdrop-blur-md text-card-foreground shadow-sm dark:border-border/50 dark:bg-background/40"
+  "relative isolate overflow-hidden rounded-xl border border-border/50 bg-background/45 text-card-foreground shadow-sm backdrop-blur-xl backdrop-saturate-150 dark:border-border/50 dark:bg-background/35"
 
 function cardVariants() {
   return cn(glassCardSurface, "flex flex-col gap-6 py-6")

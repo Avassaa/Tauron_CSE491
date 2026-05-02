@@ -28,8 +28,8 @@ export function DashboardLayout({
         <SidebarProvider>
           <AppSidebar />
           <MarketMarqueeBanner />
-          <div className="flex-1 flex flex-col min-w-0 bg-background">
-            <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between border-b bg-background/50 px-4 backdrop-blur-md">
+          <div className="glass-page-bg flex min-w-0 flex-1 flex-col">
+            <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between border-b bg-background/45 px-4 backdrop-blur-xl backdrop-saturate-150">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
                 <Separator orientation="vertical" className="mr-2 h-4" />
