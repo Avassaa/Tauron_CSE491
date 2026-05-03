@@ -171,6 +171,7 @@ export function GeminiChatPanel({
     status,
     error,
     addToolApprovalResponse,
+    setMessages,
   } = useGeminiChat({
     id,
     initialMessages,
@@ -183,6 +184,10 @@ export function GeminiChatPanel({
   const endRef = React.useRef<HTMLDivElement>(null)
 
   const [username, setUsername] = React.useState("You")
+
+  React.useEffect(() => {
+    setMessages(initialMessages ?? [])
+  }, [id, initialMessages, setMessages])
 
   React.useEffect(() => {
     const sync = () => setUsername(localStorage.getItem("username")?.trim() || "You")

@@ -135,6 +135,9 @@ export function EmbeddedAssistantWorkspace({
       if (res.ok) {
         const data = (await res.json()) as { items?: unknown[] }
         setInitialMessages(chatItemsToUIMessages(data.items ?? []))
+      } else {
+        console.error("[assistant-dock] GET /chat-history failed:", res.status, await res.text())
+        setInitialMessages([])
       }
     } catch (e) {
       console.error("Failed to load chat messages:", e)
