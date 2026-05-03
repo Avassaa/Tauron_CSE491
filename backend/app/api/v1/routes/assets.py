@@ -253,6 +253,256 @@ async def get_live_market(
     return out
 
 
+def _best_ticker_row_by_base(markets: list) -> dict[str, dict]:
+    """Pick highest quoteVolume row per base asset (USDT/USD pairs)."""
+    best_by_base: dict[str, dict] = {}
+    for row in markets:
+        if not isinstance(row, dict):
+            continue
+        pair = row.get("symbol")
+        if not isinstance(pair, str):
+            continue
+        quote = "USDT" if pair.endswith("USDT") else ("USD" if pair.endswith("USD") else None)
+        if quote is None:
+            continue
+        symbol = pair[: -len(quote)].upper()
+        if not symbol:
+            continue
+        quote_volume = None
+        try:
+            quote_volume = float(row.get("quoteVolume"))
+        except (TypeError, ValueError):
+            quote_volume = None
+        current_best = best_by_base.get(symbol)
+        current_best_volume = None
+        if current_best is not None:
+            try:
+                current_best_volume = float(current_best.get("quoteVolume"))
+            except (TypeError, ValueError):
+                current_best_volume = None
+        if current_best is None or (
+            quote_volume is not None and (current_best_volume is None or quote_volume > current_best_volume)
+        ):
+            best_by_base[symbol] = row
+    return best_by_base
+
+
+def _ticker_float(row: dict, key: str) -> float | None:
+    try:
+        raw = row.get(key)
+        if raw is None:
+            return None
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_binance_klines_sync(symbol_pair: str, interval: str, limit: int) -> list:
+    safe_limit = max(2, min(1000, limit))
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol_pair}&interval={interval}&limit={safe_limit}"
+    req = Request(url, headers={"User-Agent": "tauron-market-movers/1.0"})
+    with urlopen(req, timeout=25) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    return payload if isinstance(payload, list) else []
+
+
+def _close_to_close_abs_pct(klines: list) -> float | None:
+    if not klines or len(klines) < 2:
+        return None
+    try:
+        c0 = float(klines[0][4])
+        c1 = float(klines[-1][4])
+        if c0 <= 0:
+            return None
+        return abs((c1 - c0) / c0 * 100.0)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+@router.get("/market-movers")
+async def get_market_movers(
+    metric: str = Query(
+        ...,
+        description="volume | gainer | loser | volatile (absolute move over window).",
+    ),
+    window: str = Query(
+        default="24h",
+        description="For volatile: 1h | 6h | 24h | 1d | 7d. Ignored for volume/gainer/loser.",
+    ),
+    limit: int = Query(default=10, ge=1, le=25),
+    scan_limit: int = Query(
+        default=60,
+        ge=20,
+        le=100,
+        description="Liquid USDT pairs to scan with klines for short-window volatile ranking.",
+    ),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """
+    Binance spot snapshot: top gainers/losers/volume or most volatile by window.
+    Short windows rank among top ``scan_limit`` pairs by 24h quote volume.
+    """
+    metric_norm = metric.strip().lower()
+    if metric_norm not in {"volume", "gainer", "loser", "volatile"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="metric must be volume, gainer, loser, or volatile",
+        )
+    window_norm = window.strip().lower()
+    if window_norm not in {"1h", "6h", "24h", "1d", "7d"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="window must be 1h, 6h, 24h, 1d, or 7d",
+        )
+
+    try:
+        markets = await _fetch_binance_ticker_24h_cached()
+    except Exception as exc:
+        logger.warning("market-movers Binance ticker fetch failed: %s", exc)
+        return {
+            "metric": metric_norm,
+            "window": window_norm,
+            "methodology": "Binance USDT/USD 24h ticker unavailable.",
+            "items": [],
+        }
+
+    best = _best_ticker_row_by_base(markets)
+    if not best:
+        return {"metric": metric_norm, "window": window_norm, "methodology": "No ticker rows.", "items": []}
+
+    def enrich_item(rank: int, base: str, sort_value: float, extra_note: str | None = None) -> dict:
+        row = best.get(base, {})
+        price = _ticker_float(row, "lastPrice")
+        vol = _ticker_float(row, "quoteVolume")
+        chg24 = _ticker_float(row, "priceChangePercent")
+        item = {
+            "rank": rank,
+            "symbol": base,
+            "last_price_usdt": price,
+            "quote_volume_24h_usdt": vol,
+            "price_change_24h_pct": chg24,
+            "sort_value": round(sort_value, 6) if sort_value == sort_value else sort_value,
+        }
+        if extra_note:
+            item["note"] = extra_note
+        return item
+
+    methodology_parts = ["Binance spot USDT (and USD where present)."]
+
+    if metric_norm == "volume":
+        ordered = sorted(
+            best.items(),
+            key=lambda kv: (_ticker_float(kv[1], "quoteVolume") or 0.0),
+            reverse=True,
+        )[:limit]
+        methodology_parts.append("Sorted by 24h quote volume.")
+        items = [
+            enrich_item(i + 1, base, _ticker_float(row, "quoteVolume") or 0.0)
+            for i, (base, row) in enumerate(ordered)
+        ]
+        return {
+            "metric": metric_norm,
+            "window": "24h",
+            "methodology": " ".join(methodology_parts),
+            "items": items,
+        }
+
+    if metric_norm == "gainer":
+        ordered = sorted(
+            best.items(),
+            key=lambda kv: (_ticker_float(kv[1], "priceChangePercent") or -1e9),
+            reverse=True,
+        )[:limit]
+        methodology_parts.append("Sorted by 24h priceChangePercent descending.")
+        items = [
+            enrich_item(i + 1, base, _ticker_float(row, "priceChangePercent") or 0.0)
+            for i, (base, row) in enumerate(ordered)
+        ]
+        return {
+            "metric": metric_norm,
+            "window": "24h",
+            "methodology": " ".join(methodology_parts),
+            "items": items,
+        }
+
+    if metric_norm == "loser":
+        ordered = sorted(
+            best.items(),
+            key=lambda kv: (_ticker_float(kv[1], "priceChangePercent") or 1e9),
+        )[:limit]
+        methodology_parts.append("Sorted by 24h priceChangePercent ascending (worst first).")
+        items = [
+            enrich_item(i + 1, base, _ticker_float(row, "priceChangePercent") or 0.0)
+            for i, (base, row) in enumerate(ordered)
+        ]
+        return {
+            "metric": metric_norm,
+            "window": "24h",
+            "methodology": " ".join(methodology_parts),
+            "items": items,
+        }
+
+    # volatile
+    if window_norm in {"24h", "1d"}:
+        scored: list[tuple[str, float]] = []
+        for base, row in best.items():
+            chg = _ticker_float(row, "priceChangePercent")
+            if chg is None:
+                continue
+            scored.append((base, abs(chg)))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        methodology_parts.append("Volatility proxy: absolute 24h priceChangePercent from ticker.")
+        items = [enrich_item(i + 1, base, val) for i, (base, val) in enumerate(scored[:limit])]
+        return {
+            "metric": metric_norm,
+            "window": window_norm,
+            "methodology": " ".join(methodology_parts),
+            "items": items,
+        }
+
+    interval_limit: tuple[str, int]
+    if window_norm == "1h":
+        interval_limit = ("5m", 13)
+        methodology_parts.append("Klines 5m×13: absolute close-to-close % (~1h).")
+    elif window_norm == "6h":
+        interval_limit = ("15m", 25)
+        methodology_parts.append("Klines 15m×25: absolute close-to-close % (~6h).")
+    else:  # 7d
+        interval_limit = ("4h", 42)
+        methodology_parts.append("Klines 4h×42: absolute close-to-close % (~7d).")
+
+    interval, klim = interval_limit
+
+    liquid = sorted(
+        best.items(),
+        key=lambda kv: (_ticker_float(kv[1], "quoteVolume") or 0.0),
+        reverse=True,
+    )[:scan_limit]
+    bases = [b for b, _ in liquid]
+
+    sem = asyncio.Semaphore(8)
+
+    async def score_base(base: str) -> tuple[str, float]:
+        async with sem:
+            pair = f"{base}USDT" if base != "USDT" else "USDTUSD"
+            raw = await asyncio.to_thread(_fetch_binance_klines_sync, pair, interval, klim)
+            pct = _close_to_close_abs_pct(raw)
+            return (base, pct if pct is not None else -1.0)
+
+    scored_k = await asyncio.gather(*[score_base(b) for b in bases])
+    scored_k = [(b, v) for b, v in scored_k if v >= 0]
+    scored_k.sort(key=lambda x: x[1], reverse=True)
+    methodology_parts.append(f"Among top {len(bases)} pairs by 24h quote volume.")
+
+    items = [enrich_item(i + 1, base, val) for i, (base, val) in enumerate(scored_k[:limit])]
+    return {
+        "metric": metric_norm,
+        "window": window_norm,
+        "methodology": " ".join(methodology_parts),
+        "items": items,
+    }
+
+
 @router.get("/{asset_id}", response_model=AssetResponse)
 async def get_asset(
     asset_id: uuid.UUID,

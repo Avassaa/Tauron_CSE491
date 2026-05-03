@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, Loader2, Newspaper, Wrench } from "lucide-react"
+import { Activity, AlertTriangle, Loader2, Newspaper, Wrench } from "lucide-react"
 import { getToolName, isToolUIPart, type UIMessage } from "ai"
 
 import {
@@ -385,6 +385,64 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     })
   }
 
+  if (out.widget === "market_movers" && out.ok === true) {
+    const items = Array.isArray(out.items) ? out.items : []
+    const metric = String(out.metric ?? "")
+    const win = String(out.window ?? "")
+    const methodology = typeof out.methodology === "string" ? out.methodology : ""
+    const titleSuffix = metric === "volatile" ? ` · ${win}` : ""
+    return toolShell({
+      title: `Market movers · ${metric}${titleSuffix}`,
+      stateLine: (
+        <span className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Activity className="size-3.5 shrink-0 text-primary" aria-hidden />
+          {methodology || "Binance spot snapshot."}
+        </span>
+      ),
+      children: (
+        <ul className="space-y-2">
+          {items.map((raw, idx) => {
+            if (!raw || typeof raw !== "object") return null
+            const row = raw as Record<string, unknown>
+            const sym = typeof row.symbol === "string" ? row.symbol : `#${idx + 1}`
+            const rank = typeof row.rank === "number" ? row.rank : idx + 1
+            const price = typeof row.last_price_usdt === "number" ? row.last_price_usdt : null
+            const vol = typeof row.quote_volume_24h_usdt === "number" ? row.quote_volume_24h_usdt : null
+            const chg24 = typeof row.price_change_24h_pct === "number" ? row.price_change_24h_pct : null
+            const sortVal = typeof row.sort_value === "number" ? row.sort_value : null
+            return (
+              <li
+                key={`${sym}-${rank}`}
+                className="rounded-lg border border-border/50 bg-background/40 px-3 py-2 text-[13px] text-foreground"
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono font-semibold">
+                    {rank}. {sym}
+                  </span>
+                  {price !== null ? <span className="shrink-0 text-muted-foreground">${price.toLocaleString()}</span> : null}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                  {vol !== null ? <span>24h vol ${vol.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> : null}
+                  {chg24 !== null ? (
+                    <span className={chg24 >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                      24h {chg24 >= 0 ? "+" : ""}
+                      {chg24.toFixed(2)}%
+                    </span>
+                  ) : null}
+                  {metric === "volatile" && sortVal !== null ?
+                    <span>
+                      ({win}) abs. move {sortVal.toFixed(2)}%
+                    </span>
+                  : null}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      ),
+    })
+  }
+
   if (out.widget === "watchlists_overview" && out.ok === true) {
     const primaryRaw = Array.isArray(out.primary_watchlist) ? out.primary_watchlist : []
     const primary_watchlist = primaryRaw.map(parseWatchlistAssetChip).filter(Boolean) as WatchlistAssetChip[]
@@ -395,11 +453,13 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     )
   }
 
-  if (out.widget === "news_digest" && typeof out.symbol === "string") {
+  if (out.widget === "news_digest") {
     const rows = Array.isArray(out.items) ? out.items : []
     const headerNote = typeof out.message === "string" ? out.message : null
+    const digestTitle =
+      typeof out.symbol === "string" && out.symbol.trim().length > 0 ? out.symbol.trim() : "Curated news"
     return toolShell({
-      title: `Curated news · ${out.symbol}`,
+      title: `Curated news · ${digestTitle}`,
       stateLine: (
         <span className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
           <Newspaper className="size-3.5 shrink-0 text-primary" aria-hidden />
@@ -419,6 +479,8 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
               const r = entry as Record<string, unknown>
               const summary = typeof r.summary === "string" ? r.summary : ""
               const phrase = curatedSentimentPhrase(r.sentiment_score)
+              const assetTag =
+                typeof r.asset_symbol === "string" && r.asset_symbol.trim().length > 0 ? r.asset_symbol.trim() : null
               if (!summary.trim()) return null
               return (
                 <li key={typeof r.id === "string" ? r.id : `news-${idx}`} className="rounded-lg border border-border/50 bg-background/40 px-3 py-2">
@@ -426,6 +488,11 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
                       {phrase}
                     </span>
+                    {assetTag ? (
+                      <span className="rounded-full border border-border/60 bg-background/60 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {assetTag}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1.5 text-[13px] leading-snug text-foreground">{summary}</p>
                 </li>

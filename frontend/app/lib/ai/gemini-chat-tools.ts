@@ -32,6 +32,8 @@ function slimAsset(a: AssetRow): { id: string; symbol: string; name: string } {
 
 type CuratedNewsRow = {
   id: string
+  asset_id?: string | null
+  asset_symbol?: string | null
   summary: string
   sentiment_score: number | null
   published_at: string | null
@@ -41,8 +43,20 @@ function authRequired() {
   return { ok: false as const, error: "Authentication required for this action." }
 }
 
+function rankAssetSearchItems(items: AssetRow[], sym: string): AssetRow[] {
+  const exact = items.filter((a) => a.symbol.toUpperCase() === sym)
+  return exact.length > 0 ? exact : items
+}
+
 async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
   const sym = symbol.trim().toUpperCase()
+  if (sym.length > 10) {
+    return {
+      found: [] as AssetRow[],
+      status: 400,
+      detail: "Symbol is too long for the asset catalog (max 10 characters).",
+    }
+  }
   const qs = new URLSearchParams({
     search: sym,
     page_size: "15",
@@ -52,16 +66,66 @@ async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
     authHeader,
     method: "GET",
   })
-  if (!res.ok || !res.data?.items?.length) {
+  if (!authHeader) {
     return {
       found: [] as AssetRow[],
       status: res.status,
-      detail: !authHeader ? "Missing credentials." : `Upstream assets lookup failed (${res.status}).`,
+      detail: "Missing credentials.",
     }
   }
-  const exact = res.data.items.filter((a) => a.symbol.toUpperCase() === sym)
-  const ranked = exact.length > 0 ? exact : res.data.items
-  return { found: ranked, status: res.status, detail: undefined as string | undefined }
+  if (!res.ok) {
+    return {
+      found: [] as AssetRow[],
+      status: res.status,
+      detail: `Assets API error (${res.status}).`,
+    }
+  }
+  if (res.data?.items?.length) {
+    return {
+      found: rankAssetSearchItems(res.data.items, sym),
+      status: res.status,
+      detail: undefined as string | undefined,
+    }
+  }
+
+  const ensureRes = await internalJsonFetch<AssetRow>(`/assets/ensure`, {
+    authHeader,
+    method: "POST",
+    body: {
+      symbol: sym,
+      name: sym,
+      category: "Crypto",
+      coingecko_id: null,
+      is_active: true,
+    },
+  })
+  if (ensureRes.ok && ensureRes.data?.id && ensureRes.data.symbol) {
+    return {
+      found: [ensureRes.data],
+      status: ensureRes.status,
+      detail: undefined as string | undefined,
+    }
+  }
+
+  const retry = await internalJsonFetch<Paginated<AssetRow>>(`/assets?${qs}`, {
+    authHeader,
+    method: "GET",
+  })
+  if (retry.ok && retry.data?.items?.length) {
+    return {
+      found: rankAssetSearchItems(retry.data.items, sym),
+      status: retry.status,
+      detail: undefined as string | undefined,
+    }
+  }
+
+  return {
+    found: [] as AssetRow[],
+    status: ensureRes.status,
+    detail:
+      `Could not open “${sym}” in the catalog (ensure returned ${ensureRes.status}). ` +
+      "Try again from the Assets page, or confirm the ticker is valid.",
+  }
 }
 
 function riskOverlayFromCloses(closes: number[]): {
@@ -160,7 +224,7 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
 
     get_market_data: tool({
       description:
-        "Resolve a tracked crypto asset by ticker. Returns assets_grid_metrics (1h/7d % like the Assets grid), live_market when authenticated (Binance 24h last price, quote volume, 24h % — same /assets/live-market feed as the UI), and optional OHLC charts. You must set include_chart true to return a plottable series (market_chart); otherwise the client only shows the quote card (asset_quote) with no graph.",
+        "Resolve a tracked crypto asset by ticker. Returns assets_grid_metrics (1h/7d % like the Assets grid), live_market when authenticated (Binance 24h last price, quote volume, 24h % — same /assets/live-market feed as the UI), and optional OHLC charts. You must set include_chart true to return a plottable series (market_chart); otherwise the client only shows the quote card (asset_quote) with no graph. For should-I-buy / hold / add questions, prefer include_chart true and include_risk true together, and also call get_curated_news_digest for the same symbol.",
       inputSchema: z.object({
         symbol: z.string().describe("Base ticker without quote, e.g. BTC or SOL."),
         include_chart: z
@@ -251,14 +315,66 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
 
     get_curated_news_digest: tool({
       description:
-        "Load recent Tauron curated news summaries for an asset symbol to blend narrative catalysts with price tools.",
+        "Query Tauron curated news from the same API as the News page. Omit symbol for the latest headlines across all assets; pass a ticker (e.g. BTC) to filter by that asset.",
       inputSchema: z.object({
-        symbol: z.string(),
+        symbol: z
+          .string()
+          .optional()
+          .describe(
+            "Base ticker without quote (BTC, SOL). Leave empty for a global recent feed when the user asks for general/crypto headlines without naming one coin.",
+          ),
         max_items: z.number().min(1).max(20).optional().default(10),
       }),
       execute: async ({ symbol, max_items }) => {
         if (!authHeader) return authRequired()
-        const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
+
+        const mapItems = (rawItems: CuratedNewsRow[]) =>
+          rawItems.map((row) => ({
+            id: row.id,
+            asset_symbol: row.asset_symbol ?? null,
+            summary: row.summary?.trim() ?? "",
+            sentiment_score: row.sentiment_score,
+            published_at: row.published_at,
+          }))
+
+        const sym = symbol?.trim() ?? ""
+        if (!sym) {
+          const qs = new URLSearchParams({
+            page: "1",
+            page_size: String(max_items),
+          })
+          const res = await internalJsonFetch<Paginated<CuratedNewsRow>>(`/curated-news?${qs}`, {
+            authHeader,
+            method: "GET",
+          })
+          if (!res.ok) {
+            return {
+              ok: false as const,
+              error: `Curated news unavailable (${res.status}).`,
+            }
+          }
+          const rawItems = res.data?.items ?? []
+          const items = mapItems(rawItems)
+          if (!items.length) {
+            return {
+              ok: true as const,
+              widget: "news_digest" as const,
+              symbol: "Recent headlines",
+              feed_scope: "global" as const,
+              items,
+              message: "No curated news in the database yet.",
+            }
+          }
+          return {
+            ok: true as const,
+            widget: "news_digest" as const,
+            symbol: "Recent headlines",
+            feed_scope: "global" as const,
+            items,
+          }
+        }
+
+        const { found, detail } = await findAssetsBySymbol(sym, authHeader)
         if (!found.length) {
           return { ok: false as const, error: detail ?? "Asset not found." }
         }
@@ -280,18 +396,14 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           }
         }
         const rawItems = res.data?.items ?? []
-        const items = rawItems.map((row) => ({
-          id: row.id,
-          summary: row.summary?.trim() ?? "",
-          sentiment_score: row.sentiment_score,
-          published_at: row.published_at,
-        }))
+        const items = mapItems(rawItems)
         if (!items.length) {
           return {
             ok: true as const,
             widget: "news_digest" as const,
             symbol: asset.symbol,
-            items: [] as typeof items,
+            feed_scope: "asset" as const,
+            items,
             message: "No curated news rows matched this asset yet.",
           }
         }
@@ -299,7 +411,64 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           ok: true as const,
           widget: "news_digest" as const,
           symbol: asset.symbol,
+          feed_scope: "asset" as const,
           items,
+        }
+      },
+    }),
+
+    get_market_movers: tool({
+      description:
+        "Rank Binance USDT spot pairs: highest quote volume, top 24h gainers or losers, or most volatile by window (1h / 6h / 24h / 1d / 7d). Use when the user asks for biggest movers, most volume, winners/losers, or volatility leaders without naming a ticker.",
+      inputSchema: z.object({
+        metric: z
+          .enum(["volume", "gainer", "loser", "volatile"])
+          .describe("volume = 24h quote volume; gainer/loser = 24h %% change; volatile = absolute %% move over window."),
+        window: z
+          .enum(["1h", "6h", "24h", "1d", "7d"])
+          .optional()
+          .default("24h")
+          .describe("For volatile only (ignored for volume/gainer/loser). 24h/1d use ticker; 1h/6h/7d scan liquid pairs with klines."),
+        limit: z.number().min(1).max(25).optional().default(10),
+      }),
+      execute: async ({ metric, window, limit }) => {
+        if (!authHeader) return authRequired()
+        const qs = new URLSearchParams({
+          metric,
+          window,
+          limit: String(limit),
+        })
+        const res = await internalJsonFetch<{
+          metric: string
+          window: string
+          methodology: string
+          items: Array<{
+            rank: number
+            symbol: string
+            last_price_usdt: number | null
+            quote_volume_24h_usdt: number | null
+            price_change_24h_pct: number | null
+            sort_value: number
+            note?: string
+          }>
+        }>(`/assets/market-movers?${qs}`, { authHeader, method: "GET" })
+        if (!res.ok) {
+          return {
+            ok: false as const,
+            error: `Market movers unavailable (${res.status}).`,
+          }
+        }
+        const data = res.data
+        if (!data) {
+          return { ok: false as const, error: "Empty response from market movers." }
+        }
+        return {
+          ok: true as const,
+          widget: "market_movers" as const,
+          metric: data.metric,
+          window: data.window,
+          methodology: data.methodology,
+          items: data.items ?? [],
         }
       },
     }),

@@ -151,6 +151,61 @@ export function EmbeddedAssistantWorkspace({
     localStorage.setItem(CHAT_LAST_SESSION_KEY, id)
   }, [])
 
+  const handleDeleteSession = React.useCallback(
+    async (sessionId: string) => {
+      const token = localStorage.getItem("access_token")
+      const apiBaseUrl = getPublicApiBaseUrl()
+      const wasCurrent = currentSessionId === sessionId
+
+      if (token) {
+        const res = await fetch(`${apiBaseUrl}/chat-history/sessions/${encodeURIComponent(sessionId)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok && res.status !== 404) {
+          console.error("[assistant-dock] DELETE session failed:", res.status, await res.text())
+          return
+        }
+        await reloadSessionList()
+      } else {
+        setSessions((prev) => prev.filter((s) => String(s.session_id) !== sessionId))
+      }
+
+      if (wasCurrent) {
+        if (token) {
+          const sessRes = await fetch(`${apiBaseUrl}/chat-history/sessions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (sessRes.ok) {
+            const list = (await sessRes.json()) as ChatSession[]
+            if (list.length > 0) {
+              await handleSelectSession(String(list[0].session_id))
+              return
+            }
+          }
+        }
+        handleNewChat()
+      }
+    },
+    [currentSessionId, reloadSessionList, handleSelectSession, handleNewChat],
+  )
+
+  const handleClearAllSessions = React.useCallback(async () => {
+    const token = localStorage.getItem("access_token")
+    if (!token) return
+    const apiBaseUrl = getPublicApiBaseUrl()
+    const res = await fetch(`${apiBaseUrl}/chat-history/sessions`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      console.error("[assistant-dock] DELETE all sessions failed:", res.status, await res.text())
+      return
+    }
+    await reloadSessionList()
+    handleNewChat()
+  }, [reloadSessionList, handleNewChat])
+
   const handleActivity = React.useCallback(() => {
     setTimeout(reloadSessionList, 800)
   }, [reloadSessionList])
@@ -216,6 +271,9 @@ export function EmbeddedAssistantWorkspace({
               initialMessages={initialMessages}
               onActivity={handleActivity}
               onNewMessage={handleOptimisticSession}
+              onRequestDeleteConversation={
+                currentSessionId ? () => void handleDeleteSession(currentSessionId) : undefined
+              }
               className="min-h-0 min-w-0 flex-1 basis-0"
             />
           ) : (
@@ -232,6 +290,8 @@ export function EmbeddedAssistantWorkspace({
           currentSessionId={currentSessionId ?? ""}
           onSelectSession={handleSelectSession}
           onNewChat={handleNewChat}
+          onDeleteSession={handleDeleteSession}
+          onClearAllSessions={handleClearAllSessions}
           isLoading={isLoadingSessions}
           onDockRailExpandedChange={setDockHistoryRailExpanded}
         />
