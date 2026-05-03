@@ -4,21 +4,24 @@ export type BinanceSimpleCandle = { time: string; close: number }
 const MAX_KLINES = 1000
 
 export function estimateKlineLimit(lookbackHours: number, resolution: "1h" | "4h" | "1d"): number {
-  if (resolution === "1h") return Math.min(MAX_KLINES, Math.ceil(lookbackHours) + 4)
-  if (resolution === "4h") return Math.min(MAX_KLINES, Math.ceil(lookbackHours / 4) + 4)
-  return Math.min(MAX_KLINES, Math.ceil(lookbackHours / 24) + 4)
+  const h = Math.max(1, lookbackHours)
+  if (resolution === "1h") return Math.min(MAX_KLINES, Math.max(2, Math.ceil(h) + 2))
+  if (resolution === "4h") return Math.min(MAX_KLINES, Math.max(2, Math.ceil(h / 4) + 2))
+  return Math.min(MAX_KLINES, Math.max(2, Math.ceil(h / 24) + 2))
 }
+
+export type BinanceKlineInterval = "5m" | "1h" | "4h" | "1d"
 
 export async function fetchBinanceSpotKlines(
   baseSymbol: string,
-  interval: "1h" | "4h" | "1d",
+  interval: BinanceKlineInterval,
   limit: number,
 ): Promise<BinanceSimpleCandle[]> {
   const base = baseSymbol.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
   if (!base || base === "USDT") return []
 
   const pair = `${base}USDT`
-  const safeLimit = Math.min(MAX_KLINES, Math.max(12, Math.floor(limit)))
+  const safeLimit = Math.min(MAX_KLINES, Math.max(2, Math.floor(limit)))
 
   const urls = [
     `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(pair)}&interval=${interval}&limit=${safeLimit}`,

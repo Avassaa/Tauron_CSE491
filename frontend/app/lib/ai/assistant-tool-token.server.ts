@@ -38,6 +38,8 @@ export type PendingWatchlistConfirmation = {
   action: "add" | "remove"
   assetId: string
   symbol: string
+  listId?: string
+  listName?: string
   exp: number
 }
 
@@ -101,6 +103,8 @@ export function verifyAssistantConfirmationToken(token: string): PendingAssistan
     if ((o.action !== "add" && o.action !== "remove") || typeof o.assetId !== "string" || typeof o.symbol !== "string") {
       return null
     }
+    if (o.listId !== undefined && typeof o.listId !== "string") return null
+    if (o.listName !== undefined && typeof o.listName !== "string") return null
     return o
   }
   if (o.kind === "price_alert") {

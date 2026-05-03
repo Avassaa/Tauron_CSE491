@@ -49,6 +49,20 @@ function rowsToSeries(rows: MarketCandleRow[], resolutionFallback: string): Omit
   }
 }
 
+function trimCandlesToWindow(
+  candles: BinanceSimpleCandle[],
+  timeFrom: Date,
+  timeTo: Date,
+): BinanceSimpleCandle[] {
+  const fromMs = timeFrom.getTime()
+  const toMs = timeTo.getTime()
+  const trimmed = candles.filter((c) => {
+    const t = new Date(c.time).getTime()
+    return t >= fromMs && t <= toMs
+  })
+  return trimmed.length >= 2 ? trimmed : candles
+}
+
 function binanceToMarketRows(candles: BinanceSimpleCandle[], resolution: string): MarketCandleRow[] {
   return candles.map((c) => ({
     time: c.time,
@@ -137,8 +151,9 @@ export async function resolveMarketSeriesForAssistant(args: {
   for (const interval of intervals) {
     const limit = estimateKlineLimit(lookbackHours, interval)
     const candles = await fetchBinanceSpotKlines(symbol, interval, limit)
-    if (candles.length >= 8) {
-      const rows = binanceToMarketRows(candles, interval)
+    const windowed = trimCandlesToWindow(candles, timeFrom, timeTo)
+    if (windowed.length >= 2) {
+      const rows = binanceToMarketRows(windowed, interval)
       const s = rowsToSeries(rows, interval)
       return { ...s, seriesSource: "binance" }
     }

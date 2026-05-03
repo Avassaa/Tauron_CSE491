@@ -14,7 +14,11 @@ function parseAuth(request: Request, bodyToken?: unknown): string | null {
 }
 
 async function executeWatchlist(payload: PendingAssistantConfirmation & { kind: "watchlist" }, authHeader: string) {
-  const path = `/users/me/watchlist/${payload.assetId}`
+  const listId = payload.listId?.trim()
+  const path =
+    listId ?
+      `/users/me/watchlists/${listId}/assets/${payload.assetId}`
+    : `/users/me/watchlist/${payload.assetId}`
   const res =
     payload.action === "add"
       ? await internalJsonFetch<unknown>(path, { authHeader, method: "PUT" })
@@ -22,19 +26,24 @@ async function executeWatchlist(payload: PendingAssistantConfirmation & { kind: 
   if (!res.ok) {
     const msg =
       payload.action === "remove" && res.status === 404
-        ? `${payload.symbol} was not on your watchlist.`
+        ? listId ?
+          `${payload.symbol} was not in that list.`
+        : `${payload.symbol} was not on your watchlist.`
         : `Watchlist API error (${res.status}).`
     return Response.json({ ok: false as const, error: msg }, { status: res.status })
   }
+  const listHint =
+    listId && payload.listName ? ` list “${payload.listName}”` : listId ? " that watchlist" : " your watchlist"
   return Response.json({
     ok: true as const,
     widget: "watchlist_update" as const,
     symbol: payload.symbol,
     action: payload.action,
+    list_id: listId ?? null,
     message:
       payload.action === "add"
-        ? `${payload.symbol} added to your watchlist.`
-        : `${payload.symbol} removed from your watchlist.`,
+        ? `${payload.symbol} added to${listHint}.`
+        : `${payload.symbol} removed from${listHint}.`,
   })
 }
 

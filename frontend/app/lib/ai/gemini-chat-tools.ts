@@ -1,7 +1,9 @@
 import { tool } from "ai"
 import { z } from "zod"
 
+import { computeAssetsGridStyleMetrics } from "~/lib/ai/gemini-binance-grid-metrics.server"
 import { resolveMarketSeriesForAssistant } from "~/lib/ai/gemini-chat-market-series.server"
+import { fetchLiveMarketSnapshot } from "~/lib/ai/gemini-live-market-snapshot.server"
 import {
   createExpiry,
   signAssistantConfirmation,
@@ -17,6 +19,15 @@ type AssetRow = {
   id: string
   symbol: string
   name: string
+}
+
+type WatchlistListRow = {
+  id: string
+  name: string
+}
+
+function slimAsset(a: AssetRow): { id: string; symbol: string; name: string } {
+  return { id: a.id, symbol: a.symbol, name: a.name }
 }
 
 type CuratedNewsRow = {
@@ -94,14 +105,73 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
   const { authHeader } = ctx
 
   return {
+    get_user_watchlists: tool({
+      description:
+        "List the user's primary watchlist and all named watchlists with the assets in each. Call when the user asks what's on their watchlist, which lists exist, or before changing membership.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!authHeader) return authRequired()
+
+        const [primaryRes, listsRes] = await Promise.all([
+          internalJsonFetch<Array<{ asset: AssetRow }>>(`/users/me/watchlist`, { authHeader, method: "GET" }),
+          internalJsonFetch<WatchlistListRow[]>(`/users/me/watchlists`, { authHeader, method: "GET" }),
+        ])
+
+        if (!primaryRes.ok) {
+          return {
+            ok: false as const,
+            error: `Primary watchlist unavailable (${primaryRes.status}).`,
+          }
+        }
+        if (!listsRes.ok) {
+          return {
+            ok: false as const,
+            error: `Named watchlists unavailable (${listsRes.status}).`,
+          }
+        }
+
+        const primaryAssets = (primaryRes.data ?? []).map((e) => slimAsset(e.asset))
+
+        const named_lists: Array<{ list_id: string; name: string; assets: ReturnType<typeof slimAsset>[] }> = []
+        const lists = listsRes.data ?? []
+        await Promise.all(
+          lists.map(async (list) => {
+            const assetsRes = await internalJsonFetch<Array<{ asset: AssetRow }>>(
+              `/users/me/watchlists/${list.id}/assets`,
+              { authHeader, method: "GET" },
+            )
+            const assets = assetsRes.ok ? (assetsRes.data ?? []).map((e) => slimAsset(e.asset)) : []
+            named_lists.push({
+              list_id: list.id,
+              name: list.name,
+              assets,
+            })
+          }),
+        )
+
+        return {
+          ok: true as const,
+          widget: "watchlists_overview" as const,
+          primary_watchlist: primaryAssets,
+          named_lists,
+        }
+      },
+    }),
+
     get_market_data: tool({
       description:
-        "Resolve a tracked crypto asset by ticker and optionally fetch recent closes for an inline chart plus volatility context. Prefer this instead of guessing prices.",
+        "Resolve a tracked crypto asset by ticker. Returns assets_grid_metrics (1h/7d % like the Assets grid), live_market when authenticated (Binance 24h last price, quote volume, 24h % — same /assets/live-market feed as the UI), and optional OHLC charts. You must set include_chart true to return a plottable series (market_chart); otherwise the client only shows the quote card (asset_quote) with no graph.",
       inputSchema: z.object({
         symbol: z.string().describe("Base ticker without quote, e.g. BTC or SOL."),
-        include_chart: z.boolean().optional().default(false).describe("When true, fetch OHLC closes for chart rendering."),
+        include_chart: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe(
+            "Set true whenever the user wants a visible chart/graph (English or Turkish: grafik, çiz, görsel, saatlik seri). False returns quote numbers only — no chart widget.",
+          ),
         include_risk: z.boolean().optional().default(false).describe("When true (usually with chart), add heuristic risk bands."),
-        lookbackHours: z.number().min(6).max(720).optional().default(168),
+        lookbackHours: z.number().min(1).max(720).optional().default(168),
         resolution: z.enum(["1h", "4h", "1d"]).optional().default("1h"),
       }),
       execute: async ({ symbol, include_chart, include_risk, lookbackHours, resolution }) => {
@@ -115,6 +185,10 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           }
         }
         const asset = found[0]
+        const [assets_grid_metrics, live_market] = await Promise.all([
+          computeAssetsGridStyleMetrics(asset.symbol),
+          fetchLiveMarketSnapshot(authHeader, asset.symbol),
+        ])
 
         if (!include_chart) {
           return {
@@ -123,7 +197,9 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
             assetId: asset.id,
             symbol: asset.symbol,
             name: asset.name,
-            hint: "Enable include_chart when the user wants a visual series or volatility context.",
+            assets_grid_metrics,
+            live_market,
+            hint: "Snapshot only (no price chart in this response). Grid 1h/7d % and 24h volume match the Assets page. To draw a chart next turn, use include_chart true with lookbackHours + resolution; chart changePct is for that window, not the grid columns.",
           }
         }
 
@@ -139,6 +215,8 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
             ok: false as const,
             symbol: asset.symbol,
             error: series.error,
+            assets_grid_metrics,
+            live_market,
           }
         }
 
@@ -150,6 +228,10 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           widget: "market_chart" as const,
           assetId: asset.id,
           symbol: asset.symbol,
+          assets_grid_metrics,
+          live_market,
+          chart_changePct_note:
+            "changePct below is for the requested lookbackHours/resolution series, not the Assets grid 1h/7d columns.",
           resolution: series.resolutionLabel,
           closes: series.closes,
           labels: series.labels,
@@ -224,36 +306,66 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
 
     prepare_watchlist_change: tool({
       description:
-        "Prepare adding or removing an asset from the user primary watchlist. Never claims completion—the UI must confirm sensitive mutations.",
+        "Prepare adding or removing an asset from the primary watchlist or a named list (use named_list_id from get_user_watchlists). Never claims completion—the UI must confirm sensitive mutations.",
       inputSchema: z.object({
         symbol: z.string(),
         action: z.enum(["add", "remove"]),
+        named_list_id: z
+          .string()
+          .uuid()
+          .optional()
+          .describe("UUID of a named list from get_user_watchlists; omit for the primary watchlist."),
       }),
-      execute: async ({ symbol, action }) => {
+      execute: async ({ symbol, action, named_list_id }) => {
         if (!authHeader) return authRequired()
         const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
         if (!found.length) {
           return { ok: false as const, error: detail ?? "Asset not found." }
         }
         const asset = found[0]
+
+        let listName: string | undefined
+        if (named_list_id?.trim()) {
+          const listsRes = await internalJsonFetch<WatchlistListRow[]>(`/users/me/watchlists`, {
+            authHeader,
+            method: "GET",
+          })
+          const match = listsRes.data?.find((l) => l.id === named_list_id.trim())
+          if (!listsRes.ok || !match) {
+            return {
+              ok: false as const,
+              error: "Named watchlist not found. Call get_user_watchlists for valid list IDs.",
+            }
+          }
+          listName = match.name
+        }
+
         const confirmation_token = signAssistantConfirmation({
           v: 1,
           kind: "watchlist",
           action,
           assetId: asset.id,
           symbol: asset.symbol,
+          ...(named_list_id?.trim() ?
+            { listId: named_list_id.trim(), listName }
+          : {}),
           exp: createExpiry(),
         })
+
+        const targetLabel =
+          listName ? `named list “${listName}”` : "your primary watchlist"
+
         return {
           ok: true as const,
           widget: "watchlist_confirmation" as const,
           symbol: asset.symbol,
           action,
+          named_list_id: named_list_id?.trim() ?? null,
           confirmation_token,
           message:
             action === "add"
-              ? `Add ${asset.symbol} to your primary watchlist?`
-              : `Remove ${asset.symbol} from your primary watchlist?`,
+              ? `Add ${asset.symbol} to ${targetLabel}?`
+              : `Remove ${asset.symbol} from ${targetLabel}?`,
         }
       },
     }),

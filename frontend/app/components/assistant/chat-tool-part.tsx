@@ -4,8 +4,21 @@ import * as React from "react"
 import { AlertTriangle, Loader2, Newspaper, Wrench } from "lucide-react"
 import { getToolName, isToolUIPart, type UIMessage } from "ai"
 
+import {
+  AssistantAssetsGridMetrics,
+  parseAssetsGridMetrics,
+} from "~/components/assistant/assistant-assets-grid-metrics"
+import {
+  AssistantLiveQuoteStrip,
+  parseLiveMarketSnapshot,
+} from "~/components/assistant/assistant-live-quote-strip"
 import { AssistantMarketChartCard } from "~/components/assistant/assistant-market-chart-card"
 import { AssistantRiskGauge } from "~/components/assistant/assistant-risk-gauge"
+import {
+  AssistantWatchlistsOverview,
+  type NamedWatchlistBlock,
+  type WatchlistAssetChip,
+} from "~/components/assistant/assistant-watchlists-overview"
 import { useAssistantToolApproval } from "~/components/assistant/assistant-tool-approval-context"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
@@ -50,6 +63,26 @@ function isRiskOverlay(x: unknown): x is { score: number; label: string; rationa
     typeof (x as { label?: unknown }).label === "string" &&
     typeof (x as { rationale?: unknown }).rationale === "string"
   )
+}
+
+function parseWatchlistAssetChip(x: unknown): WatchlistAssetChip | null {
+  if (!x || typeof x !== "object") return null
+  const o = x as Record<string, unknown>
+  if (typeof o.id !== "string" || typeof o.symbol !== "string") return null
+  return {
+    id: o.id,
+    symbol: o.symbol,
+    name: typeof o.name === "string" ? o.name : o.symbol,
+  }
+}
+
+function parseNamedWatchlistBlock(x: unknown): NamedWatchlistBlock | null {
+  if (!x || typeof x !== "object") return null
+  const o = x as Record<string, unknown>
+  if (typeof o.list_id !== "string" || typeof o.name !== "string") return null
+  const rawAssets = Array.isArray(o.assets) ? o.assets : []
+  const assets = rawAssets.map(parseWatchlistAssetChip).filter(Boolean) as WatchlistAssetChip[]
+  return { list_id: o.list_id, name: o.name, assets }
 }
 
 function curatedSentimentPhrase(score: unknown): string {
@@ -276,15 +309,24 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
   }
 
   if (out.ok === false && typeof out.error === "string") {
-    return toolShell({
-      title: humanToolTitle(name),
-      stateLine: (
-        <span className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="size-3.5" aria-hidden />
-          {out.error}
-        </span>
-      ),
-    })
+    const partialGrid = parseAssetsGridMetrics(out.assets_grid_metrics)
+    const partialLive =
+      "live_market" in out ? parseLiveMarketSnapshot(out.live_market) : null
+    return (
+      <div className="space-y-2">
+        {partialGrid ? <AssistantAssetsGridMetrics metrics={partialGrid} /> : null}
+        {partialLive ? <AssistantLiveQuoteStrip snapshot={partialLive} /> : null}
+        {toolShell({
+          title: humanToolTitle(name),
+          stateLine: (
+            <span className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="size-3.5" aria-hidden />
+              {out.error}
+            </span>
+          ),
+        })}
+      </div>
+    )
   }
 
   if (out.widget === "market_chart" && Array.isArray(out.closes) && Array.isArray(out.labels)) {
@@ -295,9 +337,17 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     const resolution = typeof out.resolution === "string" ? out.resolution : undefined
     const riskRaw = out.risk_overlay
     const seriesNote = typeof out.series_note === "string" ? out.series_note : null
+    const chartNote = typeof out.chart_changePct_note === "string" ? out.chart_changePct_note : null
+    const gridMetrics = parseAssetsGridMetrics(out.assets_grid_metrics)
+    const liveSnap = parseLiveMarketSnapshot(out.live_market)
     return (
       <div className="space-y-3">
+        {gridMetrics ? <AssistantAssetsGridMetrics metrics={gridMetrics} /> : null}
+        {liveSnap ? <AssistantLiveQuoteStrip snapshot={liveSnap} /> : null}
         <AssistantMarketChartCard symbol={sym} closes={closes} labels={labels} changePct={changePct} resolution={resolution} />
+        {chartNote ? (
+          <p className="text-[10px] leading-snug text-muted-foreground/90">{chartNote}</p>
+        ) : null}
         {seriesNote ? (
           <p className="text-[10px] leading-snug text-muted-foreground">{seriesNote}</p>
         ) : null}
@@ -309,24 +359,40 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
   }
 
   if (out.widget === "asset_quote") {
+    const gridMetrics = parseAssetsGridMetrics(out.assets_grid_metrics)
+    const liveSnap = parseLiveMarketSnapshot(out.live_market)
     return toolShell({
       title: "Market snapshot",
       children: (
-        <dl className="grid gap-1 text-[13px] text-foreground">
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Symbol</dt>
-            <dd className="font-mono">{String(out.symbol ?? "")}</dd>
-          </div>
-          <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Name</dt>
-            <dd>{String(out.name ?? "")}</dd>
-          </div>
-          {typeof out.hint === "string" ? (
-            <p className="mt-1 border-t border-border/60 pt-2 text-[11px] leading-snug text-muted-foreground">{out.hint}</p>
-          ) : null}
-        </dl>
+        <div className="space-y-3">
+          {gridMetrics ? <AssistantAssetsGridMetrics metrics={gridMetrics} /> : null}
+          {liveSnap ? <AssistantLiveQuoteStrip snapshot={liveSnap} /> : null}
+          <dl className="grid gap-1 text-[13px] text-foreground">
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">Symbol</dt>
+              <dd className="font-mono">{String(out.symbol ?? "")}</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">Name</dt>
+              <dd>{String(out.name ?? "")}</dd>
+            </div>
+            {typeof out.hint === "string" ? (
+              <p className="mt-1 border-t border-border/60 pt-2 text-[11px] leading-snug text-muted-foreground">{out.hint}</p>
+            ) : null}
+          </dl>
+        </div>
       ),
     })
+  }
+
+  if (out.widget === "watchlists_overview" && out.ok === true) {
+    const primaryRaw = Array.isArray(out.primary_watchlist) ? out.primary_watchlist : []
+    const primary_watchlist = primaryRaw.map(parseWatchlistAssetChip).filter(Boolean) as WatchlistAssetChip[]
+    const namedRaw = Array.isArray(out.named_lists) ? out.named_lists : []
+    const named_lists = namedRaw.map(parseNamedWatchlistBlock).filter(Boolean) as NamedWatchlistBlock[]
+    return (
+      <AssistantWatchlistsOverview primary_watchlist={primary_watchlist} named_lists={named_lists} />
+    )
   }
 
   if (out.widget === "news_digest" && typeof out.symbol === "string") {
@@ -380,8 +446,16 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
       typeof out.message === "string" && out.message.trim().length > 0
         ? out.message.trim()
         : "Confirm this primary-watchlist change."
+    const namedList =
+      typeof out.named_list_id === "string" && out.named_list_id.trim().length > 0 ?
+        out.named_list_id.trim()
+      : null
     return toolShell({
-      title: "Watchlist confirmation",
+      title: namedList ? "Named watchlist confirmation" : "Watchlist confirmation",
+      stateLine:
+        namedList ?
+          <span className="text-[10px] font-mono text-muted-foreground">List id · {namedList}</span>
+        : undefined,
       children: <ConfirmationActions confirmation_token={token} idleMessage={idleMsg} />,
     })
   }
