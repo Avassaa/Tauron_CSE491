@@ -43,8 +43,20 @@ function authRequired() {
   return { ok: false as const, error: "Authentication required for this action." }
 }
 
+function rankAssetSearchItems(items: AssetRow[], sym: string): AssetRow[] {
+  const exact = items.filter((a) => a.symbol.toUpperCase() === sym)
+  return exact.length > 0 ? exact : items
+}
+
 async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
   const sym = symbol.trim().toUpperCase()
+  if (sym.length > 10) {
+    return {
+      found: [] as AssetRow[],
+      status: 400,
+      detail: "Symbol is too long for the asset catalog (max 10 characters).",
+    }
+  }
   const qs = new URLSearchParams({
     search: sym,
     page_size: "15",
@@ -68,20 +80,52 @@ async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
       detail: `Assets API error (${res.status}).`,
     }
   }
-  if (!res.data?.items?.length) {
+  if (res.data?.items?.length) {
     return {
-      found: [] as AssetRow[],
+      found: rankAssetSearchItems(res.data.items, sym),
       status: res.status,
-      detail:
-        `No matching asset in Tauron’s catalog for “${sym}” (search returned no rows). ` +
-        "Per-symbol tools (get_market_data, get_curated_news_digest with a ticker) need an assets table row first. " +
-        "get_market_movers builds rankings straight from Binance’s 24h ticker for all USDT pairs, so a symbol can appear there even when it is not tracked in Tauron yet. " +
-        "To use charts or curated news for this ticker, add or ensure it on the Assets page.",
+      detail: undefined as string | undefined,
     }
   }
-  const exact = res.data.items.filter((a) => a.symbol.toUpperCase() === sym)
-  const ranked = exact.length > 0 ? exact : res.data.items
-  return { found: ranked, status: res.status, detail: undefined as string | undefined }
+
+  const ensureRes = await internalJsonFetch<AssetRow>(`/assets/ensure`, {
+    authHeader,
+    method: "POST",
+    body: {
+      symbol: sym,
+      name: sym,
+      category: "Crypto",
+      coingecko_id: null,
+      is_active: true,
+    },
+  })
+  if (ensureRes.ok && ensureRes.data?.id && ensureRes.data.symbol) {
+    return {
+      found: [ensureRes.data],
+      status: ensureRes.status,
+      detail: undefined as string | undefined,
+    }
+  }
+
+  const retry = await internalJsonFetch<Paginated<AssetRow>>(`/assets?${qs}`, {
+    authHeader,
+    method: "GET",
+  })
+  if (retry.ok && retry.data?.items?.length) {
+    return {
+      found: rankAssetSearchItems(retry.data.items, sym),
+      status: retry.status,
+      detail: undefined as string | undefined,
+    }
+  }
+
+  return {
+    found: [] as AssetRow[],
+    status: ensureRes.status,
+    detail:
+      `Could not open “${sym}” in the catalog (ensure returned ${ensureRes.status}). ` +
+      "Try again from the Assets page, or confirm the ticker is valid.",
+  }
 }
 
 function riskOverlayFromCloses(closes: number[]): {
