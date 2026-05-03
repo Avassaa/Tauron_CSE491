@@ -134,6 +134,23 @@ class ChatHistoryRepository:
         await self._session.commit()
         return result.rowcount > 0
 
+    async def delete_session_for_user(self, user_id: uuid.UUID, session_id: uuid.UUID) -> int:
+        """Delete all messages in one session for a user. Returns row count."""
+        result = await self._session.execute(
+            delete(ChatHistory).where(
+                ChatHistory.user_id == user_id,
+                ChatHistory.session_id == session_id,
+            ),
+        )
+        await self._session.commit()
+        return int(result.rowcount or 0)
+
+    async def delete_all_for_user(self, user_id: uuid.UUID) -> int:
+        """Delete every chat message for a user. Returns row count."""
+        result = await self._session.execute(delete(ChatHistory).where(ChatHistory.user_id == user_id))
+        await self._session.commit()
+        return int(result.rowcount or 0)
+
     async def count_admin(self, user_id: Optional[uuid.UUID] = None) -> int:
         """Count messages for admin list."""
         statement = select(func.count()).select_from(ChatHistory)

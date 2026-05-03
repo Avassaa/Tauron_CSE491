@@ -1,9 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, Menu, MessageSquare, Search, SquarePen } from "lucide-react"
+import { Loader2, Menu, MessageSquare, MoreVertical, Search, SquarePen, Trash2 } from "lucide-react"
 
+import { DeleteChatConfirmDialog } from "~/components/assistant/delete-chat-confirm-dialog"
 import { Button } from "~/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import { ScrollArea } from "~/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import { cn } from "~/lib/utils"
@@ -19,6 +21,9 @@ const geminiIconBtn =
 
 const geminiShell =
   "border-zinc-700/80 bg-[#1e1f20] text-zinc-100 shadow-[inset_-1px_0_0_rgba(255,255,255,0.06)] dark:border-zinc-700 dark:bg-[#1e1f20]"
+
+const sessionPopoverContent =
+  "w-44 border-zinc-600 bg-[#2a2b2c] p-1 text-zinc-100 shadow-xl"
 
 function InvertedTip({ label, side = "bottom", children }: { label: string; side?: "bottom" | "top" | "left" | "right"; children: React.ReactElement }) {
   return (
@@ -36,6 +41,8 @@ export function ChatHistorySidebar({
   currentSessionId,
   onSelectSession,
   onNewChat,
+  onDeleteSession,
+  onClearAllSessions,
   isLoading,
   className,
   compact,
@@ -48,6 +55,10 @@ export function ChatHistorySidebar({
   currentSessionId: string
   onSelectSession: (id: string) => void
   onNewChat: () => void
+  /** Permanently remove one conversation from the server (and local list). */
+  onDeleteSession?: (id: string) => void | Promise<void>
+  /** Remove every stored chat for this user. */
+  onClearAllSessions?: () => void | Promise<void>
   isLoading?: boolean
   className?: string
   compact?: boolean
@@ -60,6 +71,10 @@ export function ChatHistorySidebar({
   const [historyOpen, setHistoryOpen] = React.useState(defaultOpen)
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [sessionMenuOpenId, setSessionMenuOpenId] = React.useState<string | null>(null)
+  const [deleteOneOpen, setDeleteOneOpen] = React.useState(false)
+  const [deleteOneTarget, setDeleteOneTarget] = React.useState<{ id: string; title: string } | null>(null)
+  const [clearAllOpen, setClearAllOpen] = React.useState(false)
 
   const useDockOverlay = density === "dock" && collapsible
 
@@ -233,22 +248,84 @@ export function ChatHistorySidebar({
               <div className="flex flex-col gap-0.5 pr-2 pb-2">
                 {visibleSessions.map((session) => (
                   <InvertedTip label={session.title} key={session.session_id}>
-                    <button
-                      type="button"
-                      onClick={() => onSelectSession(session.session_id)}
+                    <div
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                        density === "dock" ? "text-xs sm:text-sm" : "text-sm",
-                        currentSessionId === session.session_id ?
-                          "bg-white/12 font-medium text-white"
-                        : "text-zinc-400 hover:bg-white/8 hover:text-zinc-100",
+                        "group flex w-full items-stretch gap-0.5 rounded-xl transition-colors",
+                        currentSessionId === session.session_id ? "bg-white/12" : "hover:bg-white/8",
                       )}
                     >
-                      <MessageSquare className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                      <span className="truncate">{session.title}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onSelectSession(session.session_id)}
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors",
+                          density === "dock" ? "text-xs sm:text-sm" : "text-sm",
+                          currentSessionId === session.session_id ?
+                            "font-medium text-white"
+                          : "text-zinc-400 hover:text-zinc-100",
+                        )}
+                      >
+                        <MessageSquare className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                        <span className="truncate">{session.title}</span>
+                      </button>
+                      {onDeleteSession ?
+                        <Popover
+                          open={sessionMenuOpenId === session.session_id}
+                          onOpenChange={(next) => setSessionMenuOpenId(next ? session.session_id : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                "h-auto shrink-0 rounded-lg px-2 text-zinc-400 opacity-0 transition-opacity hover:bg-white/10 hover:text-zinc-100 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                                density === "dock" && "px-1.5",
+                              )}
+                              aria-label={`Chat options: ${session.title}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            side="right"
+                            className={sessionPopoverContent}
+                            onCloseAutoFocus={(e) => e.preventDefault()}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-9 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal text-red-300 hover:bg-red-500/15 hover:text-red-200"
+                              onClick={() => {
+                                setSessionMenuOpenId(null)
+                                setDeleteOneTarget({ id: session.session_id, title: session.title })
+                                setDeleteOneOpen(true)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+                              Delete chat
+                            </Button>
+                          </PopoverContent>
+                        </Popover>
+                      : null}
+                    </div>
                   </InvertedTip>
                 ))}
+                {onClearAllSessions && sessions.length > 0 ?
+                  <div className="mt-2 border-zinc-700/60 border-t pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-start gap-2 rounded-xl py-2.5 pl-3 pr-2 text-left text-xs text-red-300/90 hover:bg-red-500/10 hover:text-red-200"
+                      onClick={() => setClearAllOpen(true)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Clear all chats
+                    </Button>
+                  </div>
+                : null}
               </div>
             )}
           </ScrollArea>
@@ -257,8 +334,45 @@ export function ChatHistorySidebar({
     </div>
   )
 
+  const dialogs = (
+    <>
+      <DeleteChatConfirmDialog
+        open={deleteOneOpen}
+        onOpenChange={(o) => {
+          setDeleteOneOpen(o)
+          if (!o) setDeleteOneTarget(null)
+        }}
+        title="Delete this chat?"
+        description={
+          deleteOneTarget ?
+            `“${deleteOneTarget.title.length > 80 ? `${deleteOneTarget.title.slice(0, 80)}…` : deleteOneTarget.title}” will be removed from your history. This cannot be undone.`
+          : "This conversation will be removed from your history. This cannot be undone."
+        }
+        confirmLabel="Delete chat"
+        onConfirm={async () => {
+          if (deleteOneTarget && onDeleteSession) await onDeleteSession(deleteOneTarget.id)
+        }}
+      />
+      <DeleteChatConfirmDialog
+        open={clearAllOpen}
+        onOpenChange={setClearAllOpen}
+        title="Clear all chats?"
+        description="Every assistant conversation in your history will be deleted. This cannot be undone."
+        confirmLabel="Clear all"
+        onConfirm={async () => {
+          if (onClearAllSessions) await onClearAllSessions()
+        }}
+      />
+    </>
+  )
+
   if (!useDockOverlay) {
-    return rail
+    return (
+      <>
+        {rail}
+        {dialogs}
+      </>
+    )
   }
 
   return (
@@ -275,6 +389,7 @@ export function ChatHistorySidebar({
         />
       ) : null}
       {rail}
+      {dialogs}
     </>
   )
 }

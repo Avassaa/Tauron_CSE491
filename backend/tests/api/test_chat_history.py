@@ -47,6 +47,59 @@ def test_chat_crud_for_owner(
     assert delete.status_code == 204
 
 
+def test_delete_chat_session_removes_all_messages_in_session(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    session_id = str(uuid.uuid4())
+    for content in ("hi", "hello back"):
+        r = client.post(
+            "/api/v1/chat-history",
+            headers=auth_headers,
+            json={"session_id": session_id, "role": "user" if content == "hi" else "assistant", "content": content},
+        )
+        assert r.status_code == 201
+    listed = client.get(
+        f"/api/v1/chat-history?session_id={session_id}",
+        headers=auth_headers,
+    )
+    assert listed.json()["total"] == 2
+    gone = client.delete(f"/api/v1/chat-history/sessions/{session_id}", headers=auth_headers)
+    assert gone.status_code == 204
+    after = client.get(
+        f"/api/v1/chat-history?session_id={session_id}",
+        headers=auth_headers,
+    )
+    assert after.json()["total"] == 0
+
+
+def test_delete_chat_session_404_for_unknown_session(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    missing = str(uuid.uuid4())
+    r = client.delete(f"/api/v1/chat-history/sessions/{missing}", headers=auth_headers)
+    assert r.status_code == 404
+
+
+def test_delete_all_chat_sessions(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
+    s1, s2 = str(uuid.uuid4()), str(uuid.uuid4())
+    for sid in (s1, s2):
+        r = client.post(
+            "/api/v1/chat-history",
+            headers=auth_headers,
+            json={"session_id": sid, "role": "user", "content": "x"},
+        )
+        assert r.status_code == 201
+    wipe = client.delete("/api/v1/chat-history/sessions", headers=auth_headers)
+    assert wipe.status_code == 204
+    listed = client.get("/api/v1/chat-history", headers=auth_headers)
+    assert listed.json()["total"] == 0
+
+
 def test_chat_message_not_accessible_to_other_user(
     client: TestClient,
     auth_headers: dict[str, str],

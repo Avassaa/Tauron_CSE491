@@ -52,6 +52,29 @@ async def list_my_chat_sessions(
     return sessions
 
 
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_chat_session(
+    session_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Remove all messages in one assistant chat session (current user only)."""
+    repository = ChatHistoryRepository(session)
+    deleted = await repository.delete_session_for_user(user_id, session_id)
+    if deleted == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or already empty")
+
+
+@router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_my_chat_sessions(
+    session: AsyncSession = Depends(get_db_session),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Delete every stored assistant chat message for the current user."""
+    repository = ChatHistoryRepository(session)
+    await repository.delete_all_for_user(user_id)
+
+
 @router.get("/{message_id}", response_model=ChatHistoryResponse)
 async def get_chat_message(
     message_id: uuid.UUID,
