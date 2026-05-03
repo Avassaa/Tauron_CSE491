@@ -180,15 +180,16 @@ export default function ChatPage() {
 
   return (
     <AuthGuard>
-      <SidebarProvider>
+      <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
         <AppSidebar />
         <MarketMarqueeBanner />
         <SidebarInset
+          className="min-h-0 overflow-hidden"
           style={{
             paddingTop: "var(--market-banner-offset, 0px)",
           }}
         >
-          <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
+          <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>
@@ -227,7 +228,7 @@ export default function ChatPage() {
               isLoading={isLoadingSessions}
             />
             
-            <div className="flex min-w-0 flex-1 flex-col gap-3 px-5 py-5 pb-8 sm:px-8 sm:py-6 md:px-10">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden px-5 py-5 pb-8 sm:px-8 sm:py-6 md:px-10">
               <p className="shrink-0 text-sm text-muted-foreground">
                 Chat with Tauron&apos;s assistant—quick answers and explanations, right in your workspace.
               </p>
@@ -235,14 +236,15 @@ export default function ChatPage() {
                 /* Force remount when session changes to reset internal SDK state safely */
                 <GeminiChatPanel
                   key={currentSessionId}
+                  variant="dock"
                   id={currentSessionId}
                   initialMessages={initialMessages}
                   onActivity={handleActivity}
                   onNewMessage={handleOptimisticSession}
-                  className="min-h-0 flex-1"
+                  className="min-h-0 min-w-0 flex-1 basis-0"
                 />
               ) : (
-                <div className="flex min-h-[min(280px,calc(100svh-280px))] flex-1 items-center justify-center text-muted-foreground">
+                <div className="flex min-h-0 flex-1 basis-0 items-center justify-center text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin" aria-hidden />
                 </div>
               )}

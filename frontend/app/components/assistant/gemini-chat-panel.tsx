@@ -129,6 +129,7 @@ export function GeminiChatPanel({
     <div
       className={cn(
         "min-h-0 overflow-y-auto overscroll-contain px-1 sm:px-2",
+        isDock && "min-w-0",
         !isDock && "min-h-[min(280px,calc(100svh-280px))]",
         !isDock && "flex-1",
       )}
@@ -216,7 +217,7 @@ export function GeminiChatPanel({
     <div
       className={cn(
         "min-h-0 w-full flex-1",
-        isDock ? "grid grid-rows-[minmax(0,1fr)_auto] gap-2" : "flex flex-col gap-4",
+        isDock ? "grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-2 overflow-hidden" : "flex flex-col gap-4",
         className,
       )}
     >
