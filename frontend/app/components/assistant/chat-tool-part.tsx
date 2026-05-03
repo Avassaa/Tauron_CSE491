@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, Loader2, Wrench } from "lucide-react"
+import { AlertTriangle, Loader2, Newspaper, Wrench } from "lucide-react"
 import { getToolName, isToolUIPart, type UIMessage } from "ai"
 
 import { AssistantMarketChartCard } from "~/components/assistant/assistant-market-chart-card"
 import { AssistantRiskGauge } from "~/components/assistant/assistant-risk-gauge"
+import { useAssistantToolApproval } from "~/components/assistant/assistant-tool-approval-context"
 import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 
@@ -48,6 +49,55 @@ function isRiskOverlay(x: unknown): x is { score: number; label: string; rationa
     typeof (x as { score?: unknown }).score === "number" &&
     typeof (x as { label?: unknown }).label === "string" &&
     typeof (x as { rationale?: unknown }).rationale === "string"
+  )
+}
+
+function curatedSentimentPhrase(score: unknown): string {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "Neutral"
+  if (score > 0.15) return "Bullish"
+  if (score < -0.15) return "Bearish"
+  return "Neutral"
+}
+
+function parseStructuredToolOutput(part: AnyMessagePart): Record<string, unknown> | null {
+  if (!isToolUIPart(part) || part.state !== "output-available") return null
+  let raw: unknown = part.output
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw) as unknown
+    } catch {
+      return null
+    }
+  }
+  if (!raw || typeof raw !== "object") return null
+  return raw as Record<string, unknown>
+}
+
+function SdkRuntimeApprovalGate({ approvalId }: { approvalId: string }) {
+  const approve = useAssistantToolApproval()
+  const [busy, setBusy] = React.useState(false)
+
+  const run = (approved: boolean) => {
+    if (!approve) return
+    setBusy(true)
+    void Promise.resolve(approve({ id: approvalId, approved })).finally(() => setBusy(false))
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[13px] leading-snug text-foreground">
+        One more step lets the server emit your signed Confirm/Cancel card for this sensitive action.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" className="h-8" disabled={busy || !approve} onClick={() => run(true)}>
+          {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : "Continue"}
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-8" disabled={busy || !approve} onClick={() => run(false)}>
+          Stop
+        </Button>
+      </div>
+      {!approve ? <p className="text-[10px] text-destructive">Approval bridge unavailable.</p> : null}
+    </div>
   )
 }
 
@@ -180,6 +230,38 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     })
   }
 
+  if (part.state === "approval-requested") {
+    const nm = getToolName(part)
+    if (nm === "prepare_price_alert" || nm === "prepare_watchlist_change") {
+      const approvalObj =
+        "approval" in part &&
+        part.approval &&
+        typeof part.approval === "object" &&
+        part.approval !== null &&
+        "id" in part.approval &&
+        typeof (part.approval as { id: unknown }).id === "string"
+          ? (part.approval as { id: string })
+          : null
+      if (approvalObj?.id) {
+        return toolShell({
+          title: humanToolTitle(nm),
+          children: <SdkRuntimeApprovalGate approvalId={approvalObj.id} />,
+        })
+      }
+    }
+  }
+
+  if (part.state === "output-denied") {
+    return toolShell({
+      title: humanToolTitle(name),
+      stateLine: (
+        <span className="text-[13px] text-muted-foreground">
+          Runtime approval declined—proposal was not generated.
+        </span>
+      ),
+    })
+  }
+
   if (part.state !== "output-available") {
     return toolShell({
       title: humanToolTitle(name),
@@ -187,9 +269,9 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     })
   }
 
-  const out = part.output as Record<string, unknown> | null | undefined
+  const out = parseStructuredToolOutput(part)
 
-  if (!out || typeof out !== "object") {
+  if (!out) {
     return toolShell({ title: humanToolTitle(name), stateLine: <span className="text-[11px]">Done.</span> })
   }
 
@@ -247,25 +329,76 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
     })
   }
 
+  if (out.widget === "news_digest" && typeof out.symbol === "string") {
+    const rows = Array.isArray(out.items) ? out.items : []
+    const headerNote = typeof out.message === "string" ? out.message : null
+    return toolShell({
+      title: `Curated news · ${out.symbol}`,
+      stateLine: (
+        <span className="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
+          <Newspaper className="size-3.5 shrink-0 text-primary" aria-hidden />
+          {rows.length} {rows.length === 1 ? "story" : "stories"}
+        </span>
+      ),
+      children:
+        rows.length === 0 && headerNote ? (
+          <p className="text-[13px] text-muted-foreground">{headerNote}</p>
+        ) : (
+          <ul className="space-y-3">
+            {headerNote ? (
+              <li className="text-[12px] italic text-muted-foreground">{headerNote}</li>
+            ) : null}
+            {rows.map((entry, idx) => {
+              if (!entry || typeof entry !== "object") return null
+              const r = entry as Record<string, unknown>
+              const summary = typeof r.summary === "string" ? r.summary : ""
+              const phrase = curatedSentimentPhrase(r.sentiment_score)
+              if (!summary.trim()) return null
+              return (
+                <li key={typeof r.id === "string" ? r.id : `news-${idx}`} className="rounded-lg border border-border/50 bg-background/40 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+                      {phrase}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[13px] leading-snug text-foreground">{summary}</p>
+                </li>
+              )
+            })}
+          </ul>
+        ),
+    })
+  }
+
   if (
     out.widget === "watchlist_confirmation" &&
     typeof out.confirmation_token === "string" &&
-    typeof out.message === "string"
+    out.confirmation_token.trim().length > 0
   ) {
+    const token = out.confirmation_token.trim()
+    const idleMsg =
+      typeof out.message === "string" && out.message.trim().length > 0
+        ? out.message.trim()
+        : "Confirm this primary-watchlist change."
     return toolShell({
       title: "Watchlist confirmation",
-      children: <ConfirmationActions confirmation_token={out.confirmation_token} idleMessage={out.message} />,
+      children: <ConfirmationActions confirmation_token={token} idleMessage={idleMsg} />,
     })
   }
 
   if (
     out.widget === "price_alert_confirmation" &&
     typeof out.confirmation_token === "string" &&
-    typeof out.message === "string"
+    out.confirmation_token.trim().length > 0
   ) {
+    const token = out.confirmation_token.trim()
+    const idleMsg =
+      typeof out.message === "string" && out.message.trim().length > 0
+        ? out.message.trim()
+        : "Confirm this Binance-linked price alert proposal."
     return toolShell({
       title: "Price alert confirmation",
-      children: <ConfirmationActions confirmation_token={out.confirmation_token} idleMessage={out.message} />,
+      children: <ConfirmationActions confirmation_token={token} idleMessage={idleMsg} />,
     })
   }
 

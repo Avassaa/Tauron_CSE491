@@ -126,7 +126,7 @@ ${ctxBlock}
       system: systemPrompt,
       messages: modelMessages,
       tools,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(12),
       onError: ({ error }) => {
         console.error("[api/chat] streamText error:", error)
       },

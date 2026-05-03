@@ -13,6 +13,7 @@ import {
 } from "ai"
 
 import { AssistantChatToolPart } from "~/components/assistant/chat-tool-part"
+import { AssistantToolApprovalContext } from "~/components/assistant/assistant-tool-approval-context"
 import { useAssistantClientPagePayload } from "~/components/assistant/assistant-chat-extras-context"
 import { PromptInputBox } from "~/components/ui/ai-prompt-box"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
@@ -161,7 +162,16 @@ export function GeminiChatPanel({
   const clientPagePayloadRef = React.useRef<AssistantClientPagePayload | null>(null)
   clientPagePayloadRef.current = clientPagePayload
 
-  const { messages, sendMessage, stop, regenerate, clearError, status, error } = useGeminiChat({
+  const {
+    messages,
+    sendMessage,
+    stop,
+    regenerate,
+    clearError,
+    status,
+    error,
+    addToolApprovalResponse,
+  } = useGeminiChat({
     id,
     initialMessages,
     onResponse: () => onActivity?.(),
@@ -333,31 +343,33 @@ export function GeminiChatPanel({
   )
 
   return (
-    <div
-      className={cn(
-        "min-h-0 w-full flex-1",
-        isDock ? "grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-2 overflow-hidden" : "flex flex-col gap-4",
-        className,
-      )}
-    >
-      {messageScroll}
-      {!isDock ? (
-        <>
-          {statusLabel ? (
-            <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
-          ) : null}
-          {errorBanner}
-          <div className="shrink-0">{composer}</div>
-        </>
-      ) : (
-        <div className="flex min-h-0 shrink-0 flex-col gap-2 border-t border-border/50 bg-background px-2 pb-2 pt-2 shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.08)] sm:px-3 dark:shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.35)]">
-          {statusLabel ? (
-            <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
-          ) : null}
-          {errorBanner}
-          {composer}
-        </div>
-      )}
-    </div>
+    <AssistantToolApprovalContext.Provider value={addToolApprovalResponse ?? null}>
+      <div
+        className={cn(
+          "min-h-0 w-full flex-1",
+          isDock ? "grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-2 overflow-hidden" : "flex flex-col gap-4",
+          className,
+        )}
+      >
+        {messageScroll}
+        {!isDock ? (
+          <>
+            {statusLabel ? (
+              <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
+            ) : null}
+            {errorBanner}
+            <div className="shrink-0">{composer}</div>
+          </>
+        ) : (
+          <div className="flex min-h-0 shrink-0 flex-col gap-2 border-t border-border/50 bg-background px-2 pb-2 pt-2 shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.08)] sm:px-3 dark:shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.35)]">
+            {statusLabel ? (
+              <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
+            ) : null}
+            {errorBanner}
+            {composer}
+          </div>
+        )}
+      </div>
+    </AssistantToolApprovalContext.Provider>
   )
 }

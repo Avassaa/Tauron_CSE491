@@ -19,6 +19,13 @@ type AssetRow = {
   name: string
 }
 
+type CuratedNewsRow = {
+  id: string
+  summary: string
+  sentiment_score: number | null
+  published_at: string | null
+}
+
 function authRequired() {
   return { ok: false as const, error: "Authentication required for this action." }
 }
@@ -87,9 +94,6 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
   const { authHeader } = ctx
 
   return {
-    /**
-     * Primary market tool: resolve an asset and optionally fetch OHLC series plus an educational risk readout.
-     */
     get_market_data: tool({
       description:
         "Resolve a tracked crypto asset by ticker and optionally fetch recent closes for an inline chart plus volatility context. Prefer this instead of guessing prices.",
@@ -163,9 +167,61 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
       },
     }),
 
-    /**
-     * Proposal only — surfaces Confirm/Cancel in the UI; mutation runs after confirmation.
-     */
+    get_curated_news_digest: tool({
+      description:
+        "Load recent Tauron curated news summaries for an asset symbol to blend narrative catalysts with price tools.",
+      inputSchema: z.object({
+        symbol: z.string(),
+        max_items: z.number().min(1).max(20).optional().default(10),
+      }),
+      execute: async ({ symbol, max_items }) => {
+        if (!authHeader) return authRequired()
+        const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
+        if (!found.length) {
+          return { ok: false as const, error: detail ?? "Asset not found." }
+        }
+        const asset = found[0]
+        const qs = new URLSearchParams({
+          asset_id: asset.id,
+          page_size: String(max_items),
+          page: "1",
+        })
+        const res = await internalJsonFetch<Paginated<CuratedNewsRow>>(`/curated-news?${qs}`, {
+          authHeader,
+          method: "GET",
+        })
+        if (!res.ok) {
+          return {
+            ok: false as const,
+            symbol: asset.symbol,
+            error: `Curated news unavailable (${res.status}).`,
+          }
+        }
+        const rawItems = res.data?.items ?? []
+        const items = rawItems.map((row) => ({
+          id: row.id,
+          summary: row.summary?.trim() ?? "",
+          sentiment_score: row.sentiment_score,
+          published_at: row.published_at,
+        }))
+        if (!items.length) {
+          return {
+            ok: true as const,
+            widget: "news_digest" as const,
+            symbol: asset.symbol,
+            items: [] as typeof items,
+            message: "No curated news rows matched this asset yet.",
+          }
+        }
+        return {
+          ok: true as const,
+          widget: "news_digest" as const,
+          symbol: asset.symbol,
+          items,
+        }
+      },
+    }),
+
     prepare_watchlist_change: tool({
       description:
         "Prepare adding or removing an asset from the user primary watchlist. Never claims completion—the UI must confirm sensitive mutations.",

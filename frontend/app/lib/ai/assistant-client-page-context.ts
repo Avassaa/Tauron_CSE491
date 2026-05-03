@@ -187,5 +187,11 @@ export function formatAssistantPageContextForSystemPrompt(raw: unknown): string 
     }
   }
 
+  if (o.pathname.startsWith("/assets")) {
+    lines.push(
+      "Assets coaching rule: answer using selectedAsset and dashboard stats above—avoid asking the user to restate visible grid figures unless a concrete numeric input is missing.",
+    )
+  }
+
   return lines.join("\n")
 }
