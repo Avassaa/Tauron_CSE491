@@ -8,10 +8,6 @@ export function resolveGeminiApiKey(): string | undefined {
   return fromBackendName || fromSdkName || undefined
 }
 
-/**
- * New model instance each call so we never keep a Google client created
- * before `dotenv` loaded the API key.
- */
 export function getGeminiChatModel() {
   const apiKey = resolveGeminiApiKey()
   const id = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL

@@ -5,15 +5,21 @@ import * as React from "react"
 import { useChat, type UIMessage } from "@ai-sdk/react"
 import { DefaultChatTransport, type ChatOnFinishCallback } from "ai"
 
+import type { AssistantClientPagePayload } from "~/lib/ai/assistant-client-page-context"
+
 export function useGeminiChat(opts?: {
   id?: string
   initialMessages?: UIMessage[]
   /** @deprecated Prefer naming this 'afterReply'; kept for callers. Runs when the assistant message has finished streaming. */
   onResponse?: () => void
   onFinish?: ChatOnFinishCallback<UIMessage>
+  /** Updated each render; read at send time so `/api/chat` gets pathname + Tools UI snapshot. */
+  clientPagePayloadRef?: React.MutableRefObject<AssistantClientPagePayload | null>
 }) {
   const sessionIdRef = React.useRef(opts?.id)
   sessionIdRef.current = opts?.id
+
+  const clientPagePayloadRef = opts?.clientPagePayloadRef
 
   const callbacksRef = React.useRef({ onFinish: opts?.onFinish, onResponse: opts?.onResponse })
   callbacksRef.current = { onFinish: opts?.onFinish, onResponse: opts?.onResponse }
@@ -35,13 +41,15 @@ export function useGeminiChat(opts?: {
             const t = localStorage.getItem("access_token")?.trim()
             if (t) access_token = t
           }
+          const pagePayload = clientPagePayloadRef?.current ?? undefined
           return {
             id: sessionIdRef.current,
             ...(access_token ? { access_token } : {}),
+            ...(pagePayload ? { clientPageContext: pagePayload } : {}),
           }
         },
       }),
-    [],
+    [clientPagePayloadRef],
   )
 
   const onFinish = React.useCallback<ChatOnFinishCallback<UIMessage>>((event) => {

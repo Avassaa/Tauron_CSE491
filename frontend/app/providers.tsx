@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { GlassBackdropSeed } from "~/components/glass-backdrop-seed"
+import { AssistantChatExtrasProvider } from "~/components/assistant/assistant-chat-extras-context"
 import { AssistantDockProvider } from "~/components/assistant/assistant-dock-context"
 import { LiquidGlassHtmlSync } from "~/components/liquid-glass-html-sync"
 import { Toaster } from "~/components/ui/sonner"
@@ -24,7 +25,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <>
       <LiquidGlassHtmlSync />
       <GlassBackdropSeed />
-      <AssistantDockProvider>{children}</AssistantDockProvider>
+      <AssistantDockProvider>
+        <AssistantChatExtrasProvider>{children}</AssistantChatExtrasProvider>
+      </AssistantDockProvider>
       <Toaster />
     </>
   )

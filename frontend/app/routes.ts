@@ -21,4 +21,5 @@ export default [
     route("news/:newsId", "routes/news-article.tsx"),
     route("chat", "routes/chat.tsx"),
     route("api/chat", "routes/api.chat.tsx"),
+    route("api/insights", "routes/api.insights.tsx"),
 ] satisfies RouteConfig;

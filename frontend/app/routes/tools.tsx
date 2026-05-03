@@ -20,6 +20,7 @@ import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { AssistantDockToolbarButton, AssistantDockSplitMain } from "~/components/assistant/assistant-dock-ui"
+import { useAssistantChatExtras } from "~/components/assistant/assistant-chat-extras-context"
 import { Button } from "~/components/ui/button"
 import { glassSurfaceVariants } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
@@ -48,6 +49,7 @@ import {
   type WatchlistEntryResponse,
 } from "~/lib/api-client"
 import { useLiveTickers } from "~/lib/live-price-stream"
+import { TOOLS_PANEL_LABELS } from "~/lib/ai/assistant-client-page-context"
 import { cn } from "~/lib/utils"
 
 import {
@@ -399,6 +401,7 @@ export default function ToolsPage() {
     "market-sentiment": null,
     "watchlist-insights": null,
   })
+  const [focusedToolSection, setFocusedToolSection] = React.useState<ToolSectionId>("currency")
   const [amount, setAmount] = React.useState("1")
   const [fromCurrency, setFromCurrency] = React.useState<CurrencyCode>("USD")
   const [toCurrency, setToCurrency] = React.useState<CurrencyCode>("TRY")
@@ -478,6 +481,39 @@ export default function ToolsPage() {
       ? parsedAlertTargetPrice
       : null
 
+  const { setToolsOverlay } = useAssistantChatExtras()
+
+  React.useEffect(() => {
+    const focusedPanelLabel = TOOLS_PANEL_LABELS[focusedToolSection] ?? focusedToolSection
+    setToolsOverlay({
+      focusedPanelId: focusedToolSection,
+      focusedPanelLabel,
+      priceAlerts:
+        selectedAlertAsset ?
+          {
+            symbol: selectedAlertAsset.symbol,
+            name: selectedAlertAsset.name,
+            presetMovePercent: alertMove,
+            goalPriceInput: alertTargetPrice,
+            goalPriceEdited: alertTargetEdited,
+            approximateUsdSpot:
+              selectedAlertCurrentPrice != null && Number.isFinite(selectedAlertCurrentPrice) ?
+                formatUsd(selectedAlertCurrentPrice)
+              : null,
+          }
+        : undefined,
+    })
+    return () => setToolsOverlay(null)
+  }, [
+    alertMove,
+    alertTargetEdited,
+    alertTargetPrice,
+    focusedToolSection,
+    selectedAlertAsset,
+    selectedAlertCurrentPrice,
+    setToolsOverlay,
+  ])
+
   const numericAmount = Number.parseFloat(amount)
   const converted = convertAmount(numericAmount, fromCurrency, toCurrency, usdBaseRates)
 
@@ -546,6 +582,7 @@ export default function ToolsPage() {
   }
 
   const scrollToToolSection = (sectionId: ToolSectionId) => {
+    setFocusedToolSection(sectionId)
     sectionRefs.current[sectionId]?.scrollIntoView({
       behavior: "smooth",
       block: "start",

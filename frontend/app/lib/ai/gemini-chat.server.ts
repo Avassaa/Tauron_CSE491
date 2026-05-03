@@ -1,9 +1,10 @@
-import { existsSync } from "node:fs"
-import path from "node:path"
-import { config as loadEnv } from "dotenv"
-import { convertToModelMessages, isTextUIPart, streamText, type UIMessage } from "ai"
+import { convertToModelMessages, isTextUIPart, stepCountIs, streamText, type UIMessage } from "ai"
 
+import { createTauronFinanceTools } from "~/lib/ai/gemini-chat-tools"
+import { formatAssistantPageContextForSystemPrompt } from "~/lib/ai/assistant-client-page-context"
+import { internalJsonFetch, resolveInternalApiBaseUrl } from "~/lib/ai/gemini-internal-api"
 import { getGeminiChatModel, resolveGeminiApiKey } from "~/lib/ai/gemini-model"
+import { TAURON_CHAT_SYSTEM_PROMPT } from "~/lib/ai/gemini-system-prompt"
 
 function textFromUIMessagePayload(message: UIMessage): string {
   const rawParts =
@@ -21,32 +22,8 @@ function textFromUIMessagePayload(message: UIMessage): string {
   return typeof c.content === "string" ? c.content : ""
 }
 
-function loadAllDotenv() {
-  const candidates = [
-    path.join(process.cwd(), ".env"),
-    path.join(process.cwd(), ".env.local"),
-    path.join(process.cwd(), "frontend", ".env"),
-    path.join(process.cwd(), "frontend", ".env.local"),
-  ]
-  for (const p of candidates) {
-    if (existsSync(p)) {
-      loadEnv({ path: p, override: true })
-    }
-  }
-}
-
-loadAllDotenv()
-
-function resolveInternalApiBase(): string {
-  const internalRaw = process.env.API_INTERNAL_BASE_URL?.trim() ?? ""
-  if (internalRaw.length > 0) return internalRaw.replace(/\/$/, "")
-  const viteRaw = process.env.VITE_API_BASE_URL?.trim() ?? ""
-  if (viteRaw.length > 0 && /^https?:\/\//i.test(viteRaw)) return viteRaw.replace(/\/$/, "")
-  return "http://127.0.0.1:8000/api/v1"
-}
-
 export async function handleGeminiChatPost(request: Request): Promise<Response> {
-  loadAllDotenv()
+  resolveInternalApiBaseUrl()
 
   if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 })
@@ -61,9 +38,14 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
     )
   }
 
-  let body: { messages?: UIMessage[], id?: string; access_token?: string }
+  let body: { messages?: UIMessage[]; id?: string; access_token?: string; clientPageContext?: unknown }
   try {
-    body = (await request.json()) as { messages?: UIMessage[]; id?: string; access_token?: string }
+    body = (await request.json()) as {
+      messages?: UIMessage[]
+      id?: string
+      access_token?: string
+      clientPageContext?: unknown
+    }
   } catch {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 })
   }
@@ -80,11 +62,10 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
           ? tokenRaw
           : `Bearer ${tokenRaw}`
         : null
+
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "Expected a non-empty `messages` array." }, { status: 400 })
   }
-
-  const apiBaseUrl = resolveInternalApiBase()
 
   const saveMessageToDb = async (role: string, content: string) => {
     if (!authHeader || !sessionId) {
@@ -96,27 +77,23 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
       return
     }
     try {
-      const res = await fetch(`${apiBaseUrl}/chat-history`, {
+      const res = await internalJsonFetch<{ detail?: string }>(`/chat-history`, {
+        authHeader,
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": authHeader,
-        },
-        body: JSON.stringify({
+        body: {
           session_id: sessionId,
           role,
           content,
-        }),
+        },
       })
       if (!res.ok) {
-        console.error(`[api/chat] Failed to save DB message: ${res.status} ${res.statusText}`, await res.text())
+        console.error(`[api/chat] Failed to save DB message: ${res.status}`, res.rawBody)
       }
     } catch (err) {
       console.error("[api/chat] Failed to save chat message to DB:", err)
     }
   }
 
-  // Save the latest user message (last in the array) before streaming so history can load on reload.
   const lastUserMessage = messages[messages.length - 1]
   if (lastUserMessage && lastUserMessage.role === "user") {
     const userText = textFromUIMessagePayload(lastUserMessage).trim()
@@ -130,12 +107,38 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
         : { ...m, parts: [{ type: "text" as const, text: textFromUIMessagePayload(m) }] },
     )
     const modelMessages = await convertToModelMessages(fixedMessages as UIMessage[])
+    const tools = createTauronFinanceTools({ authHeader })
+
+    const ctxBlock = formatAssistantPageContextForSystemPrompt(body.clientPageContext)
+    const systemPrompt =
+      ctxBlock.trim().length > 0 ?
+        `${TAURON_CHAT_SYSTEM_PROMPT}
+
+---
+Current UI context (authoritative for navigation + live form state):
+${ctxBlock}
+---`
+      : TAURON_CHAT_SYSTEM_PROMPT
+
+    const streamStartedAt = Date.now()
     const result = streamText({
       model: getGeminiChatModel(),
+      system: systemPrompt,
       messages: modelMessages,
-      onFinish: async (event) => {
-        await saveMessageToDb("assistant", event.text)
-      }
+      tools,
+      stopWhen: stepCountIs(12),
+      onFinish: async ({ text, usage, finishReason }) => {
+        console.info(
+          "[chat-stream]",
+          JSON.stringify({
+            sessionId,
+            ms: Date.now() - streamStartedAt,
+            finishReason,
+            usage,
+          }),
+        )
+        await saveMessageToDb("assistant", text ?? "")
+      },
     })
 
     return result.toUIMessageStreamResponse({

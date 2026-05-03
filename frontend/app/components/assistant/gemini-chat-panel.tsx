@@ -1,16 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { Bot } from "lucide-react"
-import { isReasoningUIPart, isTextUIPart, type UIMessage } from "ai"
+import { Bot, RefreshCw } from "lucide-react"
+import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, type UIMessage } from "ai"
 
+import { AssistantChatToolPart } from "~/components/assistant/chat-tool-part"
+import { useAssistantClientPagePayload } from "~/components/assistant/assistant-chat-extras-context"
 import { PromptInputBox } from "~/components/ui/ai-prompt-box"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
+import { Button } from "~/components/ui/button"
 import { MarkdownContent } from "~/components/ui/markdown-content"
 import { useGeminiChat } from "~/lib/ai/use-gemini-chat"
+import type { AssistantClientPagePayload } from "~/lib/ai/assistant-client-page-context"
 import { cn } from "~/lib/utils"
 
-function textFromMessage(m: UIMessage | any): string {
+function textFromMessage(m: UIMessage): string {
   if (m.parts && m.parts.length > 0) {
     const chunks: string[] = []
     for (const p of m.parts) {
@@ -19,7 +23,8 @@ function textFromMessage(m: UIMessage | any): string {
     }
     if (chunks.length > 0) return chunks.join("")
   }
-  return typeof m.content === "string" ? m.content : ""
+  const legacy = (m as unknown as { content?: unknown }).content
+  return typeof legacy === "string" ? legacy : ""
 }
 
 function friendlyChatError(err: Error): string {
@@ -45,26 +50,108 @@ function initialsFromUsername(name: string): string {
   return t.slice(0, 2).toUpperCase()
 }
 
-export function GeminiChatPanel({ 
-  className, 
-  id, 
+function AssistantMessageBody({
+  message,
+  streaming,
+  isLast,
+}: {
+  message: UIMessage
+  streaming: boolean
+  isLast: boolean
+}) {
+  const parts = message.parts ?? []
+  const blocks: React.ReactNode[] = []
+  let textBuf = ""
+
+  const flushText = () => {
+    const t = textBuf.trim()
+    if (!t) return
+    blocks.push(
+      <MarkdownContent key={`assistant-md-${blocks.length}`}>{textBuf}</MarkdownContent>,
+    )
+    textBuf = ""
+  }
+
+  for (const part of parts) {
+    if (isTextUIPart(part)) {
+      textBuf += part.text
+      continue
+    }
+    flushText()
+    if (isToolUIPart(part)) {
+      const tcId =
+        "toolCallId" in part && typeof (part as { toolCallId?: string }).toolCallId === "string"
+          ? (part as { toolCallId: string }).toolCallId
+          : `${message.id}-${blocks.length}`
+      blocks.push(<AssistantChatToolPart key={tcId} part={part} />)
+    }
+  }
+  flushText()
+
+  const fallbackTyping = streaming && isLast && blocks.length === 0 && !textFromMessage(message).trim()
+
+  return (
+    <div className="flex w-full flex-col gap-3">
+      {blocks}
+      {fallbackTyping ? <span className="text-muted-foreground">Thinking…</span> : null}
+    </div>
+  )
+}
+
+function UserMessageBody({ message }: { message: UIMessage }) {
+  const texts: string[] = []
+  const images: React.ReactNode[] = []
+  for (const part of message.parts ?? []) {
+    if (isTextUIPart(part)) texts.push(part.text)
+    else if (isFileUIPart(part) && part.mediaType.startsWith("image/")) {
+      images.push(
+        <a key={`${part.url}-${images.length}`} href={part.url} target="_blank" rel="noreferrer">
+          <img
+            src={part.url}
+            alt={part.filename ?? "attachment"}
+            className="max-h-44 rounded-xl border border-border object-cover shadow-sm"
+          />
+        </a>,
+      )
+    }
+  }
+  const body = texts.join("") || textFromMessage(message)
+  return (
+    <div className="flex flex-col gap-2">
+      {images.length > 0 ? <div className="flex flex-wrap gap-2">{images}</div> : null}
+      {body.trim() ? (
+        <div className="whitespace-pre-wrap break-words">{body}</div>
+      ) : images.length > 0 ? null : (
+        <div className="text-xs italic opacity-80">Attachment</div>
+      )}
+    </div>
+  )
+}
+
+export function GeminiChatPanel({
+  className,
+  id,
   initialMessages,
   onActivity,
   onNewMessage,
   variant = "default",
-}: { 
+}: {
   className?: string
   id?: string
   initialMessages?: UIMessage[]
   onActivity?: () => void
   onNewMessage?: (text: string) => void
-  /** `dock`: full column height, composer pinned to bottom, messages scroll above. */
   variant?: "default" | "dock"
 }) {
-  const { messages, sendMessage, stop, status, error } = useGeminiChat({ 
-    id, 
+  const clientPagePayload = useAssistantClientPagePayload()
+  const clientPagePayloadRef = React.useRef<AssistantClientPagePayload | null>(null)
+  clientPagePayloadRef.current = clientPagePayload
+
+  const { messages, sendMessage, stop, regenerate, clearError, status, error } = useGeminiChat({
+    id,
     initialMessages,
-    onResponse: () => onActivity?.()
+    onResponse: () => onActivity?.(),
+    clientPagePayloadRef,
   })
   const streaming = status === "streaming" || status === "submitted"
   const endRef = React.useRef<HTMLDivElement>(null)
@@ -102,6 +189,15 @@ export function GeminiChatPanel({
   const userInitials = initialsFromUsername(username)
   const isDock = variant === "dock"
 
+  const statusLabel =
+    status === "submitted"
+      ? "Sending…"
+      : status === "streaming"
+        ? "Streaming…"
+        : status === "error"
+          ? "Error"
+          : null
+
   const composer = (
     <PromptInputBox
       onSend={(msg, files) => void handleSend(msg, files)}
@@ -114,15 +210,30 @@ export function GeminiChatPanel({
   )
 
   const errorBanner = error ? (
-    <p
+    <div
       className={cn(
-        "rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive",
+        "flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive",
         isDock ? "mx-0 shrink-0" : "",
       )}
       role="alert"
     >
-      {friendlyChatError(error)}
-    </p>
+      <p>{friendlyChatError(error)}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => clearError()}>
+          Dismiss
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-8 gap-1"
+          onClick={() => void regenerate()}
+        >
+          <RefreshCw className="size-3.5" aria-hidden />
+          Retry last reply
+        </Button>
+      </div>
+    </div>
   ) : null
 
   const messageScroll = (
@@ -145,10 +256,8 @@ export function GeminiChatPanel({
         ) : null}
 
         {messages.map((m, i) => {
-          const text = textFromMessage(m)
           const isUser = m.role === "user"
           const isLast = i === messages.length - 1
-          const showTyping = !isUser && streaming && isLast && !text
 
           return (
             <div key={m.id} className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
@@ -170,7 +279,7 @@ export function GeminiChatPanel({
                           "bg-primary text-primary-foreground",
                         )}
                       >
-                        <div className="whitespace-pre-wrap break-words">{text}</div>
+                        <UserMessageBody message={m} />
                       </div>
                     </div>
                   </>
@@ -192,13 +301,7 @@ export function GeminiChatPanel({
                           "rounded-2xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground shadow-sm",
                         )}
                       >
-                        <div className="w-full">
-                          {showTyping ? (
-                            <span className="text-muted-foreground">Thinking…</span>
-                          ) : (
-                            <MarkdownContent>{text}</MarkdownContent>
-                          )}
-                        </div>
+                        <AssistantMessageBody message={m} streaming={streaming} isLast={isLast} />
                       </div>
                     </div>
                   </>
@@ -224,11 +327,17 @@ export function GeminiChatPanel({
       {messageScroll}
       {!isDock ? (
         <>
+          {statusLabel ? (
+            <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
+          ) : null}
           {errorBanner}
           <div className="shrink-0">{composer}</div>
         </>
       ) : (
         <div className="flex min-h-0 shrink-0 flex-col gap-2 border-t border-border/50 bg-background px-2 pb-2 pt-2 shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.08)] sm:px-3 dark:shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.35)]">
+          {statusLabel ? (
+            <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
+          ) : null}
           {errorBanner}
           {composer}
         </div>
