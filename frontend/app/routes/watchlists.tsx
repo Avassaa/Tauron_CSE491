@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router"
 import { ArrowRight, Edit3, ExternalLink, Grid, List, ListChecks, MoreVertical, Plus, Trash2 } from "lucide-react"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
+import { useAssistantDock } from "~/components/assistant/assistant-dock-context"
 import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import {
   apiGet,
@@ -167,6 +168,11 @@ function WatchlistPageClient() {
     fetchEnrichedMarketData,
     fetchChartData
   } = useMarketData()
+
+  const { open: assistantDockOpen } = useAssistantDock()
+  const dockAwareWatchlistGridClass = assistantDockOpen
+    ? "grid grid-cols-1 sm:grid-cols-2 gap-4"
+    : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
 
   React.useEffect(() => {
     const currentParam = searchParams.get("watchlist")
@@ -683,7 +689,7 @@ function WatchlistPageClient() {
                   </div>
                 </div>
                     ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <div className={dockAwareWatchlistGridClass}>
                     {watchlistLists.map((list) => {
                       const trackedAssets = watchlistAssetsByListId[list.id] || []
                       const visibleAssets = trackedAssets.slice(0, 5)
@@ -848,7 +854,7 @@ function WatchlistPageClient() {
                       className="flex-1"
                     >
                       {viewMode === "grid" ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div className={dockAwareWatchlistGridClass}>
                           {paginatedWatchlist.map((asset) => (
                             <WatchlistCard
                               key={asset.id}
