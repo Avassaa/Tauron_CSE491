@@ -15,6 +15,11 @@ import { apiGet, apiPatch, type NotificationResponse, type PaginatedResponse } f
 import { subscribeToNotificationPush } from "~/lib/notification-stream"
 import { cn } from "~/lib/utils"
 
+/** Fetched batch for the popover; list area is max-height capped so the panel stays ~same size and scrolls. */
+const INBOX_POPOVER_PAGE_SIZE = 6
+/** ~4 tall rows visible; keeps total popover height near ~470px including header. */
+const INBOX_LIST_MAX_HEIGHT_CLASS = "max-h-[26rem]"
+
 function formatRelativeTime(value: string): string {
   const createdAt = new Date(value).getTime()
   const diffSeconds = Math.max(0, Math.floor((Date.now() - createdAt) / 1000))
@@ -47,11 +52,11 @@ export function NotificationInbox() {
     try {
       const [list, count] = await Promise.all([
         apiGet<PaginatedResponse<NotificationResponse>>("/users/me/notifications", {
-          page_size: 6,
+          page_size: INBOX_POPOVER_PAGE_SIZE,
         }),
         apiGet<{ count: number }>("/users/me/notifications/unread-count"),
       ])
-      setItems(list.items)
+      setItems(list.items.slice(0, INBOX_POPOVER_PAGE_SIZE))
       setUnreadCount(count.count)
     } catch {
       setItems([])
@@ -69,7 +74,7 @@ export function NotificationInbox() {
     return subscribeToNotificationPush((notification) => {
       setItems((prev) => {
         if (prev.some((item) => item.id === notification.id)) return prev
-        return [notification, ...prev].slice(0, 6)
+        return [notification, ...prev].slice(0, INBOX_POPOVER_PAGE_SIZE)
       })
       if (!notification.is_read) {
         setUnreadCount((count) => count + 1)
@@ -161,7 +166,12 @@ export function NotificationInbox() {
             No notifications yet.
           </div>
         ) : (
-          <div className="max-h-96 overflow-auto">
+          <div
+            className={cn(
+              INBOX_LIST_MAX_HEIGHT_CLASS,
+              "overflow-y-auto overscroll-contain overflow-x-hidden",
+            )}
+          >
             {items.map((item) => (
               (() => {
                 const condition = getNotificationCondition(item)
