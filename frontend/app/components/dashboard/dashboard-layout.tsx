@@ -51,9 +51,9 @@ export function DashboardLayout({
                 <NotificationInbox />
               </div>
             </header>
-            <main className="flex min-h-0 flex-1 flex-col overflow-hidden pt-10">
+            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-10">
               <AssistantDockSplitMain>
-                <div className="relative min-h-0 flex-1 basis-0 overflow-y-auto">{children}</div>
+                <div className="relative min-h-0 w-full min-w-0 flex-1 basis-0 overflow-y-auto">{children}</div>
               </AssistantDockSplitMain>
             </main>
           </div>

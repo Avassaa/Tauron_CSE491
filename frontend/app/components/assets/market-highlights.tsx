@@ -257,7 +257,7 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
   }, [])
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 max-w-full space-y-4">
       <style>
         {`
           @keyframes market-highlight-marquee {
@@ -271,9 +271,9 @@ export function MarketHighlights({ onCoinClick }: MarketHighlightsProps) {
           Trending Coins
         </h3>
       </div>
-      <div className="overflow-hidden p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="min-w-0 max-w-full overflow-hidden p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {loading ? (
-          <div className="flex gap-4">
+          <div className="flex gap-4 overflow-hidden">
             {Array.from({ length: 6 }).map((_, index) => (
               <TrendingCoinSkeleton key={index} />
             ))}

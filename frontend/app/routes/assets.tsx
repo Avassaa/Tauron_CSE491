@@ -254,7 +254,7 @@ function AssetsPageClient() {
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
         <PageBlueBackdrop />
-        <div className="relative z-[1] flex flex-1 flex-col gap-6 p-4 md:p-8">
+        <div className="relative z-[1] flex min-w-0 max-w-full flex-1 flex-col gap-6 p-4 md:p-8">
           <MarketHighlights
             onCoinClick={async (symbol) => {
               const match = assets.find(a => a.symbol.toUpperCase() === symbol.toUpperCase())

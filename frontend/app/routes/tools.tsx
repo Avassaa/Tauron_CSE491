@@ -906,8 +906,8 @@ export default function ToolsPage() {
             <NotificationInbox />
           </div>
         </header>
-        <AssistantDockSplitMain outerClassName="min-h-[calc(100svh-3.5rem)] flex-1">
-          <div className="flex min-h-0 flex-1 overflow-auto p-4">
+        <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-auto p-4">
           <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="h-fit self-start">
               <div className="space-y-1 lg:fixed lg:top-[calc(var(--market-banner-offset,0px)+5rem)] lg:z-10 lg:w-[220px]">

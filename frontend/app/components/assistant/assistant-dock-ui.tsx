@@ -121,7 +121,7 @@ export function AssistantDockSplitMain({
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden self-stretch",
           open && "min-h-0 basis-0",
-          !open && "w-full",
+          !open && "w-full min-w-0 max-w-none",
         )}
       >
         {children}
@@ -130,10 +130,10 @@ export function AssistantDockSplitMain({
       <aside
         aria-hidden={!open}
         className={cn(
-          "flex h-full min-h-0 flex-col overflow-hidden border-transparent bg-muted/25 backdrop-blur-md transition-[min-width,max-width,border-color,opacity,width] duration-200 ease-out motion-reduce:transition-none",
+          "flex min-h-0 flex-col overflow-hidden border-transparent bg-muted/25 backdrop-blur-md transition-[min-width,max-width,border-color,opacity,width,height] duration-200 ease-out motion-reduce:transition-none",
           open
-            ? cn("self-stretch border-border/70 border-l", DESKTOP_ASSISTANT_WIDTH_CLASS)
-            : "pointer-events-none w-0 max-w-0 min-w-0 shrink-0 border-0 opacity-0",
+            ? cn("h-full self-stretch border-border/70 border-l", DESKTOP_ASSISTANT_WIDTH_CLASS)
+            : "pointer-events-none h-0 max-h-0 w-0 max-w-0 min-w-0 shrink-0 grow-0 border-0 opacity-0",
         )}
       >
         {open ? (
