@@ -42,6 +42,7 @@ export function ChatHistorySidebar({
   collapsible = false,
   defaultOpen = true,
   density = "standard",
+  onDockRailExpandedChange,
 }: {
   sessions: ChatSession[]
   currentSessionId: string
@@ -53,10 +54,19 @@ export function ChatHistorySidebar({
   collapsible?: boolean
   defaultOpen?: boolean
   density?: "standard" | "dock"
+  /** Dock + collapsible only: `true` when the wide history panel is open (overlay mode). */
+  onDockRailExpandedChange?: (expanded: boolean) => void
 }) {
   const [historyOpen, setHistoryOpen] = React.useState(defaultOpen)
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  const useDockOverlay = density === "dock" && collapsible
+
+  React.useEffect(() => {
+    if (!useDockOverlay) return
+    onDockRailExpandedChange?.(historyOpen)
+  }, [historyOpen, useDockOverlay, onDockRailExpandedChange])
 
   const open = !collapsible || historyOpen
   const showNewChatLabel = !(compact ?? false)
@@ -71,11 +81,12 @@ export function ChatHistorySidebar({
       sessions.filter((s) => s.title.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : sessions
 
-  return (
+  const rail = (
     <div
       className={cn(
         "flex h-full shrink-0 flex-col overflow-hidden transition-[width] duration-200 motion-reduce:transition-none",
         geminiShell,
+        useDockOverlay && "absolute left-0 top-0 z-30 h-full shadow-[4px_0_24px_rgba(0,0,0,0.18)]",
         open ? expandedWidth : collapsedWidth,
         className,
       )}
@@ -244,5 +255,26 @@ export function ChatHistorySidebar({
         </>
       )}
     </div>
+  )
+
+  if (!useDockOverlay) {
+    return rail
+  }
+
+  return (
+    <>
+      {historyOpen ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-20 bg-black/45 backdrop-blur-[1px] transition-opacity motion-reduce:backdrop-blur-none"
+          aria-label="Close chat history menu"
+          onClick={() => {
+            setSearchOpen(false)
+            setHistoryOpen(false)
+          }}
+        />
+      ) : null}
+      {rail}
+    </>
   )
 }

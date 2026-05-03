@@ -1,15 +1,16 @@
 "use client"
 
 import * as React from "react"
-import { AlarmClock, ArrowLeft, Check, ChevronDown, CircleDot, TrendingUp, TrendingDown, Activity, RefreshCw, Star, Trash2 } from "lucide-react"
+import { createPortal } from "react-dom"
+import { AlarmClock, ArrowLeft, Check, ChevronDown, CircleDot, TrendingUp, TrendingDown, Activity, RefreshCw, Star, Trash2, X } from "lucide-react"
 import { Badge } from "~/components/ui/badge"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
   SheetTitle,
 } from "~/components/ui/sheet"
+import { useDashboardMainScrollElement } from "~/components/dashboard/dashboard-main-scroll-context"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import {
@@ -132,6 +133,27 @@ export function AssetDetailSheet({
   watchlistMembershipByListId = {},
   onCreateWatchlistList,
 }: AssetDetailSheetProps) {
+  const mainScrollEl = useDashboardMainScrollElement()
+  const useDockedDetail = mainScrollEl !== null
+
+  React.useEffect(() => {
+    if (!selectedAsset || !useDockedDetail || !mainScrollEl) return
+    const prev = mainScrollEl.style.overflow
+    mainScrollEl.style.overflow = "hidden"
+    return () => {
+      mainScrollEl.style.overflow = prev
+    }
+  }, [selectedAsset, useDockedDetail, mainScrollEl])
+
+  React.useEffect(() => {
+    if (!selectedAsset) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedAsset(null)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selectedAsset, setSelectedAsset])
+
   const normalizedQuoteCurrency =
     quoteCurrency === "USD" ||
       quoteCurrency === "TRY" ||
@@ -427,18 +449,11 @@ export function AssetDetailSheet({
       ? `${activeWatchlists.length} Lists`
       : "Watchlists"
 
-  return (
-    <Sheet open={!!selectedAsset} onOpenChange={(open) => !open && setSelectedAsset(null)}>
-      <SheetContent
-        side="right"
-        className={cn(
-          "w-full sm:max-w-[680px] border-l p-0 text-foreground overflow-y-auto scrollbar-none isolate shadow-xl",
-          glassPanelSurface,
-        )}
-      >
-        {selectedAsset && (
+  if (!selectedAsset) return null
+
+  const detailBody = (
           <div className="relative px-4 sm:px-8 pt-8 sm:pt-10 pb-10 sm:pb-12 flex flex-col">
-            <SheetHeader className="items-start text-left mb-8 p-0">
+            <div className="flex flex-col gap-1.5 items-start text-left mb-8 p-0">
               <div className="flex items-center gap-5">
                 <div className="relative">
                   <div className="size-20 overflow-hidden rounded-full flex items-center justify-center font-black text-2xl">
@@ -454,9 +469,15 @@ export function AssetDetailSheet({
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-3">
-                    <SheetTitle className="text-2xl sm:text-4xl font-black tracking-tighter truncate min-w-0">
-                      {selectedAsset.name}
-                    </SheetTitle>
+                    {useDockedDetail ? (
+                      <h2 id="asset-detail-title" className="text-2xl sm:text-4xl font-black tracking-tighter truncate min-w-0">
+                        {selectedAsset.name}
+                      </h2>
+                    ) : (
+                      <SheetTitle className="text-2xl sm:text-4xl font-black tracking-tighter truncate min-w-0">
+                        {selectedAsset.name}
+                      </SheetTitle>
+                    )}
                     <div className="flex shrink-0 items-center gap-2">
                       <Button
                         type="button"
@@ -559,7 +580,7 @@ export function AssetDetailSheet({
               </div>
 
 
-            </SheetHeader>
+            </div>
 
             {detailView === "alerts" ? (
               <div className="space-y-5">
@@ -1070,7 +1091,54 @@ export function AssetDetailSheet({
               </>
             )}
           </div>
+  )
+
+  if (useDockedDetail && mainScrollEl) {
+    return createPortal(
+      <div className="pointer-events-none absolute inset-0 z-[100] flex min-h-0 min-w-0 flex-row justify-end">
+        <button
+          type="button"
+          className="pointer-events-auto absolute inset-0 z-0 border-0 bg-black/80 p-0 backdrop-blur-[2px] motion-reduce:backdrop-blur-none"
+          onClick={() => setSelectedAsset(null)}
+          aria-label="Close asset details"
+        />
+        <div
+          className={cn(
+            "pointer-events-auto relative z-10 flex h-full min-h-0 w-full max-w-[680px] shrink-0 flex-col overflow-y-auto border-l border-border p-0 text-foreground scrollbar-none isolate shadow-xl outline-none",
+            glassPanelSurface,
+          )}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="asset-detail-title"
+          tabIndex={-1}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4 z-20 size-9 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            onClick={() => setSelectedAsset(null)}
+            aria-label="Close"
+          >
+            <X className="size-4" aria-hidden />
+          </Button>
+          {detailBody}
+        </div>
+      </div>,
+      mainScrollEl,
+    )
+  }
+
+  return (
+    <Sheet open onOpenChange={(open) => !open && setSelectedAsset(null)}>
+      <SheetContent
+        side="right"
+        className={cn(
+          "w-full sm:max-w-[680px] border-l p-0 text-foreground overflow-y-auto scrollbar-none isolate shadow-xl",
+          glassPanelSurface,
         )}
+      >
+        {detailBody}
       </SheetContent>
     </Sheet>
   )

@@ -12,6 +12,7 @@ import {
   AssistantDockSplitMain,
   AssistantDockToolbarButton,
 } from "~/components/assistant/assistant-dock-ui"
+import { DashboardMainScrollElementContext } from "~/components/dashboard/dashboard-main-scroll-context"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -26,39 +27,46 @@ export function DashboardLayout({
   fallback,
   actions,
 }: DashboardLayoutProps) {
+  const [mainScrollEl, setMainScrollEl] = React.useState<HTMLDivElement | null>(null)
+
   return (
     <DashboardClientOnly fallback={fallback || <DefaultFallback title={typeof title === 'string' ? title : "Loading"} />}>
       <AuthGuard>
         <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
           <AppSidebar />
           <MarketMarqueeBanner />
-          <div className="glass-page-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <header className="app-subtle-header sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/50 px-4 backdrop-blur-md">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <SidebarTrigger className="-ml-1 shrink-0" />
-                <Separator orientation="vertical" className="mr-2 h-4 shrink-0" />
-                <div className="flex min-w-0 items-center gap-2">
-                  {typeof title === "string" ? (
-                    <span className="font-medium">{title}</span>
-                  ) : (
-                    title
-                  )}
+          <DashboardMainScrollElementContext.Provider value={mainScrollEl}>
+            <div className="glass-page-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              <header className="app-subtle-header sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/50 px-4 backdrop-blur-md">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <SidebarTrigger className="-ml-1 shrink-0" />
+                  <Separator orientation="vertical" className="mr-2 h-4 shrink-0" />
+                  <div className="flex min-w-0 items-center gap-2">
+                    {typeof title === "string" ? (
+                      <span className="font-medium">{title}</span>
+                    ) : (
+                      title
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {actions}
-                <AssistantDockToolbarButton />
-                <NotificationInbox />
-              </div>
-            </header>
-            <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-10">
-              <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
-                <div className="relative flex min-h-0 min-w-0 flex-1 overflow-auto">
-                  {children}
+                <div className="flex shrink-0 items-center gap-2">
+                  {actions}
+                  <AssistantDockToolbarButton />
+                  <NotificationInbox />
                 </div>
-              </AssistantDockSplitMain>
-            </main>
-          </div>
+              </header>
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-10">
+                <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
+                  <div
+                    ref={setMainScrollEl}
+                    className="relative flex min-h-0 min-w-0 flex-1 overflow-auto"
+                  >
+                    {children}
+                  </div>
+                </AssistantDockSplitMain>
+              </main>
+            </div>
+          </DashboardMainScrollElementContext.Provider>
         </SidebarProvider>
       </AuthGuard>
     </DashboardClientOnly>

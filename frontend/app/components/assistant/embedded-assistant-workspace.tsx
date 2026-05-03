@@ -168,6 +168,8 @@ export function EmbeddedAssistantWorkspace({
     })
   }, [currentSessionId])
 
+  const [dockHistoryRailExpanded, setDockHistoryRailExpanded] = React.useState(false)
+
   return (
     <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)}>
       {onRequestClose ? (
@@ -193,18 +195,13 @@ export function EmbeddedAssistantWorkspace({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-row overflow-hidden pb-2">
-        <ChatHistorySidebar
-          collapsible
-          defaultOpen={false}
-          density="dock"
-          sessions={sessions}
-          currentSessionId={currentSessionId ?? ""}
-          onSelectSession={handleSelectSession}
-          onNewChat={handleNewChat}
-          isLoading={isLoadingSessions}
-        />
-        <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden px-2 pt-0 sm:px-3">
+      <div className="relative flex min-h-0 min-w-0 flex-1 basis-0 overflow-hidden pb-2">
+        <div
+          className={cn(
+            "relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-0",
+            dockHistoryRailExpanded ? "px-2 sm:px-3" : "pl-12 pr-2 sm:pr-3",
+          )}
+        >
           <p className="sr-only">
             Ask markets, news, or watchlists. History syncs with the Chat page.
           </p>
@@ -224,6 +221,17 @@ export function EmbeddedAssistantWorkspace({
             </div>
           )}
         </div>
+        <ChatHistorySidebar
+          collapsible
+          defaultOpen={false}
+          density="dock"
+          sessions={sessions}
+          currentSessionId={currentSessionId ?? ""}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+          isLoading={isLoadingSessions}
+          onDockRailExpandedChange={setDockHistoryRailExpanded}
+        />
       </div>
     </div>
   )
