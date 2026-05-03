@@ -13,11 +13,30 @@ export type AssistantToolsUiContext = {
   priceAlerts?: AssistantPriceAlertsUiContext
 }
 
+export type AssistantDashboardStatsPayload = {
+  trackedAssetsTotal?: number
+  /** Pagination index when browsing asset grids. */
+  assetsPage?: number
+  quoteCurrency?: string
+  /** Whether an asset detail sheet is open on /assets. */
+  assetSheetOpen?: boolean
+}
+
+export type AssistantSelectedAssetPayload = {
+  id: string
+  symbol: string
+  name: string
+}
+
 export type AssistantClientPagePayload = {
   pathname: string
+  /** Mirrors pathname for transports that prefer `currentPath`. */
+  currentPath: string
   sectionTitle: string
   sectionDescription: string
   tools?: AssistantToolsUiContext | null
+  selectedAsset?: AssistantSelectedAssetPayload | null
+  dashboardStats?: AssistantDashboardStatsPayload | null
 }
 
 export const TOOLS_PANEL_LABELS: Record<string, string> = {
@@ -95,13 +114,20 @@ export function pathnameToAssistantSection(pathname: string): Pick<
 export function buildAssistantPagePayload(args: {
   pathname: string
   tools?: AssistantToolsUiContext | null
+  selectedAsset?: AssistantSelectedAssetPayload | null
+  dashboardStats?: AssistantDashboardStatsPayload | null
 }): AssistantClientPagePayload {
   const meta = pathnameToAssistantSection(args.pathname)
   return {
     pathname: args.pathname,
+    currentPath: args.pathname,
     sectionTitle: meta.sectionTitle,
     sectionDescription: meta.sectionDescription,
     tools: args.pathname.startsWith("/tools") ? args.tools ?? undefined : undefined,
+    selectedAsset:
+      args.pathname.startsWith("/assets") && args.selectedAsset ? args.selectedAsset : undefined,
+    dashboardStats:
+      args.pathname.startsWith("/assets") && args.dashboardStats ? args.dashboardStats : undefined,
   }
 }
 
@@ -113,8 +139,28 @@ export function formatAssistantPageContextForSystemPrompt(raw: unknown): string 
 
   const lines: string[] = []
   lines.push(`Pathname: ${o.pathname}`)
+  if (typeof o.currentPath === "string" && o.currentPath.trim() && o.currentPath !== o.pathname) {
+    lines.push(`currentPath (alias): ${o.currentPath}`)
+  }
   lines.push(`Primary section: ${o.sectionTitle}`)
   if (typeof o.sectionDescription === "string") lines.push(`Section summary: ${o.sectionDescription}`)
+
+  const sel = o.selectedAsset
+  if (sel && typeof sel === "object" && typeof sel.symbol === "string") {
+    lines.push("--- Selected asset (Assets UI)")
+    lines.push(`Symbol: ${sel.symbol}`)
+    if (typeof sel.name === "string") lines.push(`Name: ${sel.name}`)
+    if (typeof sel.id === "string") lines.push(`Asset id: ${sel.id}`)
+  }
+
+  const stats = o.dashboardStats
+  if (stats && typeof stats === "object") {
+    lines.push("--- Dashboard stats snapshot")
+    if (typeof stats.trackedAssetsTotal === "number") lines.push(`Tracked assets total (grid): ${stats.trackedAssetsTotal}`)
+    if (typeof stats.assetsPage === "number") lines.push(`Assets page index: ${stats.assetsPage}`)
+    if (typeof stats.quoteCurrency === "string") lines.push(`Quote currency: ${stats.quoteCurrency}`)
+    if (typeof stats.assetSheetOpen === "boolean") lines.push(`Asset detail sheet open: ${stats.assetSheetOpen ? "yes" : "no"}`)
+  }
 
   const tools = o.tools
   if (tools && typeof tools === "object") {

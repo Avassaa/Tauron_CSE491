@@ -2,7 +2,15 @@
 
 import * as React from "react"
 import { Bot, RefreshCw } from "lucide-react"
-import { isFileUIPart, isReasoningUIPart, isTextUIPart, isToolUIPart, type UIMessage } from "ai"
+import {
+  isFileUIPart,
+  isReasoningUIPart,
+  isTextUIPart,
+  isToolUIPart,
+  type ChatOnErrorCallback,
+  type ChatOnFinishCallback,
+  type UIMessage,
+} from "ai"
 
 import { AssistantChatToolPart } from "~/components/assistant/chat-tool-part"
 import { useAssistantClientPagePayload } from "~/components/assistant/assistant-chat-extras-context"
@@ -10,6 +18,7 @@ import { PromptInputBox } from "~/components/ui/ai-prompt-box"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Button } from "~/components/ui/button"
 import { MarkdownContent } from "~/components/ui/markdown-content"
+
 import { useGeminiChat } from "~/lib/ai/use-gemini-chat"
 import type { AssistantClientPagePayload } from "~/lib/ai/assistant-client-page-context"
 import { cn } from "~/lib/utils"
@@ -134,13 +143,18 @@ export function GeminiChatPanel({
   initialMessages,
   onActivity,
   onNewMessage,
+  onAssistantFinish,
+  onChatError,
   variant = "default",
 }: {
   className?: string
   id?: string
   initialMessages?: UIMessage[]
+  /** Legacy alias invoked after a successful assistant reply completes streaming. */
   onActivity?: () => void
   onNewMessage?: (text: string) => void
+  onAssistantFinish?: ChatOnFinishCallback<UIMessage>
+  onChatError?: ChatOnErrorCallback
   variant?: "default" | "dock"
 }) {
   const clientPagePayload = useAssistantClientPagePayload()
@@ -151,6 +165,8 @@ export function GeminiChatPanel({
     id,
     initialMessages,
     onResponse: () => onActivity?.(),
+    onFinish: onAssistantFinish,
+    onError: onChatError ?? ((err) => console.error("[GeminiChatPanel]", err)),
     clientPagePayloadRef,
   })
   const streaming = status === "streaming" || status === "submitted"

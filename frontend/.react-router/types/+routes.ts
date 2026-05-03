@@ -72,6 +72,9 @@ type Pages = {
   "/api/chat": {
     params: {};
   };
+  "/api/assistant/confirm-tool": {
+    params: {};
+  };
   "/api/insights": {
     params: {};
   };
@@ -80,7 +83,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/insights";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -162,6 +165,10 @@ type RouteFiles = {
     id: "routes/api.chat";
     page: "/api/chat";
   };
+  "routes/api.assistant.confirm-tool.tsx": {
+    id: "routes/api.assistant.confirm-tool";
+    page: "/api/assistant/confirm-tool";
+  };
   "routes/api.insights.tsx": {
     id: "routes/api.insights";
     page: "/api/insights";
@@ -190,5 +197,6 @@ type RouteModules = {
   "routes/news-article": typeof import("./app/routes/news-article.tsx");
   "routes/chat": typeof import("./app/routes/chat.tsx");
   "routes/api.chat": typeof import("./app/routes/api.chat.tsx");
+  "routes/api.assistant.confirm-tool": typeof import("./app/routes/api.assistant.confirm-tool.tsx");
   "routes/api.insights": typeof import("./app/routes/api.insights.tsx");
 };

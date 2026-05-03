@@ -18,6 +18,7 @@ import {
 import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 
 import { CreateWatchlistDialog } from "~/components/watchlists/create-watchlist-dialog"
+import { useAssistantChatExtras } from "~/components/assistant/assistant-chat-extras-context"
 import { useWatchlist } from "~/hooks/use-watchlist"
 import { useMarketData } from "~/hooks/use-market-data"
 
@@ -36,6 +37,31 @@ function AssetsPageClient() {
   const [quoteCurrency, setQuoteCurrency] = React.useState<CurrencyCode>("USD")
 
   const [selectedAsset, setSelectedAsset] = React.useState<AssetResponse | null>(null)
+  const { setAssetsUiHints } = useAssistantChatExtras()
+
+  React.useEffect(() => {
+    setAssetsUiHints({
+      selectedAsset:
+        selectedAsset ?
+          {
+            id: selectedAsset.id,
+            symbol: selectedAsset.symbol,
+            name: selectedAsset.name,
+          }
+        : null,
+      dashboardStats: {
+        trackedAssetsTotal: total,
+        assetsPage: page,
+        quoteCurrency,
+        assetSheetOpen: Boolean(selectedAsset),
+      },
+    })
+    return () =>
+      setAssetsUiHints({
+        selectedAsset: null,
+        dashboardStats: null,
+      })
+  }, [page, quoteCurrency, selectedAsset, setAssetsUiHints, total])
   const [timeRange, setTimeRange] = React.useState<TimeRange>("7D")
   const [predictionModel, setPredictionModel] = React.useState<MlModelResponse | null>(null)
   const [availableModels, setAvailableModels] = React.useState<MlModelResponse[]>([])

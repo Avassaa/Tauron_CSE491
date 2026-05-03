@@ -5,7 +5,7 @@ export async function loader() {
   return Response.json({
     ok: true,
     description:
-      "POST JSON `{ mode: \"quick_insight\" | \"prediction_outline\", symbol?: string, context?: string }` for structured Gemini JSON (generateObject).",
+      "POST JSON `{ mode: \"quick_insight\" | \"prediction_outline\" | \"news_feed_quick\", symbol?: string, context?: string }` for structured Gemini JSON (generateObject).",
   })
 }
 

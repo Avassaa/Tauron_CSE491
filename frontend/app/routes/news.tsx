@@ -4,7 +4,7 @@ import * as React from "react"
 import { formatDistanceToNow } from "date-fns"
 
 import { DATE_FNS_LOCALE } from "~/lib/date-locale"
-import { Newspaper, RefreshCw } from "lucide-react"
+import { Newspaper, RefreshCw, Sparkles } from "lucide-react"
 import { Link } from "react-router"
 import { toast } from "sonner"
 
@@ -18,6 +18,12 @@ import { cn } from "~/lib/utils"
 type NewsScrapeAcceptedResponse = {
   status: "accepted"
   message: string
+}
+
+type NewsFeedQuickInsight = {
+  sentiment: string
+  impactScore: number
+  summary: string
 }
 
 function formatSentiment(score: number | null): string {
@@ -48,6 +54,10 @@ export default function NewsPage() {
   const [page, setPage] = React.useState(1)
   const [total, setTotal] = React.useState(0)
 
+  const [feedAiInsight, setFeedAiInsight] = React.useState<NewsFeedQuickInsight | null>(null)
+  const [feedAiLoading, setFeedAiLoading] = React.useState(false)
+  const [feedAiError, setFeedAiError] = React.useState<string | null>(null)
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   const fetchCuratedNews = React.useCallback(async (targetPage: number) => {
@@ -74,6 +84,11 @@ export default function NewsPage() {
     void fetchCuratedNews(page)
   }, [fetchCuratedNews, page])
 
+  React.useEffect(() => {
+    setFeedAiInsight(null)
+    setFeedAiError(null)
+  }, [page])
+
   const handleGetNews = async () => {
     setScrapeLoading(true)
     try {
@@ -90,6 +105,50 @@ export default function NewsPage() {
       toast.error(message)
     } finally {
       setScrapeLoading(false)
+    }
+  }
+
+  const handleQuickFeedInsight = async () => {
+    if (newsItems.length === 0) {
+      toast.error("Load news before requesting an AI glance.")
+      return
+    }
+    setFeedAiLoading(true)
+    setFeedAiError(null)
+    try {
+      const stitched = newsItems
+        .slice(0, 14)
+        .map((item, i) => {
+          const dp = item.data_points_used
+          const headline =
+            typeof dp === "object" && dp && typeof dp.title === "string" ? dp.title : `Story ${i + 1}`
+          const summ = (item.summary ?? "").slice(0, 320)
+          return `${i + 1}. ${headline}\n${summ}`
+        })
+        .join("\n\n")
+      const token = localStorage.getItem("access_token")?.trim()
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (token) headers.Authorization = `Bearer ${token}`
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        credentials: "same-origin",
+        headers,
+        body: JSON.stringify({
+          mode: "news_feed_quick",
+          context: stitched,
+        }),
+      })
+      const json = (await res.json()) as { insight?: NewsFeedQuickInsight; error?: string }
+      if (!res.ok) throw new Error(json.error ?? `Insight failed (${res.status}).`)
+      if (!json.insight) throw new Error("Malformed insight response.")
+      setFeedAiInsight(json.insight)
+      toast.success("Feed insight ready.")
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not generate insight."
+      setFeedAiError(msg)
+      toast.error(msg)
+    } finally {
+      setFeedAiLoading(false)
     }
   }
 
@@ -116,6 +175,16 @@ export default function NewsPage() {
       title="News Feed"
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="gap-2"
+            onClick={() => void handleQuickFeedInsight()}
+            disabled={feedAiLoading || newsItems.length === 0 || loading}
+          >
+            <Sparkles className={`size-4 ${feedAiLoading ? "animate-pulse" : ""}`} />
+            {feedAiLoading ? "Analyzing…" : "Quick AI glance"}
+          </Button>
           <Button type="button" onClick={handleCurateNews} disabled={curateLoading} className="gap-2" variant="outline">
             <RefreshCw className={`size-4 ${curateLoading ? "animate-spin" : ""}`} />
             {curateLoading ? "Curating..." : "Curate News"}
@@ -148,6 +217,30 @@ export default function NewsPage() {
               Showing page {page} of {totalPages} ({total} items)
             </p>
           </div>
+
+          {feedAiError ? (
+            <div className="rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {feedAiError}
+            </div>
+          ) : null}
+
+          {feedAiInsight ? (
+            <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-transparent to-fuchsia-500/10 p-4 shadow-[0_0_28px_-14px_rgba(34,211,238,0.35)] md:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  AI feed glance
+                </span>
+                <span className="rounded-full border border-border/70 px-2 py-0.5 font-mono text-xs text-foreground">
+                  Impact {feedAiInsight.impactScore}/100
+                </span>
+              </div>
+              <p className="mt-2 text-base font-semibold text-foreground">{feedAiInsight.sentiment}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feedAiInsight.summary}</p>
+              <p className="mt-3 text-[10px] italic text-muted-foreground">
+                Generated object JSON for UX—informational only, not trading advice.
+              </p>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="rounded-xl border p-8 text-sm text-muted-foreground">Loading news...</div>

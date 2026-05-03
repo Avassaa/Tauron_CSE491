@@ -126,15 +126,19 @@ ${ctxBlock}
       system: systemPrompt,
       messages: modelMessages,
       tools,
-      stopWhen: stepCountIs(12),
-      onFinish: async ({ text, usage, finishReason }) => {
+      stopWhen: stepCountIs(5),
+      onError: ({ error }) => {
+        console.error("[api/chat] streamText error:", error)
+      },
+      onFinish: async ({ text, finishReason, steps, totalUsage }) => {
         console.info(
           "[chat-stream]",
           JSON.stringify({
             sessionId,
             ms: Date.now() - streamStartedAt,
             finishReason,
-            usage,
+            usage: totalUsage,
+            stepCount: steps?.length ?? 0,
           }),
         )
         await saveMessageToDb("assistant", text ?? "")

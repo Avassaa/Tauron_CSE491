@@ -1,6 +1,11 @@
 import { tool } from "ai"
 import { z } from "zod"
 
+import { resolveMarketSeriesForAssistant } from "~/lib/ai/gemini-chat-market-series.server"
+import {
+  createExpiry,
+  signAssistantConfirmation,
+} from "~/lib/ai/assistant-tool-token.server"
 import { internalJsonFetch } from "~/lib/ai/gemini-internal-api"
 
 type Paginated<T> = {
@@ -12,15 +17,6 @@ type AssetRow = {
   id: string
   symbol: string
   name: string
-}
-
-type MarketRow = {
-  time: string
-  close: number
-  open: number
-  high: number
-  low: number
-  volume: number
 }
 
 function authRequired() {
@@ -50,17 +46,61 @@ async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
   return { found: ranked, status: res.status, detail: undefined as string | undefined }
 }
 
+function riskOverlayFromCloses(closes: number[]): {
+  score: number
+  label: string
+  rationale: string
+} | null {
+  if (closes.length < 10) return null
+  const rets: number[] = []
+  for (let i = 1; i < closes.length; i++) {
+    const prev = closes[i - 1]
+    const cur = closes[i]
+    if (!Number.isFinite(prev) || !Number.isFinite(cur) || prev === 0) continue
+    rets.push(Math.log(cur / prev))
+  }
+  if (rets.length < 8) return null
+  const mean = rets.reduce((a, b) => a + b, 0) / rets.length
+  const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0) / rets.length
+  const sigma = Math.sqrt(variance)
+  const raw = sigma * Math.sqrt(Math.min(rets.length, 168))
+  const score = Math.min(100, Math.max(5, Math.round(raw * 520)))
+  let label: string
+  let rationale: string
+  if (score < 28) {
+    label = "Low turbulence"
+    rationale = "Recent closes show relatively stable step-to-step behaviour in this window."
+  } else if (score < 52) {
+    label = "Moderate variability"
+    rationale = "Typical oscillation for intraday crypto series—size positions with ordinary caution."
+  } else if (score < 72) {
+    label = "Elevated swings"
+    rationale = "Log-return dispersion is high; widen invalidation buffers and reduce leverage assumptions."
+  } else {
+    label = "High volatility"
+    rationale = "Large swings versus earlier closes—treat sizing and stops conservatively."
+  }
+  return { score, label, rationale }
+}
+
 export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
   const { authHeader } = ctx
 
   return {
-    getAssetPrice: tool({
+    /**
+     * Primary market tool: resolve an asset and optionally fetch OHLC series plus an educational risk readout.
+     */
+    get_market_data: tool({
       description:
-        "Resolve a tracked asset by symbol (e.g. BTC, SOL) and return metadata from Tauron. Requires user JWT.",
+        "Resolve a tracked crypto asset by ticker and optionally fetch recent closes for an inline chart plus volatility context. Prefer this instead of guessing prices.",
       inputSchema: z.object({
-        symbol: z.string().describe("Base asset ticker without quote, e.g. BTC"),
+        symbol: z.string().describe("Base ticker without quote, e.g. BTC or SOL."),
+        include_chart: z.boolean().optional().default(false).describe("When true, fetch OHLC closes for chart rendering."),
+        include_risk: z.boolean().optional().default(false).describe("When true (usually with chart), add heuristic risk bands."),
+        lookbackHours: z.number().min(6).max(720).optional().default(168),
+        resolution: z.enum(["1h", "4h", "1d"]).optional().default("1h"),
       }),
-      execute: async ({ symbol }) => {
+      execute: async ({ symbol, include_chart, include_risk, lookbackHours, resolution }) => {
         if (!authHeader) return authRequired()
         const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
         if (!found.length) {
@@ -71,85 +111,64 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           }
         }
         const asset = found[0]
-        return {
-          ok: true as const,
-          widget: "asset_quote" as const,
-          assetId: asset.id,
-          symbol: asset.symbol,
-          name: asset.name,
-          hint: "Price snapshots come from client-side streams or dedicated charts; offer qualitative guidance unless another tool returned numeric series.",
-        }
-      },
-    }),
 
-    renderMarketChart: tool({
-      description:
-        "Fetch recent OHLCV closes for an asset symbol and return a compact series for an inline chart widget. Requires JWT.",
-      inputSchema: z.object({
-        symbol: z.string(),
-        lookbackHours: z.number().min(6).max(720).optional().default(168),
-        resolution: z.enum(["1h", "4h", "1d"]).optional().default("1h"),
-      }),
-      execute: async ({ symbol, lookbackHours, resolution }) => {
-        if (!authHeader) return authRequired()
-        const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
-        if (!found.length) {
+        if (!include_chart) {
           return {
-            ok: false as const,
-            error: detail ?? "Asset not found.",
+            ok: true as const,
+            widget: "asset_quote" as const,
+            assetId: asset.id,
+            symbol: asset.symbol,
+            name: asset.name,
+            hint: "Enable include_chart when the user wants a visual series or volatility context.",
           }
         }
-        const asset = found[0]
-        const timeTo = new Date()
-        const timeFrom = new Date(timeTo.getTime() - lookbackHours * 60 * 60 * 1000)
-        const qs = new URLSearchParams({
-          asset_id: asset.id,
-          time_from: timeFrom.toISOString(),
-          time_to: timeTo.toISOString(),
-          resolution,
-          page_size: "200",
-          page: "1",
-        })
-        const md = await internalJsonFetch<Paginated<MarketRow>>(`/market-data?${qs}`, {
+
+        const series = await resolveMarketSeriesForAssistant({
           authHeader,
-          method: "GET",
+          assetId: asset.id,
+          symbol: asset.symbol,
+          lookbackHours,
+          resolution,
         })
-        if (!md.ok || !md.data?.items?.length) {
+        if ("error" in series) {
           return {
             ok: false as const,
             symbol: asset.symbol,
-            error: `Market data unavailable (${md.status}).`,
+            error: series.error,
           }
         }
-        const sorted = [...md.data.items].sort(
-          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime(),
-        )
-        const closes = sorted.map((r) => r.close)
-        const labels = sorted.map((r) =>
-          new Date(r.time).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit" }),
-        )
-        const lastClose = closes[closes.length - 1]
-        const firstClose = closes[0]
-        const changePct =
-          firstClose && lastClose && firstClose !== 0 ? ((lastClose - firstClose) / firstClose) * 100 : null
+
+        const riskOverlay =
+          include_risk ? riskOverlayFromCloses(series.closes) : null
 
         return {
           ok: true as const,
           widget: "market_chart" as const,
           assetId: asset.id,
           symbol: asset.symbol,
-          resolution,
-          closes,
-          labels,
-          changePct,
-          sampleCount: closes.length,
+          resolution: series.resolutionLabel,
+          closes: series.closes,
+          labels: series.labels,
+          changePct: series.changePct,
+          sampleCount: series.sampleCount,
+          series_source: series.seriesSource,
+          ...(series.seriesSource === "binance"
+            ? {
+                series_note:
+                  "Series source: Binance spot (Tauron OHLC empty for this window). Educational context only.",
+              }
+            : {}),
+          ...(riskOverlay ? { risk_overlay: riskOverlay } : {}),
         }
       },
     }),
 
-    updateWatchlist: tool({
+    /**
+     * Proposal only — surfaces Confirm/Cancel in the UI; mutation runs after confirmation.
+     */
+    prepare_watchlist_change: tool({
       description:
-        "Add or remove a tracked asset from the signed-in user’s primary watchlist via Tauron API.",
+        "Prepare adding or removing an asset from the user primary watchlist. Never claims completion—the UI must confirm sensitive mutations.",
       inputSchema: z.object({
         symbol: z.string(),
         action: z.enum(["add", "remove"]),
@@ -161,31 +180,69 @@ export function createTauronFinanceTools(ctx: { authHeader: string | null }) {
           return { ok: false as const, error: detail ?? "Asset not found." }
         }
         const asset = found[0]
-        const path = `/users/me/watchlist/${asset.id}`
-        const res =
-          action === "add"
-            ? await internalJsonFetch<unknown>(path, { authHeader, method: "PUT" })
-            : await internalJsonFetch<unknown>(path, { authHeader, method: "DELETE" })
-        if (!res.ok) {
-          return {
-            ok: false as const,
-            symbol: asset.symbol,
-            action,
-            error:
-              action === "remove" && res.status === 404
-                ? `${asset.symbol} was not on your watchlist.`
-                : `Watchlist API error (${res.status}).`,
-          }
-        }
+        const confirmation_token = signAssistantConfirmation({
+          v: 1,
+          kind: "watchlist",
+          action,
+          assetId: asset.id,
+          symbol: asset.symbol,
+          exp: createExpiry(),
+        })
         return {
           ok: true as const,
-          widget: "watchlist_update" as const,
+          widget: "watchlist_confirmation" as const,
           symbol: asset.symbol,
           action,
+          confirmation_token,
           message:
             action === "add"
-              ? `${asset.symbol} added to your watchlist.`
-              : `${asset.symbol} removed from your watchlist.`,
+              ? `Add ${asset.symbol} to your primary watchlist?`
+              : `Remove ${asset.symbol} from your primary watchlist?`,
+        }
+      },
+    }),
+
+    prepare_price_alert: tool({
+      description:
+        "Prepare a Binance-linked price alert at a numeric target. Requires confirmation before the alert is persisted.",
+      inputSchema: z.object({
+        symbol: z.string(),
+        target_price: z.number().positive(),
+        preset_move_percent: z
+          .number()
+          .optional()
+          .nullable()
+          .describe("Optional preset move % mirrored from UI; omit when user typed an absolute target manually."),
+      }),
+      execute: async ({ symbol, target_price, preset_move_percent }) => {
+        if (!authHeader) return authRequired()
+        const { found, detail } = await findAssetsBySymbol(symbol, authHeader)
+        if (!found.length) {
+          return { ok: false as const, error: detail ?? "Asset not found." }
+        }
+        const asset = found[0]
+        const normalized = asset.symbol.trim().toUpperCase()
+        if (normalized === "USDT") {
+          return { ok: false as const, error: "USDT cannot use directional Binance alerts in this flow." }
+        }
+        const pct =
+          preset_move_percent === undefined || preset_move_percent === null ? null : preset_move_percent
+        const confirmation_token = signAssistantConfirmation({
+          v: 1,
+          kind: "price_alert",
+          assetId: asset.id,
+          symbol: asset.symbol,
+          target_price,
+          percentage_change: pct,
+          exp: createExpiry(),
+        })
+        return {
+          ok: true as const,
+          widget: "price_alert_confirmation" as const,
+          symbol: asset.symbol,
+          target_price,
+          confirmation_token,
+          message: `Create a ${asset.symbol} alert when spot crosses ${target_price}?`,
         }
       },
     }),

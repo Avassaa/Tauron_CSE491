@@ -25,6 +25,13 @@ const QuickInsightSchema = z.object({
   sentiment: z.enum(["bullish", "neutral", "bearish"]),
 })
 
+/** Structured dashboard hook for News feed quick-glance insights (generateObject). */
+export const NewsFeedQuickInsightSchema = z.object({
+  sentiment: z.string(),
+  impactScore: z.number().min(0).max(100),
+  summary: z.string(),
+})
+
 const PredictionOutlineSchema = z.object({
   horizon: z.string(),
   scenarios: z.array(
@@ -49,7 +56,7 @@ export async function handleGeminiInsightsPost(request: Request): Promise<Respon
   }
 
   let body: {
-    mode?: "quick_insight" | "prediction_outline"
+    mode?: "quick_insight" | "prediction_outline" | "news_feed_quick"
     symbol?: string
     context?: string
   }
@@ -78,6 +85,30 @@ export async function handleGeminiInsightsPost(request: Request): Promise<Respon
         ]
           .filter(Boolean)
           .join("\n"),
+      })
+      console.info("[insights]", JSON.stringify({ mode, ms: Date.now() - started }))
+      return Response.json({ mode, insight: object })
+    }
+
+    if (mode === "news_feed_quick") {
+      if (!context || context.trim().length < 40) {
+        return Response.json(
+          { error: "Provide `context` with stitched headlines/summaries from the visible feed." },
+          { status: 400 },
+        )
+      }
+      const { object } = await generateObject({
+        model: getGeminiChatModel(),
+        schema: NewsFeedQuickInsightSchema,
+        prompt: [
+          "You analyze curated crypto headlines for dashboard UX.",
+          "Return compact JSON matching the schema.",
+          "sentiment should be one short phrase (not multi-paragraph).",
+          "impactScore is 0-100 where higher implies broader potential market attention.",
+          "summary must stay under ~280 characters of plain prose.",
+          "--- Feed excerpts ---",
+          context.trim(),
+        ].join("\n"),
       })
       console.info("[insights]", JSON.stringify({ mode, ms: Date.now() - started }))
       return Response.json({ mode, insight: object })
