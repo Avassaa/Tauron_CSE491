@@ -54,11 +54,29 @@ async function findAssetsBySymbol(symbol: string, authHeader: string | null) {
     authHeader,
     method: "GET",
   })
-  if (!res.ok || !res.data?.items?.length) {
+  if (!authHeader) {
     return {
       found: [] as AssetRow[],
       status: res.status,
-      detail: !authHeader ? "Missing credentials." : `Upstream assets lookup failed (${res.status}).`,
+      detail: "Missing credentials.",
+    }
+  }
+  if (!res.ok) {
+    return {
+      found: [] as AssetRow[],
+      status: res.status,
+      detail: `Assets API error (${res.status}).`,
+    }
+  }
+  if (!res.data?.items?.length) {
+    return {
+      found: [] as AssetRow[],
+      status: res.status,
+      detail:
+        `No matching asset in Tauron’s catalog for “${sym}” (search returned no rows). ` +
+        "Per-symbol tools (get_market_data, get_curated_news_digest with a ticker) need an assets table row first. " +
+        "get_market_movers builds rankings straight from Binance’s 24h ticker for all USDT pairs, so a symbol can appear there even when it is not tracked in Tauron yet. " +
+        "To use charts or curated news for this ticker, add or ensure it on the Assets page.",
     }
   }
   const exact = res.data.items.filter((a) => a.symbol.toUpperCase() === sym)
