@@ -4,6 +4,7 @@ import * as React from "react"
 import { AlarmClock, Bell, CheckCheck, Info } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
+import { CollapsiblePageNav } from "~/components/dashboard/collapsible-page-nav"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
@@ -39,6 +40,7 @@ function NotificationIcon({ item }: { item: NotificationResponse }) {
 }
 
 export default function NotificationsPage() {
+  const mainScrollRef = React.useRef<HTMLDivElement>(null)
   const [items, setItems] = React.useState<NotificationResponse[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -94,10 +96,11 @@ export default function NotificationsPage() {
 
   return (
     <AuthGuard>
-      <SidebarProvider>
+      <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
         <AppSidebar />
         <MarketMarqueeBanner />
         <SidebarInset
+          className="flex min-h-0 flex-col overflow-hidden"
           style={{
             paddingTop: "var(--market-banner-offset, 0px)",
           }}
@@ -129,23 +132,13 @@ export default function NotificationsPage() {
             <NotificationInbox />
           </header>
 
-          <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
-            <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-              <aside className="space-y-1">
-                <Tooltip delayDuration={200}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
-                    >
-                      Inbox
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent variant="inverted" side="right">
-                    Primary notification inbox
-                  </TooltipContent>
-                </Tooltip>
-              </aside>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+            <CollapsiblePageNav
+              navLabel="Notifications"
+              items={[{ id: "inbox", label: "Inbox", icon: Bell }]}
+              onSelect={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+            />
+            <div ref={mainScrollRef} className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
               <section className="space-y-5">
                 <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
                   <div className="min-w-0">

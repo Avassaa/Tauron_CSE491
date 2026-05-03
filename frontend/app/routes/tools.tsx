@@ -14,9 +14,11 @@ import {
   TrendingDown,
   TrendingUp,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
+import { CollapsiblePageNav } from "~/components/dashboard/collapsible-page-nav"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { AssistantDockToolbarButton, AssistantDockSplitMain } from "~/components/assistant/assistant-dock-ui"
@@ -68,11 +70,11 @@ type SentimentRange = "24h" | "7d" | "30d"
 const SENTIMENT_RANGES: SentimentRange[] = ["24h", "7d", "30d"]
 const ALERT_MOVE_OPTIONS = [-15, -10, -5, -2, -1, 1, 2, 5, 10, 15] as const
 type ToolSectionId = "currency" | "price-alerts" | "market-sentiment" | "watchlist-insights"
-const TOOL_SECTIONS: Array<{ id: ToolSectionId; label: string }> = [
-  { id: "currency", label: "Currency Converter" },
-  { id: "price-alerts", label: "Price Alerts" },
-  { id: "market-sentiment", label: "Market Sentiment" },
-  { id: "watchlist-insights", label: "Watchlist Insights" },
+const TOOL_SECTIONS: Array<{ id: ToolSectionId; label: string; icon: LucideIcon }> = [
+  { id: "currency", label: "Currency Converter", icon: WalletCards },
+  { id: "price-alerts", label: "Price Alerts", icon: AlarmClock },
+  { id: "market-sentiment", label: "Market Sentiment", icon: Gauge },
+  { id: "watchlist-insights", label: "Watchlist Insights", icon: Newspaper },
 ]
 
 type WatchlistInsightRow = {
@@ -946,22 +948,13 @@ export default function ToolsPage() {
           </header>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
-              <div className="relative flex min-h-0 min-w-0 flex-1 overflow-auto p-4">
-          <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="h-fit self-start">
-              <div className="space-y-1 lg:fixed lg:top-[calc(var(--market-banner-offset,0px)+5rem)] lg:z-10 lg:w-[220px]">
-                {TOOL_SECTIONS.map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none"
-                    onClick={() => scrollToToolSection(section.id)}
-                  >
-                    {section.label}
-                  </button>
-                ))}
-              </div>
-            </aside>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
+                <CollapsiblePageNav
+                  navLabel="Tools"
+                  items={TOOL_SECTIONS.map(({ id, label, icon }) => ({ id, label, icon }))}
+                  onSelect={(id) => scrollToToolSection(id as ToolSectionId)}
+                />
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4">
             <section className="space-y-5">
               <div
                 ref={(node) => {
@@ -1667,7 +1660,7 @@ export default function ToolsPage() {
                 </div>
               </div>
             </section>
-          </div>
+                </div>
               </div>
             </AssistantDockSplitMain>
           </div>
