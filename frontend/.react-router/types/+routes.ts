@@ -62,6 +62,9 @@ type Pages = {
   "/news": {
     params: {};
   };
+  "/predictions": {
+    params: {};
+  };
   "/news/:newsId": {
     params: {
       "newsId": string;
@@ -84,7 +87,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/predictions" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -154,6 +157,10 @@ type RouteFiles = {
     id: "routes/news";
     page: "/news";
   };
+  "routes/predictions.tsx": {
+    id: "routes/predictions";
+    page: "/predictions";
+  };
   "routes/news-article.tsx": {
     id: "routes/news-article";
     page: "/news/:newsId";
@@ -195,6 +202,7 @@ type RouteModules = {
   "routes/assets": typeof import("./app/routes/assets.tsx");
   "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
   "routes/news": typeof import("./app/routes/news.tsx");
+  "routes/predictions": typeof import("./app/routes/predictions.tsx");
   "routes/news-article": typeof import("./app/routes/news-article.tsx");
   "routes/chat": typeof import("./app/routes/chat.tsx");
   "routes/api.chat": typeof import("./app/routes/api.chat.tsx");

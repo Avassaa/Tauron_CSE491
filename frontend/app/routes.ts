@@ -18,6 +18,7 @@ export default [
     route("assets", "routes/assets.tsx"),
     route("watchlists", "routes/watchlists.tsx"),
     route("news", "routes/news.tsx"),
+    route("predictions", "routes/predictions.tsx"),
     route("news/:newsId", "routes/news-article.tsx"),
     route("chat", "routes/chat.tsx"),
     route("api/chat", "routes/api.chat.tsx"),

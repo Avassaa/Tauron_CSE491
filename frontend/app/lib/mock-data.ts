@@ -1,9 +1,41 @@
 import type {
   AssetResponse,
   BacktestResultResponse,
+  MarketDataResponse,
   MlModelResponse,
+  PredictionResponse,
   WatchlistEntryResponse,
 } from "./api-client"
+
+function getBasePrice(symbol: string): number {
+  const s = symbol.toUpperCase()
+  return s === "BTC" ? 65_000
+    : s === "ETH" ? 3_500
+    : s === "BNB" ? 580
+    : s === "SOL" ? 185
+    : s === "XRP" ? 0.62
+    : s === "ADA" ? 0.48
+    : s === "DOGE" ? 0.16
+    : s === "AVAX" ? 38
+    : s === "LINK" ? 18
+    : s === "DOT" ? 9
+    : s === "AAVE" ? 320
+    : s === "MATIC" ? 1.2
+    : s === "NEAR" ? 7.5
+    : s === "UNI" ? 12
+    : s === "ATOM" ? 11
+    : s === "LTC" ? 95
+    : 50 + s.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 450
+}
+
+// Shared price formula — t ∈ [0, 1] maps over the full selected range.
+// Returns deterministic price for any t so historical and predictions connect seamlessly.
+function mockPriceAt(t: number, basePrice: number): number {
+  const slow = Math.sin(t * 6.6) * 0.045
+  const fast = Math.sin(t * 21.3 + 1.3) * 0.018
+  const trend = t * 0.07
+  return basePrice * (1 + slow + fast + trend)
+}
 
 export const MOCK_ASSETS: AssetResponse[] = [
   { id: "1", symbol: "BTC", name: "Bitcoin", category: "Currency", coingecko_id: "bitcoin", is_active: true, created_at: new Date().toISOString() },
@@ -225,6 +257,84 @@ export const getAssetStats = (symbol: string, timeRange: string = "24h") => {
     supply: `${((hash * 19) % 100).toFixed(1)}M`,
     sparkline
   }
+}
+
+/**
+ * Historical OHLCV candles for the first 65% of the selected range.
+ * Connects seamlessly with generateMockPredictions at t=0.65.
+ */
+export function generateMockMarketData(
+  assetId: string,
+  symbol: string,
+  days: number = 30,
+): MarketDataResponse[] {
+  const basePrice = getBasePrice(symbol)
+  const histDays = Math.ceil(days * 0.65)
+  const rangMs = days * 86_400_000
+
+  return Array.from({ length: histDays }).map((_, i) => {
+    // Use i/histDays (not i/(histDays-1)) so the last candle sits strictly
+    // before t=0.65, avoiding a duplicate timestamp with the first prediction point.
+    const t = (i / histDays) * 0.65
+    const tPrev = (Math.max(0, i - 1) / histDays) * 0.65
+    const close = mockPriceAt(t, basePrice)
+    const open = mockPriceAt(tPrev, basePrice)
+    const volatility = basePrice * 0.02
+    const seed = (i * 37 + 7) % 97
+    const high = Math.max(open, close) + volatility * (0.2 + (seed / 97) * 0.8)
+    const low = Math.min(open, close) - volatility * (0.2 + ((seed + 31) % 97) / 97 * 0.8)
+    const volume = 500_000 + ((i * 137 + 71) % 1_200_000)
+    const time = new Date(Date.now() - (1 - t) * rangMs).toISOString()
+    return {
+      time,
+      asset_id: assetId,
+      open: Math.round(open * 100) / 100,
+      high: Math.round(high * 100) / 100,
+      low: Math.round(Math.min(low, Math.min(open, close) * 0.999) * 100) / 100,
+      close: Math.round(close * 100) / 100,
+      volume: Math.round(volume),
+      resolution: "1d",
+    }
+  })
+}
+
+/**
+ * Prediction series: last 35% of the historical range (context/validation)
+ * + full `days` into the future (live forecast zone).
+ * Query now uses time_to = now+days, so this mock matches the real backend expectation.
+ */
+export function generateMockPredictions(
+  assetId: string,
+  symbol: string,
+  modelId: string,
+  days: number = 30,
+): PredictionResponse[] {
+  const basePrice = getBasePrice(symbol)
+  const startT = 0.65  // begins at the historical handoff point
+  const endT = 2.0     // ends exactly `days` into the future (t=1 is now, t=2 is now+days)
+  const rangMs = days * 86_400_000
+
+  // Span = 0.35 past context + 1.0 future forecast = 1.35 × days, one candle per day
+  const forecastSpanDays = days * 1.35
+  const totalPoints = Math.max(5, Math.ceil(forecastSpanDays))
+
+  return Array.from({ length: totalPoints }).map((_, i) => {
+    const progress = totalPoints === 1 ? 0 : i / (totalPoints - 1)
+    const t = startT + progress * (endT - startT)
+    const predicted = mockPriceAt(t, basePrice)
+    // CI widens as forecast extends further into the future (0.8% → 3.5%)
+    const ciPct = 0.008 + progress * 0.027
+    const ci = predicted * ciPct
+    const time = new Date(Date.now() - (1 - t) * rangMs).toISOString()
+    return {
+      time,
+      asset_id: assetId,
+      model_id: modelId,
+      predicted_value: Math.round(predicted * 100) / 100,
+      confidence_interval_high: Math.round((predicted + ci) * 100) / 100,
+      confidence_interval_low: Math.round((predicted - ci) * 100) / 100,
+    }
+  })
 }
 
 export const generateMockChartData = (basePrice: number = 60000, points: number = 50) => {

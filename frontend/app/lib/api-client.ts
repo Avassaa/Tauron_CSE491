@@ -101,19 +101,19 @@ let refreshPromise: Promise<string | null> | null = null
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken()
   if (!refreshToken) return null
-  
+
   try {
     const res = await fetch(`${getPublicApiBaseUrl()}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     })
-    
+
     if (!res.ok) {
       clearSessionLocally()
       return null
     }
-    
+
     const data = await res.json()
     localStorage.setItem("access_token", data.access_token)
     if (data.refresh_token) {
@@ -136,9 +136,9 @@ function authHeadersWithoutJsonContentType(): Record<string, string> {
 async function fetchWithAuth(url: string, options: RequestInit): Promise<Response> {
   options.headers = authHeaders()
   options.signal = timeoutSignal()
-  
+
   let res = await fetch(url, options)
-  
+
   if (res.status === 401) {
     // Attempt to refresh token
     if (!isRefreshing) {
@@ -148,7 +148,7 @@ async function fetchWithAuth(url: string, options: RequestInit): Promise<Respons
         refreshPromise = null
       })
     }
-    
+
     const newToken = await refreshPromise
     if (newToken) {
       // Retry request with new token
@@ -157,7 +157,7 @@ async function fetchWithAuth(url: string, options: RequestInit): Promise<Respons
       res = await fetch(url, options)
     }
   }
-  
+
   return res
 }
 
@@ -416,6 +416,16 @@ export interface PredictionResponse {
   predicted_value: number
   confidence_interval_high: number | null
   confidence_interval_low: number | null
+}
+
+export interface AssetPredictionSummaryResponse {
+  asset_id: string
+  symbol: string
+  name: string
+  latest_prediction?: number
+  confidence_score?: number
+  trend_signal?: string
+  volatility?: number
 }
 
 export interface TechnicalIndicatorResponse {
