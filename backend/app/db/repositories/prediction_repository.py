@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import and_, delete, func, insert, select
+from sqlalchemy import and_, delete, func, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.predictions import Prediction
@@ -110,3 +110,22 @@ class PredictionRepository:
         )
         await self._session.commit()
         return result.rowcount > 0
+
+    async def get_asset_summaries(self) -> list[dict[str, Any]]:
+        """Return the latest prediction for every asset that has one."""
+        # Using DISTINCT ON to get the latest row per asset_id efficiently in Postgres/Timescale.
+        query = text("""
+            SELECT DISTINCT ON (p.asset_id)
+                p.asset_id,
+                p.time,
+                p.predicted_value,
+                p.confidence_interval_high,
+                p.confidence_interval_low,
+                a.symbol,
+                a.name
+            FROM tauron.predictions p
+            JOIN tauron.assets a ON p.asset_id = a.id
+            ORDER BY p.asset_id, p.time DESC
+        """)
+        result = await self._session.execute(query)
+        return [dict(row) for row in result.mappings()]

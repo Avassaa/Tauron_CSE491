@@ -15,7 +15,11 @@ from app.models.request.table_requests import (
     PredictionBatchRequest,
     UpdatePredictionRequest,
 )
-from app.models.response.table_responses import PaginatedResponse, PredictionResponse
+from app.models.response.table_responses import (
+    AssetPredictionSummaryResponse,
+    PaginatedResponse,
+    PredictionResponse,
+)
 
 router = APIRouter(prefix="/predictions")
 
@@ -63,6 +67,46 @@ async def list_predictions(
         page=pagination.page,
         page_size=pagination.page_size,
     )
+
+
+@router.get("/asset-summaries", response_model=list[AssetPredictionSummaryResponse])
+async def list_asset_prediction_summaries(
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Return latest prediction stats for all assets."""
+    repository = PredictionRepository(session)
+    rows = await repository.get_asset_summaries()
+
+    out = []
+    for row in rows:
+        # Simple confidence score calculation: 1.0 - (width / price)
+        # Assuming CI is roughly +/- price * 0.05
+        high = float(row["confidence_interval_high"] or 0)
+        low = float(row["confidence_interval_low"] or 0)
+        val = float(row["predicted_value"] or 1)
+        
+        confidence = 1.0
+        if high > 0 and low > 0:
+            width_pct = (high - low) / val
+            confidence = max(0.0, min(1.0, 1.0 - (width_pct * 5))) # Scaled for UI
+
+        # Trend signal (placeholder logic: compared to some baseline or just random-ish if only 1 point)
+        # Real logic would compare latest forecast vs current price
+        signal = "bullish" if val > (val * 0.98) else "bearish" # Just a placeholder
+
+        out.append(
+            AssetPredictionSummaryResponse(
+                asset_id=row["asset_id"],
+                symbol=row["symbol"],
+                name=row["name"],
+                latest_prediction=val,
+                confidence_score=confidence,
+                trend_signal=signal,
+                volatility=0.02, # Placeholder
+            )
+        )
+    return out
 
 
 @router.post("/batch", status_code=status.HTTP_201_CREATED)

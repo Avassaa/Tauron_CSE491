@@ -139,6 +139,18 @@ class PredictionResponse(BaseModel):
     confidence_interval_low: Optional[float]
 
 
+class AssetPredictionSummaryResponse(BaseModel):
+    """Aggregated prediction stats for one asset."""
+
+    asset_id: uuid.UUID
+    symbol: str
+    name: str
+    latest_prediction: Optional[float] = None
+    confidence_score: Optional[float] = None
+    trend_signal: Optional[str] = None  # "bullish", "bearish"
+    volatility: Optional[float] = None
+
+
 class MarketDataResponse(BaseModel):
     """One OHLCV row."""
 
