@@ -924,27 +924,29 @@ export default function ToolsPage() {
 
   return (
     <AuthGuard>
-      <SidebarProvider>
-      <AppSidebar />
-      <MarketMarqueeBanner />
-      <SidebarInset
-        style={{
-          paddingTop: "var(--market-banner-offset, 0px)",
-        }}
-      >
-        <header className="sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <span className="font-medium">Tools</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <AssistantDockToolbarButton />
-            <NotificationInbox />
-          </div>
-        </header>
-        <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-auto p-4">
+      <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
+        <AppSidebar />
+        <MarketMarqueeBanner />
+        <SidebarInset
+          className="min-h-0 overflow-hidden"
+          style={{
+            paddingTop: "var(--market-banner-offset, 0px)",
+          }}
+        >
+          <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              <span className="font-medium">Tools</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <AssistantDockToolbarButton />
+              <NotificationInbox />
+            </div>
+          </header>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
+              <div className="relative flex min-h-0 min-w-0 flex-1 overflow-auto p-4">
           <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <aside className="h-fit self-start">
               <div className="space-y-1 lg:fixed lg:top-[calc(var(--market-banner-offset,0px)+5rem)] lg:z-10 lg:w-[220px]">
@@ -1666,10 +1668,11 @@ export default function ToolsPage() {
               </div>
             </section>
           </div>
+              </div>
+            </AssistantDockSplitMain>
           </div>
-        </AssistantDockSplitMain>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
     </AuthGuard>
   )
 }
