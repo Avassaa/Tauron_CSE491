@@ -55,11 +55,13 @@ export function DashboardLayout({
                   <NotificationInbox />
                 </div>
               </header>
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-10">
+              {/* overflow-visible on mobile ensures content doesn't get clipped before reaching the internal scroll area */}
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden pt-10">
                 <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
+                  {/* flex-col ensures children stack vertically and grow the scroll area naturally */}
                   <div
                     ref={setMainScrollEl}
-                    className="relative flex min-h-0 min-w-0 flex-1 overflow-auto"
+                    className="relative flex flex-col min-h-0 min-w-0 flex-1 overflow-auto"
                   >
                     {children}
                   </div>

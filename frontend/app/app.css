@@ -90,8 +90,8 @@
     }
   }
   --animate-line-shadow: line-shadow 15s linear infinite;
-  --animate-collapsible-down: collapsible-down 700ms cubic-bezier(0.4, 0, 0.2, 1);
-  --animate-collapsible-up: collapsible-up 700ms cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-collapsible-down: collapsible-down 300ms ease-out;
+  --animate-collapsible-up: collapsible-up 250ms ease-in;
 
   @keyframes line-shadow {
     0% {
@@ -106,12 +106,10 @@
     from {
       height: 0;
       opacity: 0;
-      transform: translateY(-8px);
     }
     to {
       height: var(--radix-collapsible-content-height);
       opacity: 1;
-      transform: translateY(0);
     }
   }
 
@@ -119,12 +117,10 @@
     from {
       height: var(--radix-collapsible-content-height);
       opacity: 1;
-      transform: translateY(0);
     }
     to {
       height: 0;
       opacity: 0;
-      transform: translateY(-8px);
     }
   }
 }

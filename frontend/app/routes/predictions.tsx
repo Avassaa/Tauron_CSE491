@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, glassPanelSurface } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Separator } from "~/components/ui/separator"
 import {
@@ -46,6 +46,7 @@ import {
 import { formatCurrency, formatCompactCurrency } from "~/lib/currency"
 import { cn } from "~/lib/utils"
 import { PredictiveChart } from "~/components/predictions/predictive-chart"
+import { PredictiveAreaChart } from "~/components/predictions/area-chart"
 import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import { AssetIcon } from "~/components/asset-icon"
 import {
@@ -63,6 +64,8 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip"
 import { List, Grid as GridIcon } from "lucide-react"
+
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -479,6 +482,7 @@ function AssetSelector({ assets, onSelect, loading }: {
   )
 }
 
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PredictionsPage() {
@@ -489,6 +493,7 @@ export default function PredictionsPage() {
   const [assets, setAssets] = React.useState<AssetPredictionSummaryResponse[]>([])
   const [assetsLoading, setAssetsLoading] = React.useState(true)
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>(assetParam || "")
+  const [displayMode, setDisplayMode] = React.useState<"forecast" | "market">("forecast")
   const [models, setModels] = React.useState<MlModelResponse[]>([])
   const [modelsLoading, setModelsLoading] = React.useState(false)
   const [selectedModelId, setSelectedModelId] = React.useState<string>("__all__")
@@ -501,6 +506,7 @@ export default function PredictionsPage() {
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    setAssetsLoading(true)
     apiGet<AssetPredictionSummaryResponse[]>("/predictions/asset-summaries")
       .then((data) => {
         setAssets(data)
@@ -511,6 +517,7 @@ export default function PredictionsPage() {
       })
       .finally(() => setAssetsLoading(false))
   }, [])
+
 
   // Sync state from URL
   React.useEffect(() => {
@@ -529,65 +536,62 @@ export default function PredictionsPage() {
   }, [searchParams, assets])
 
   React.useEffect(() => {
-    if (!selectedAssetId) return
     setModelsLoading(true)
     setSelectedModelId("__all__")
     setModels([])
-    apiGet<PaginatedResponse<MlModelResponse>>("/ml-models", {
-      asset_id: selectedAssetId, page: 1, page_size: 50,
+
+    apiGet<PaginatedResponse<MlModelResponse>>("/predictions/models", {
+      asset_id: selectedAssetId,
+      page: 1,
+      page_size: 50,
     })
       .then((data) => {
         setModels(data.items)
         const active = data.items.find((m) => m.is_active)
         if (active) setSelectedModelId(active.id)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Failed to fetch models:", err)
         setModels([])
       })
       .finally(() => setModelsLoading(false))
   }, [selectedAssetId])
+
 
   const fetchPredictions = React.useCallback(
     async (targetPage: number) => {
       if (!selectedAssetId) return
       setLoading(true)
       setError(null)
-      const rangeCfg = TIME_RANGES.find((r) => r.key === timeRange) ?? TIME_RANGES[1]
-      const timeTo = new Date()
-      const timeFrom = subDays(timeTo, rangeCfg.days)
-      const predTimeTo = addDays(timeTo, rangeCfg.days)
 
       try {
-        const params: Record<string, string | number | boolean | undefined> = {
-          asset_id: selectedAssetId,
-          time_from: timeFrom.toISOString(),
-          time_to: predTimeTo.toISOString(),
-          page: targetPage,
-          page_size: PAGE_SIZE,
-        }
-        if (selectedModelId !== "__all__") params.model_id = selectedModelId
-
-        const [predRes, mktRes] = await Promise.all([
-          apiGet<PaginatedResponse<PredictionResponse>>("/predictions", params),
-          apiGet<PaginatedResponse<MarketDataResponse>>("/market-data", {
+        const rangeCfg = TIME_RANGES.find((r) => r.key === timeRange) ?? TIME_RANGES[1]
+        
+        // Parallel fetch for market data and predictions from the predictions service
+        const [realMarketData, realPredictions] = await Promise.all([
+          apiGet<MarketDataResponse[]>("/predictions/market-data", {
             asset_id: selectedAssetId,
-            time_from: timeFrom.toISOString(),
-            time_to: timeTo.toISOString(),
-            page: 1,
-            page_size: 500,
+            limit: rangeCfg.days * 24,
+            resolution: "1h"
+          }),
+          apiGet<PredictionResponse[]>("/predictions", {
+            asset_id: selectedAssetId,
+            model_id: selectedModelId === "__all__" ? undefined : selectedModelId,
+            page: targetPage,
+            page_size: 100
           })
         ])
 
-        setPredictions(predRes.items)
-        setTotal(predRes.total)
-        setMarketData(mktRes.items)
+        setPredictions(realPredictions)
+        setTotal(realPredictions.length)
+        setMarketData(realMarketData)
 
-        if (predRes.items.length === 0) {
+        if (realPredictions.length === 0) {
           setError("No prediction data found for this asset and timeframe.")
         }
       } catch (err) {
         console.error("Fetch failed:", err)
-        setError("Failed to fetch data from the server.")
+        setError("Failed to fetch data from the server. Please check your connection.")
         setPredictions([])
         setMarketData([])
       } finally {
@@ -596,6 +600,7 @@ export default function PredictionsPage() {
     },
     [selectedAssetId, selectedModelId, timeRange],
   )
+
 
   const handleExport = () => {
     if (predictions.length === 0) return
@@ -726,9 +731,10 @@ export default function PredictionsPage() {
         </div>
       }
     >
-      <div className="relative flex-1 pt-4 md:pt-6">
+      {/* Use w-full and min-h-full to ensure natural vertical growth for the scroll container */}
+      <div className="relative w-full min-h-full pt-4 md:pt-6">
         <PageBlueBackdrop />
-        <div className="relative z-10 flex flex-1 flex-col gap-6 px-4 pb-8 md:px-8 md:pb-12">
+        <div className="relative z-10 flex w-full flex-col gap-6 px-4 pb-8 md:px-8 md:pb-12">
 
           {/* Breadcrumbs */}
           <Breadcrumb className="mb-2">
@@ -756,70 +762,103 @@ export default function PredictionsPage() {
           </Breadcrumb>
 
           {/* ── Controls ─────────────────────────────────────────────── */}
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-3 py-1">
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Target Asset</label>
-              {assetsLoading ? <Skeleton className="h-9 w-full sm:w-44 bg-muted/50" /> : (
-                <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
-                  <SelectTrigger className="h-9 w-full sm:w-44 border-border/50 bg-card/60 backdrop-blur-sm text-foreground/90 rounded-xl focus:ring-blue-500/20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
-                    {assets.map((a) => (
-                      <SelectItem key={a.asset_id} value={a.asset_id} className="focus:bg-accent">
-                        <span className="font-black tracking-tight">{a.name} ({a.symbol})</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 py-1">
+            <div className="xl:col-span-3 flex flex-wrap items-end gap-x-6 gap-y-3">
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Target Asset</label>
+                {assetsLoading ? <Skeleton className="h-9 w-full sm:w-44 bg-muted/50" /> : (
+                  <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
+                    <SelectTrigger className="h-9 w-full sm:w-44 border-border/50 bg-card/60 backdrop-blur-sm text-foreground/90 rounded-xl focus:ring-blue-500/20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
+                      {assets.map((a) => (
+                        <SelectItem key={a.asset_id} value={a.asset_id} className="focus:bg-accent">
+                          <span className="font-black tracking-tight">{a.name} ({a.symbol})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Analysis Model</label>
-              {modelsLoading ? <Skeleton className="h-9 w-full sm:w-52 bg-muted/50" /> : (
-                <Select value={selectedModelId} onValueChange={setSelectedModelId} disabled={models.length === 0}>
-                  <SelectTrigger className="h-9 w-full sm:w-52 border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl text-foreground/90 rounded-xl focus:ring-blue-500/20 shadow-sm dark:shadow-inner">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
-                    <SelectItem value="__all__" className="focus:bg-accent">Consensus Ensemble</SelectItem>
-                    {models.map((m) => (
-                      <SelectItem key={m.id} value={m.id} className="focus:bg-accent">{m.model_type || "Model"} <span className="text-[9px] text-muted-foreground ml-2">{m.version_tag}</span></SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Analysis Model</label>
+                {modelsLoading ? <Skeleton className="h-9 w-full sm:w-52 bg-muted/50" /> : (
+                  <Select value={selectedModelId} onValueChange={setSelectedModelId} disabled={models.length === 0}>
+                    <SelectTrigger className="h-9 w-full sm:w-52 border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl text-foreground/90 rounded-xl focus:ring-blue-500/20 shadow-sm dark:shadow-inner">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
+                      <SelectItem value="__all__" className="focus:bg-accent">Consensus Ensemble</SelectItem>
+                      {models.map((m) => (
+                        <SelectItem key={m.id} value={m.id} className="focus:bg-accent">{m.model_type || "Model"} <span className="text-[9px] text-muted-foreground ml-2">{m.version_tag}</span></SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
 
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Prediction Horizon</label>
-              <div className="flex h-9 items-center gap-1 rounded-xl border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl p-1 relative overflow-hidden shadow-sm dark:shadow-inner border">
-                {TIME_RANGES.map((r) => {
-                  const isActive = timeRange === r.key
-                  return (
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Prediction Horizon</label>
+                <div className="flex h-9 items-center gap-1 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl p-1 relative overflow-hidden shadow-sm dark:shadow-inner">
+                  {TIME_RANGES.map((r) => {
+                    const isActive = timeRange === r.key
+                    return (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => setTimeRange(r.key)}
+                        className={cn(
+                          "relative flex-1 h-full px-4 flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 z-10",
+                          isActive ? "text-white" : "text-foreground/40 hover:text-foreground/70"
+                        )}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="horizonPill"
+                            className="absolute inset-0 rounded-lg bg-blue-600 shadow-lg shadow-blue-500/20"
+                            transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                          />
+                        )}
+                        <span className="relative z-10">{r.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 w-full sm:w-auto ml-auto">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30 invisible sm:visible text-right">View Mode</label>
+                <div className="relative flex h-9 w-full sm:w-fit items-center gap-1 rounded-xl border border-border/40 bg-black/20 dark:bg-black/40 p-1 shadow-sm backdrop-blur-md">
+                  {[
+                    { id: "forecast", label: "Candlestick" },
+                    { id: "market", label: "Area Chart" },
+                  ].map((mode) => (
                     <button
-                      key={r.key}
-                      type="button"
-                      onClick={() => setTimeRange(r.key)}
+                      key={mode.id}
+                      onClick={() => setDisplayMode(mode.id as any)}
                       className={cn(
-                        "relative flex-1 h-full px-4 flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 z-10",
-                        isActive ? "text-white" : "text-foreground/40 hover:text-foreground/70"
+                        "relative z-10 flex-1 sm:flex-initial px-4 sm:px-3 h-full rounded-lg text-[10px] font-black uppercase tracking-[0.1em] transition-colors duration-300",
+                        displayMode === mode.id 
+                          ? "text-white" 
+                          : "text-foreground/40 dark:text-white/30 hover:text-foreground dark:hover:text-white"
                       )}
                     >
-                      {isActive && (
+                      {displayMode === mode.id && (
                         <motion.div
-                          layoutId="horizonPill"
-                          className="absolute inset-0 rounded-lg bg-blue-600 shadow-lg shadow-blue-500/20"
+                          layoutId="activeTab"
+                          className="absolute inset-0 z-[-1] rounded-lg bg-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.4)]"
                           transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                         />
                       )}
-                      <span className="relative z-10">{r.label}</span>
+                      {mode.label}
                     </button>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
             </div>
+            <div className="hidden xl:block" /> {/* Match sidebar col */}
           </div>
 
           {/* ── Chart Section ────────────────────────────────────────── */}
@@ -842,20 +881,19 @@ export default function PredictionsPage() {
                   </div>
                 </div>
 
-                {lastPredicted != null && !loading && (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground/30 dark:text-white/20">Model Forecast</span>
-                    </div>
-                    <span className="text-3xl font-black tabular-nums text-blue-600 dark:text-blue-400 tracking-tight leading-none drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                {/* Forecast Display */}
+                {lastPredicted != null && (
+                  <div className="flex flex-col items-end leading-tight">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">Model Forecast</span>
+                    <span className="text-3xl font-black tabular-nums text-blue-400 tracking-tight drop-shadow-[0_0_15px_rgba(96,165,250,0.5)]">
                       {formatCurrency(lastPredicted, "USD")}
                     </span>
                   </div>
                 )}
               </CardHeader>
 
-              <CardContent className="relative p-0">
-                <div className="h-[260px] sm:h-[360px] md:h-[450px] w-full">
+              <CardContent className="relative p-0 overflow-hidden">
+                <div className="h-[260px] sm:h-[360px] md:h-[450px] w-full border-b border-border/10">
                   {loading && predictions.length === 0 ? (
                     <div className="flex h-full items-center justify-center">
                       <RefreshCw className="size-8 animate-spin text-blue-500/10" />
@@ -865,11 +903,30 @@ export default function PredictionsPage() {
                       <p className="text-xs font-bold text-muted-foreground/40">No telemetry data.</p>
                     </div>
                   ) : (
-                    <PredictiveChart
-                      historicalData={chartHistorical}
-                      predictions={chartPredictions}
-                      lastPredictedValue={lastPredicted ?? undefined}
-                    />
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={displayMode}
+                        initial={{ opacity: 0, filter: "blur(4px)" }}
+                        animate={{ opacity: 1, filter: "blur(0px)" }}
+                        exit={{ opacity: 0, filter: "blur(4px)" }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="h-full w-full"
+                      >
+                        {displayMode === "forecast" ? (
+                          <PredictiveChart
+                            historicalData={chartHistorical}
+                            predictions={chartPredictions}
+                            lastPredictedValue={lastPredicted ?? undefined}
+                          />
+                        ) : (
+                          <PredictiveAreaChart
+                            historicalData={chartHistorical}
+                            predictions={chartPredictions}
+                            lastPredictedValue={lastPredicted ?? undefined}
+                          />
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
                   )}
                 </div>
               </CardContent>
@@ -898,7 +955,7 @@ export default function PredictionsPage() {
                 <button className="w-full flex items-center justify-between p-3.5 md:p-4 cursor-pointer outline-none">
                   <div className="flex items-center gap-2.5">
                     <BrainCircuit className="size-4 text-blue-500/60 shrink-0 transition-transform duration-700 group-hover/collapsible:rotate-12" />
-                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-foreground/60 dark:text-white/50">Chart Guide</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-foreground/90 dark:text-white/80">Chart Guide</p>
                     <div className="hidden sm:block h-px w-32 bg-gradient-to-r from-border/40 to-transparent ml-2" />
                   </div>
                   <div className="flex items-center gap-4">
@@ -914,157 +971,237 @@ export default function PredictionsPage() {
                   {/* 5-column horizontal layout */}
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 lg:gap-0 lg:divide-x lg:divide-border/25">
 
-                    {/* 1 — Legend */}
-                    <div className="space-y-3.5 lg:pr-6">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30">Legend</p>
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-emerald-500/80 border border-emerald-500/40" />
-                          <div>
-                            <p className="text-xs font-black text-foreground/90 dark:text-white/80">Bullish — Historical</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Close &gt; Open. Price rose during this candle period.</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-rose-500/80 border border-rose-500/40" />
-                          <div>
-                            <p className="text-xs font-black text-foreground/90 dark:text-white/80">Bearish — Historical</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Close &lt; Open. Price fell during this candle period.</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-cyan-400/80 border border-cyan-400/40" />
-                          <div>
-                            <p className="text-xs font-black text-foreground/90 dark:text-white/80">Forecast ↑</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Model predicts upward movement.</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-pink-500/80 border border-pink-500/40" />
-                          <div>
-                            <p className="text-xs font-black text-foreground/90 dark:text-white/80">Forecast ↓</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Model predicts downward movement.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2 — Candle Anatomy */}
-                    <div className="space-y-3.5 lg:px-6">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30">Candle Anatomy</p>
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-1 w-3.5 shrink-0 flex flex-col items-center gap-0.5">
-                            <div className="w-px h-2.5 bg-foreground/50 dark:bg-white/40" />
-                            <div className="w-3 h-4 rounded-[2px] bg-foreground/60 dark:bg-white/50" />
-                            <div className="w-px h-2.5 bg-foreground/50 dark:bg-white/40" />
-                          </div>
-                          <div className="space-y-1.5 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60 dark:text-white/50 shrink-0">Body</span>
-                              <div className="h-px flex-1 bg-border/40" />
-                              <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Open → Close</span>
+                    {displayMode === "forecast" ? (
+                      <>
+                        {/* 1 — Legend */}
+                        <div className="space-y-3.5 lg:pr-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Legend</p>
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-emerald-500/80 border border-emerald-500/40" />
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Bullish — Historical</p>
+                                <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Close &gt; Open. Price rose during this candle period.</p>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60 dark:text-white/50 shrink-0">High</span>
-                              <div className="h-px flex-1 bg-border/40" />
-                              <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Upper wick tip</span>
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-rose-500/80 border border-rose-500/40" />
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Bearish — Historical</p>
+                                <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Close &lt; Open. Price fell during this candle period.</p>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60 dark:text-white/50 shrink-0">Low</span>
-                              <div className="h-px flex-1 bg-border/40" />
-                              <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Lower wick tip</span>
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-cyan-400/80 border border-cyan-400/40" />
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Forecast ↑</p>
+                                <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Model predicts upward movement.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 size-3.5 shrink-0 rounded-sm bg-pink-500/80 border border-pink-500/40" />
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Forecast ↓</p>
+                                <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed mt-0.5 font-medium">Model predicts downward movement.</p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed font-medium">
-                          Each candle represents one time unit. The body shows the price range between open and close. Wicks extend to the session high and low.
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* 3 — Confidence Interval */}
-                    <div className="space-y-3.5 lg:px-6 col-span-2 sm:col-span-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30">Confidence Interval</p>
-                      <div className="space-y-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-px flex-1 bg-gradient-to-r from-rose-500/60 via-blue-500/70 to-emerald-500/60" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30 shrink-0">CI Band</span>
-                          <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/60 via-blue-500/70 to-rose-500/60" />
-                        </div>
-                        <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed font-medium">
-                          On forecast candles, the wick range represents the model's <span className="font-black text-blue-500/90 dark:text-blue-400">confidence interval</span> — the range of values the model considers plausible.
-                        </p>
-                        <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed font-medium">
-                          <span className="font-black text-foreground/80 dark:text-white/70">Narrow wicks</span> indicate high certainty. <span className="font-black text-foreground/80 dark:text-white/70">Wide wicks</span> indicate greater uncertainty in the model's prediction.
-                        </p>
-                        <div className="flex gap-3 mt-1">
-                          <div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center transition-colors duration-500 hover:bg-emerald-500/20">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/90 dark:text-emerald-400">Narrow</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 mt-0.5 font-bold">High confidence</p>
+                        {/* 2 — Candle Anatomy */}
+                        <div className="space-y-3.5 lg:px-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Candle Anatomy</p>
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 w-3.5 shrink-0 flex flex-col items-center gap-0.5">
+                                <div className="w-px h-2.5 bg-foreground/50 dark:bg-white/40" />
+                                <div className="w-3 h-4 rounded-[2px] bg-foreground/60 dark:bg-white/50" />
+                                <div className="w-px h-2.5 bg-foreground/50 dark:bg-white/40" />
+                              </div>
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60 dark:text-white/50 shrink-0">Body</span>
+                                  <div className="h-px flex-1 bg-border/40" />
+                                  <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Open → Close</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-foreground/60 dark:text-white/50 shrink-0">High</span>
+                                  <div className="h-px flex-1 bg-border/40" />
+                                  <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Upper wick tip</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70 shrink-0">Low</span>
+                                  <div className="h-px flex-1 bg-border/40" />
+                                  <span className="text-[10px] font-bold text-foreground/80 dark:text-white/70">Lower wick tip</span>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed font-medium">
+                              Each candle represents one time unit. The body shows the price range between open and close. Wicks extend to the session high and low.
+                            </p>
                           </div>
-                          <div className="flex-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center transition-colors duration-500 hover:bg-rose-500/20">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-rose-500/90 dark:text-rose-400">Wide</p>
-                            <p className="text-[10px] text-foreground/60 dark:text-white/50 mt-0.5 font-bold">High uncertainty</p>
-                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* 4 — Volume Flow */}
-                    <div className="space-y-3.5 lg:px-6">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30">Volume Flow</p>
-                      <div className="space-y-2.5">
-                        <div className="flex items-end gap-[3px] h-10 mb-1">
-                          {[40, 65, 50, 85, 45, 70, 55, 90, 35, 60].map((h, i) => (
-                            <div key={i} className={cn("flex-1 rounded-t-[1px] transition-all duration-700", i % 3 !== 1 ? "bg-emerald-500/50 group-hover/collapsible:bg-emerald-500/70" : "bg-rose-500/45 group-hover/collapsible:bg-rose-500/65")} style={{ height: `${h}%` }} />
-                          ))}
+                        {/* 3 — Confidence Interval */}
+                        <div className="space-y-3.5 lg:px-6 col-span-2 sm:col-span-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Confidence Interval</p>
+                          <div className="space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <div className="h-px flex-1 bg-gradient-to-r from-rose-500/60 via-blue-500/70 to-emerald-500/60" />
+                              <span className="text-[9px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60 shrink-0">CI Band</span>
+                              <div className="h-px flex-1 bg-gradient-to-r from-emerald-500/60 via-blue-500/70 to-rose-500/60" />
+                            </div>
+                            <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed font-medium">
+                              On forecast candles, the wick range represents the model's <span className="font-black text-blue-500/90 dark:text-blue-400">confidence interval</span> — the range of values the model considers plausible.
+                            </p>
+                            <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed font-medium">
+                              <span className="font-black text-foreground/80 dark:text-white/70">Narrow wicks</span> indicate high certainty. <span className="font-black text-foreground/80 dark:text-white/70">Wide wicks</span> indicate greater uncertainty in the model's prediction.
+                            </p>
+                            <div className="flex gap-3 mt-1">
+                              <div className="flex-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-center transition-colors duration-500 hover:bg-emerald-500/20">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500/90 dark:text-emerald-400">Narrow</p>
+                                <p className="text-[10px] text-foreground/80 dark:text-white/70 mt-0.5 font-bold">High confidence</p>
+                              </div>
+                              <div className="flex-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-center transition-colors duration-500 hover:bg-rose-500/20">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-rose-500/90 dark:text-rose-400">Wide</p>
+                                <p className="text-[10px] text-foreground/80 dark:text-white/70 mt-0.5 font-bold">High uncertainty</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-foreground/60 dark:text-white/50 leading-relaxed font-medium">
-                          The <span className="font-black text-foreground/80 dark:text-white/70">histogram</span> at the bottom of the chart shows trading volume for each period.
-                        </p>
-                        <div className="space-y-2 mt-0.5">
-                          <div className="flex items-center gap-2.5">
-                            <div className="size-2.5 rounded-sm bg-emerald-500/60 border border-emerald-500/30 shrink-0" />
-                            <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Green — bullish volume session</span>
-                          </div>
-                          <div className="flex items-center gap-2.5">
-                            <div className="size-2.5 rounded-sm bg-rose-500/55 border border-rose-500/30 shrink-0" />
-                            <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Red — bearish volume session</span>
-                          </div>
-                          <div className="flex items-center gap-2.5">
-                            <div className="size-2.5 rounded-sm bg-blue-500/50 border border-blue-500/30 shrink-0" />
-                            <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Blue — forecast zone overlay</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* 5 — Session */}
+                        {/* 4 — Volume Flow */}
+                        <div className="space-y-3.5 lg:px-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Volume Flow</p>
+                          <div className="space-y-2.5">
+                            <div className="flex items-end gap-[3px] h-10 mb-1">
+                              {[40, 65, 50, 85, 45, 70, 55, 90, 35, 60].map((h, i) => (
+                                <div key={i} className={cn("flex-1 rounded-t-[1px] transition-all duration-700", i % 3 !== 1 ? "bg-emerald-500/50 group-hover/collapsible:bg-emerald-500/70" : "bg-rose-500/45 group-hover/collapsible:bg-rose-500/65")} style={{ height: `${h}%` }} />
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed font-medium">
+                              The <span className="font-black text-foreground/80 dark:text-white/70">histogram</span> at the bottom of the chart shows trading volume for each period.
+                            </p>
+                            <div className="space-y-2 mt-0.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-2.5 rounded-sm bg-emerald-500/60 border border-emerald-500/30 shrink-0" />
+                                <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Green — bullish volume session</span>
+                              </div>
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-2.5 rounded-sm bg-rose-500/55 border border-rose-500/30 shrink-0" />
+                                <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Red — bearish volume session</span>
+                              </div>
+                              <div className="flex items-center gap-2.5">
+                                <div className="size-2.5 rounded-sm bg-blue-500/50 border border-blue-500/30 shrink-0" />
+                                <span className="text-[10px] text-foreground/70 dark:text-white/60 font-bold">Blue — forecast zone overlay</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* 1 — Data Points */}
+                        <div className="space-y-3.5 lg:pr-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Forecast Data</p>
+                          <div className="space-y-4">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 size-3.5 shrink-0 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+                                <Clock className="size-2 text-blue-400" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Temporal Resolution</p>
+                                <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed mt-1 font-medium">Predictions are generated at fixed time intervals based on the selected horizon.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 size-3.5 shrink-0 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                                <TrendingUp className="size-2 text-emerald-400" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-foreground/90 dark:text-white/80">Price Targets</p>
+                                <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed mt-1 font-medium">Aggregated estimates from multiple neural architectures.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2 — CI Logic */}
+                        <div className="space-y-3.5 lg:px-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Confidence Bands</p>
+                          <div className="space-y-3">
+                            <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                              <p className="text-[10px] font-bold text-foreground/80 leading-relaxed">
+                                Represents the statistical range where the model expects the price to settle with 95% probability.
+                              </p>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-muted-foreground/70 dark:text-white/60">Lower Bound</span>
+                              <span className="text-blue-500/70">Support Floor</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-muted-foreground/70 dark:text-white/60">Upper Bound</span>
+                              <span className="text-blue-500/70">Resistance Ceiling</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3 — Signal Analysis */}
+                        <div className="space-y-3.5 lg:px-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Signal Analysis</p>
+                          <div className="space-y-2.5">
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-emerald-500/10 text-emerald-500 border-none text-[8px] font-black px-1.5 py-0">Bullish</Badge>
+                              <span className="text-[10px] font-medium text-foreground/60">Price &gt; Prev Price</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-rose-500/10 text-rose-500 border-none text-[8px] font-black px-1.5 py-0">Bearish</Badge>
+                              <span className="text-[10px] font-medium text-foreground/60">Price &lt; Prev Price</span>
+                            </div>
+                            <p className="text-[10px] text-foreground/70 dark:text-white/60 leading-relaxed mt-2">
+                              Directional momentum derived from sequential point comparison.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* 4 — Error Metrics */}
+                        <div className="space-y-3.5 lg:px-6">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Quality Control</p>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground/70">
+                                <span>Reliability</span>
+                                <span>89%</span>
+                              </div>
+                              <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500/50 w-[89%]" />
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-foreground/60 leading-relaxed font-medium">
+                              Table view provides exact values for high-precision institutional reporting and backtesting.
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* 5 — Session (Always visible) */}
                     <div className="space-y-3.5 lg:pl-6">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40 dark:text-white/30">Active Session</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-foreground/80 dark:text-white/70">Active Session</p>
                       <div className="space-y-2">
                         {selectedAsset && (
                           <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground/50 dark:text-white/40">Asset</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60">Asset</span>
                             <span className="text-[11px] font-black text-foreground/90 dark:text-white/80">{selectedAsset.symbol}</span>
                           </div>
                         )}
                         <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/50 dark:text-white/40">Model</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60">Model</span>
                           <span className="text-[11px] font-black text-foreground/90 dark:text-white/80 truncate max-w-[110px]">{selectedModel?.model_type || "Consensus"}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/50 dark:text-white/40">Horizon</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60">Horizon</span>
                           <span className="text-[11px] font-black text-blue-500/90 dark:text-blue-400">{timeRange}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/50 dark:text-white/40">Points</span>
-                          <span className="text-[11px] font-black text-foreground/90 dark:text-white/80">{predictions.length > 0 ? predictions.length : "—"}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/50 dark:text-white/40">Source</span>
-                          <span className="text-[11px] font-black text-emerald-500/90 dark:text-emerald-400">Live API</span>
                         </div>
                       </div>
                     </div>
@@ -1081,13 +1218,16 @@ export default function PredictionsPage() {
               <Table>
                 <TableHeader className="bg-muted/10">
                   <TableRow className="border-border/50 hover:bg-transparent">
+                    <TableHead className="w-12 text-center h-12">
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/80 dark:text-white/70 transition-colors cursor-default">#</span>
+                    </TableHead>
                     <TableHead className="text-center h-12">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/50 dark:text-white/30 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Timestamp</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/80 dark:text-white/70 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Timestamp</span>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-popover dark:bg-popover/90 backdrop-blur-xl border border-border/50 text-[11px] max-w-[200px] shadow-2xl text-zinc-900 dark:text-popover-foreground z-50">
+                          <TooltipContent variant="inverted" side="bottom" className="text-[11px] max-w-[200px] font-medium">
                             The exact date and time for each prediction point.
                           </TooltipContent>
                         </Tooltip>
@@ -1097,9 +1237,9 @@ export default function PredictionsPage() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/50 dark:text-white/30 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Predicted Value</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/80 dark:text-white/70 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Predicted Value</span>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-popover dark:bg-popover/90 backdrop-blur-xl border border-border/50 text-[11px] max-w-[200px] shadow-2xl text-zinc-900 dark:text-popover-foreground z-50">
+                          <TooltipContent variant="inverted" side="bottom" className="text-[11px] max-w-[200px] font-medium">
                             The AI's estimated price at this specific time.
                           </TooltipContent>
                         </Tooltip>
@@ -1109,9 +1249,9 @@ export default function PredictionsPage() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/50 dark:text-white/30 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Confidence Band</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/80 dark:text-white/70 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Confidence Band</span>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-popover dark:bg-popover/90 backdrop-blur-xl border border-border/50 text-[11px] max-w-[200px] shadow-2xl text-zinc-900 dark:text-popover-foreground z-50">
+                          <TooltipContent variant="inverted" side="bottom" className="text-[11px] max-w-[200px] font-medium">
                             The expected range where the price is likely to stay.
                           </TooltipContent>
                         </Tooltip>
@@ -1121,9 +1261,9 @@ export default function PredictionsPage() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/50 dark:text-white/30 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Trend Signal</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-foreground/80 dark:text-white/70 hover:text-foreground/80 dark:hover:text-white/60 transition-colors cursor-default">Trend Signal</span>
                           </TooltipTrigger>
-                          <TooltipContent className="bg-popover dark:bg-popover/90 backdrop-blur-xl border border-border/50 text-[11px] max-w-[200px] shadow-2xl text-zinc-900 dark:text-popover-foreground z-50">
+                          <TooltipContent variant="inverted" side="bottom" className="text-[11px] max-w-[200px] font-medium">
                             The predicted market direction.
                           </TooltipContent>
                         </Tooltip>
@@ -1132,12 +1272,15 @@ export default function PredictionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tableRows.map((row, idx) => {
-                    const trend = tableRows[idx + 1] ? row.predicted_value - tableRows[idx + 1].predicted_value : 0
+                  {tableRows.slice((page - 1) * 10, page * 10).map((row, idx) => {
+                    const globalIdx = (page - 1) * 10 + idx + 1
+                    const actualIdx = (page - 1) * 10 + idx
+                    const trend = tableRows[actualIdx + 1] ? row.predicted_value - tableRows[actualIdx + 1].predicted_value : 0
                     const isUp = trend >= 0
                     return (
                       <TableRow key={idx} className="border-border/50 hover:bg-accent/50 transition-colors group">
-                        <TableCell className="text-center font-bold text-[11px] text-foreground/40 dark:text-white/40 group-hover:text-foreground/70 dark:group-hover:text-white/70 transition-colors">{format(new Date(row.time), "MMM d, HH:mm")}</TableCell>
+                        <TableCell className="text-center font-black text-[10px] text-foreground/30 dark:text-white/20">{globalIdx}</TableCell>
+                        <TableCell className="text-center font-bold text-[11px] text-foreground/70 dark:text-white/60 group-hover:text-foreground/70 dark:group-hover:text-white/70 transition-colors">{format(new Date(row.time), "MMM d, HH:mm")}</TableCell>
                         <TableCell className="text-center font-black text-sm text-foreground tracking-tight">{formatCurrency(row.predicted_value, "USD")}</TableCell>
                         <TableCell className="text-center">
                           {row.confidence_interval_low != null && (
@@ -1166,8 +1309,8 @@ export default function PredictionsPage() {
               </Table>
             </div>
             <div className="p-4 bg-muted/5 border-t border-border/50 flex items-center justify-between">
-              <p className="text-[10px] font-bold text-foreground/20 dark:text-white/20 uppercase tracking-widest">Showing {tableRows.length} forecast points</p>
-              <AssetPagination page={page} totalPages={Math.ceil(total / PAGE_SIZE)} setPage={(p) => { setPage(p); void fetchPredictions(p) }} loading={loading} />
+              <p className="text-[10px] font-bold text-foreground/40 dark:text-white/30 uppercase tracking-widest">Showing {Math.min(page * 10, tableRows.length)} of {tableRows.length} forecast points</p>
+              <AssetPagination page={page} totalPages={Math.ceil(tableRows.length / 10)} setPage={setPage} loading={loading} />
             </div>
           </Card>
         </div>

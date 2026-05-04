@@ -102,7 +102,8 @@ export function AssistantDockSplitMain({
   if (isMobile) {
     return (
       <>
-        <div className={outerClassName}>{children}</div>
+        {/* Add flex-col to preserve height constraints for nested scroll containers on mobile */}
+        <div className={cn("flex flex-col", outerClassName)}>{children}</div>
         <AssistantDockMobileSheet open={open} onOpenChange={setOpen} />
       </>
     )
