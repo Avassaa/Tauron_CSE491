@@ -68,7 +68,7 @@ function AssetsPageClient() {
   const [sortConfig, setSortConfig] = React.useState<{
     key: string
     direction: "asc" | "desc"
-  } | null>({ key: "rank", direction: "asc" })
+  } | null>(null)
   const isPopularSort = sortConfig?.key === "rank" && sortConfig.direction === "asc"
   const isGainersSort = sortConfig?.key === "change24h" && sortConfig.direction === "desc"
   const isLosersSort = sortConfig?.key === "change24h" && sortConfig.direction === "asc"

@@ -51,7 +51,10 @@ export async function clientLoader() {
       try {
         await getMe(token)
         throw redirect("/dashboard")
-      } catch {
+      } catch (err) {
+        // Re-throw redirect responses — don't treat them as auth failures.
+        if (err instanceof Response) throw err
+        // Only clear session for real auth errors (e.g. 401).
         localStorage.removeItem("access_token")
         localStorage.removeItem("token_type")
         localStorage.removeItem("user_id")

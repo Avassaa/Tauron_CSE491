@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { createPortal } from "react-dom"
+import { motion, AnimatePresence } from "framer-motion"
+
 import { AlarmClock, ArrowLeft, Check, ChevronDown, CircleDot, TrendingUp, TrendingDown, Activity, RefreshCw, Star, Trash2, X } from "lucide-react"
 import { Badge } from "~/components/ui/badge"
 import { Skeleton } from "~/components/ui/skeleton"
@@ -449,10 +451,13 @@ export function AssetDetailSheet({
       ? `${activeWatchlists.length} Lists`
       : "Watchlists"
 
-  if (!selectedAsset) return null
+  // Removing early return to allow AnimatePresence to handle exit animations
+  // if (!selectedAsset) return null
 
-  const detailBody = (
+
+  const detailBody = selectedAsset ? (
           <div className="relative px-4 sm:px-8 pt-8 sm:pt-10 pb-10 sm:pb-12 flex flex-col">
+
             <div className="flex flex-col gap-1.5 items-start text-left mb-8 p-0">
               <div className="flex items-center gap-5">
                 <div className="relative">
@@ -1091,46 +1096,59 @@ export function AssetDetailSheet({
               </>
             )}
           </div>
-  )
+  ) : null
+
 
   if (useDockedDetail && mainScrollEl) {
     return createPortal(
-      <div className="pointer-events-none absolute inset-0 z-[100] flex min-h-0 min-w-0 flex-row justify-end">
-        <button
-          type="button"
-          className="pointer-events-auto absolute inset-0 z-0 border-0 bg-black/80 p-0 backdrop-blur-[2px] motion-reduce:backdrop-blur-none"
-          onClick={() => setSelectedAsset(null)}
-          aria-label="Close asset details"
-        />
-        <div
-          className={cn(
-            "pointer-events-auto relative z-10 flex h-full min-h-0 w-full max-w-[680px] shrink-0 flex-col overflow-y-auto border-l border-border p-0 text-foreground scrollbar-none isolate shadow-xl outline-none",
-            glassPanelSurface,
-          )}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="asset-detail-title"
-          tabIndex={-1}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4 z-20 size-9 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            onClick={() => setSelectedAsset(null)}
-            aria-label="Close"
-          >
-            <X className="size-4" aria-hidden />
-          </Button>
-          {detailBody}
-        </div>
-      </div>,
+      <AnimatePresence>
+        {selectedAsset && (
+          <div className="absolute inset-0 z-[100] flex min-h-0 min-w-0 flex-row justify-end overflow-hidden">
+            <motion.button
+              type="button"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-0 border-0 bg-black/40 p-0 backdrop-blur-sm transition-colors duration-500"
+              onClick={() => setSelectedAsset(null)}
+              aria-label="Close asset details"
+            />
+            <motion.div
+              initial={{ x: "100%", opacity: 0.5 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0.5 }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className={cn(
+                "relative z-10 flex h-full min-h-0 w-full max-w-[680px] shrink-0 flex-col overflow-y-auto border-l border-border p-0 text-foreground scrollbar-none isolate shadow-2xl outline-none",
+                glassPanelSurface,
+              )}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="asset-detail-title"
+              tabIndex={-1}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-4 z-20 size-9 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                onClick={() => setSelectedAsset(null)}
+                aria-label="Close"
+              >
+                <X className="size-4" aria-hidden />
+              </Button>
+              {detailBody}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
       mainScrollEl,
     )
   }
 
+
   return (
-    <Sheet open onOpenChange={(open) => !open && setSelectedAsset(null)}>
+    <Sheet open={Boolean(selectedAsset)} onOpenChange={(open) => !open && setSelectedAsset(null)}>
       <SheetContent
         side="right"
         className={cn(

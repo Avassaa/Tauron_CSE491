@@ -85,7 +85,6 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
   return (
     <Form
       method="post"
-      replace
       noValidate
       onSubmit={handleSubmit}
       className={cn("flex flex-col gap-6", className)}

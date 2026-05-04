@@ -48,7 +48,7 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => (
   <textarea
     className={cn(
-      "flex min-h-[44px] w-full resize-none rounded-md border-none bg-transparent px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100 dark:placeholder:text-zinc-400",
+      "flex min-h-[44px] w-full resize-none rounded-md border-none bg-transparent px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
       className
     )}
     ref={ref}
@@ -70,7 +70,7 @@ const TooltipContent = React.forwardRef<
     ref={ref}
     sideOffset={sideOffset}
     className={cn(
-      "z-50 overflow-hidden rounded-md border border-[#333333] bg-[#1F2023] px-3 py-1.5 text-sm text-white shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+      "z-50 overflow-hidden rounded-md border border-border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
       className
     )}
     {...props}
@@ -105,14 +105,14 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border border-[#333333] bg-[#1F2023] p-0 shadow-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-[90vw] md:max-w-[800px] translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-popover p-0 shadow-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full bg-[#2E3033]/80 p-2 hover:bg-[#2E3033] transition-all">
-        <X className="h-5 w-5 text-gray-200 hover:text-white" />
+      <DialogPrimitive.Close className="absolute right-4 top-4 z-10 rounded-full bg-muted/80 p-2 hover:bg-muted transition-all">
+        <X className="h-5 w-5 text-foreground/80 hover:text-foreground" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
@@ -126,7 +126,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold leading-none tracking-tight text-gray-100", className)}
+    className={cn("text-lg font-semibold leading-none tracking-tight text-foreground", className)}
     {...props}
   />
 ));
@@ -140,9 +140,9 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
     const variantClasses = {
-      default: "bg-white hover:bg-white/80 text-black",
-      outline: "border border-[#444444] bg-transparent hover:bg-[#3A3A40]",
-      ghost: "bg-transparent hover:bg-[#3A3A40]",
+      default: "bg-primary text-primary-foreground hover:bg-primary/90",
+      outline: "border border-border bg-transparent hover:bg-accent hover:text-accent-foreground",
+      ghost: "bg-transparent hover:bg-accent hover:text-accent-foreground",
     };
     const sizeClasses = {
       default: "h-10 px-4 py-2",
@@ -335,8 +335,8 @@ const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
           <div
             ref={ref}
             className={cn(
-              "rounded-3xl border border-border bg-white p-2 shadow-sm transition-all duration-300 dark:border-[#444444] dark:bg-[#1F2023] dark:shadow-[0_8px_30px_rgba(0,0,0,0.24)]",
-              isLoading && "border-red-500/70",
+              "rounded-3xl border border-border bg-background p-2 shadow-sm transition-all duration-300 dark:shadow-[0_8px_30px_rgba(0,0,0,0.24)]",
+              isLoading && "border-primary/70",
               className
             )}
             onDragOver={onDragOver}
@@ -581,8 +581,8 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
         onSubmit={handleSubmit}
         maxHeight={textareaMaxHeight ?? 240}
         className={cn(
-          "w-full border-border bg-white shadow-sm transition-all duration-300 ease-in-out dark:border-[#444444] dark:bg-[#1F2023] dark:shadow-[0_8px_30px_rgba(0,0,0,0.24)]",
-          isRecording && "border-red-500/70",
+          "w-full border-border bg-background shadow-sm transition-all duration-300 ease-in-out dark:shadow-[0_8px_30px_rgba(0,0,0,0.24)]",
+          isRecording && "border-destructive/70",
           className
         )}
         disabled={isLoading || isRecording}
@@ -659,7 +659,7 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
             <PromptInputAction tooltip="Upload image">
               <button
                 onClick={() => uploadInputRef.current?.click()}
-                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:text-[#9CA3AF] dark:hover:bg-gray-600/30 dark:hover:text-[#D1D5DB]"
+                className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 disabled={isRecording}
               >
                 <Paperclip className="h-5 w-5 transition-colors" />

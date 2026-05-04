@@ -33,6 +33,8 @@ export async function clientAction(args: Route.ClientActionArgs) {
   if (typeof window !== "undefined") {
     const { toast } = await import("sonner")
     toast.success("Account created successfully.")
+    // Small delay to ensure state is committed and navigation is stable
+    await new Promise((r) => setTimeout(r, 100))
   }
   throw redirect("/dashboard")
 }
@@ -44,7 +46,10 @@ export async function clientLoader() {
       try {
         await getMe(token)
         throw redirect("/dashboard")
-      } catch {
+      } catch (err) {
+        // Re-throw redirect responses — don't treat them as auth failures.
+        if (err instanceof Response) throw err
+        // Only clear session for real auth errors (e.g. 401).
         localStorage.removeItem("access_token")
         localStorage.removeItem("token_type")
         localStorage.removeItem("user_id")

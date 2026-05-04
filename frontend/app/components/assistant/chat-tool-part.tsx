@@ -36,7 +36,7 @@ function toolShell({
     <div
       className={cn(
         "rounded-xl border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground",
-        "shadow-inner shadow-black/10 dark:border-white/10 dark:bg-black/25",
+        "shadow-inner shadow-black/5 dark:shadow-black/10 dark:border-white/10 dark:bg-black/25",
       )}
     >
       <div className="flex items-center gap-2 font-semibold uppercase tracking-wide text-foreground">
@@ -560,7 +560,7 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
   return toolShell({
     title: humanToolTitle(name),
     children: (
-      <pre className="max-h-40 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] text-zinc-200 dark:bg-black/55">
+      <pre className="max-h-40 overflow-auto rounded-lg bg-muted/50 p-2 font-mono text-[11px] text-foreground dark:bg-black/55">
         {JSON.stringify(out, null, 2)}
       </pre>
     ),

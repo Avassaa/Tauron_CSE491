@@ -17,13 +17,13 @@ export type ChatSession = {
 }
 
 const geminiIconBtn =
-  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
 
 const geminiShell =
-  "border-zinc-700/80 bg-[#1e1f20] text-zinc-100 shadow-[inset_-1px_0_0_rgba(255,255,255,0.06)] dark:border-zinc-700 dark:bg-[#1e1f20]"
+  "border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.06)] dark:shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)]"
 
 const sessionPopoverContent =
-  "w-44 border-zinc-600 bg-[#2a2b2c] p-1 text-zinc-100 shadow-xl"
+  "w-44 border-border bg-popover p-1 text-popover-foreground shadow-xl"
 
 function InvertedTip({ label, side = "bottom", children }: { label: string; side?: "bottom" | "top" | "left" | "right"; children: React.ReactElement }) {
   return (
@@ -94,7 +94,7 @@ export function ChatHistorySidebar({
   const visibleSessions =
     searchQuery.trim() ?
       sessions.filter((s) => s.title.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-    : sessions
+      : sessions
 
   const rail = (
     <div
@@ -107,7 +107,7 @@ export function ChatHistorySidebar({
       )}
     >
       {collapsible && !open ? (
-        <div className="flex flex-col items-center gap-1 border-zinc-700/70 border-b py-2">
+        <div className="flex flex-col items-center gap-1 border-sidebar-border border-b py-2">
           <InvertedTip label="Expand menu" side="right">
             <Button
               type="button"
@@ -193,12 +193,12 @@ export function ChatHistorySidebar({
                 type="button"
                 variant="ghost"
                 className={cn(
-                  "h-auto w-full justify-start gap-3 rounded-xl py-3 pl-3 pr-2 text-left font-normal text-zinc-200 hover:bg-white/10 hover:text-white",
+                  "h-auto w-full justify-start gap-3 rounded-xl py-3 pl-3 pr-2 text-left font-normal text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                   !showNewChatLabel && "justify-center px-2 py-2.5",
                 )}
                 onClick={onNewChat}
               >
-                <SquarePen className="h-5 w-5 shrink-0 text-zinc-300" aria-hidden />
+                <SquarePen className="h-5 w-5 shrink-0 text-sidebar-foreground/70" aria-hidden />
                 {showNewChatLabel ? (
                   <>
                     <span className={cn(density === "dock" ? "truncate text-[13px] sm:text-[15px]" : "truncate text-[15px]")}>
@@ -218,8 +218,8 @@ export function ChatHistorySidebar({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search chats…"
                   className={cn(
-                    "w-full rounded-lg border border-zinc-600/90 bg-black/35 px-3 py-2 text-sm text-white placeholder:text-zinc-500",
-                    "focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500/40",
+                    "w-full rounded-lg border border-sidebar-border bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground",
+                    "focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/40",
                   )}
                   autoCapitalize="off"
                   autoCorrect="off"
@@ -251,7 +251,7 @@ export function ChatHistorySidebar({
                     <div
                       className={cn(
                         "group flex w-full items-stretch gap-0.5 rounded-xl transition-colors",
-                        currentSessionId === session.session_id ? "bg-white/12" : "hover:bg-white/8",
+                        currentSessionId === session.session_id ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50",
                       )}
                     >
                       <button
@@ -261,8 +261,8 @@ export function ChatHistorySidebar({
                           "flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors",
                           density === "dock" ? "text-xs sm:text-sm" : "text-sm",
                           currentSessionId === session.session_id ?
-                            "font-medium text-white"
-                          : "text-zinc-400 hover:text-zinc-100",
+                            "font-medium text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/70 hover:text-sidebar-foreground",
                         )}
                       >
                         <MessageSquare className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
@@ -279,7 +279,7 @@ export function ChatHistorySidebar({
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                "h-auto shrink-0 rounded-lg px-2 text-zinc-400 opacity-0 transition-opacity hover:bg-white/10 hover:text-zinc-100 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+                                "h-auto shrink-0 rounded-lg px-2 text-sidebar-foreground/50 opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
                                 density === "dock" && "px-1.5",
                               )}
                               aria-label={`Chat options: ${session.title}`}
@@ -297,7 +297,7 @@ export function ChatHistorySidebar({
                             <Button
                               type="button"
                               variant="ghost"
-                              className="h-9 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal text-red-300 hover:bg-red-500/15 hover:text-red-200"
+                              className="h-9 w-full justify-start gap-2 rounded-md px-2 text-sm font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => {
                                 setSessionMenuOpenId(null)
                                 setDeleteOneTarget({ id: session.session_id, title: session.title })
@@ -309,23 +309,23 @@ export function ChatHistorySidebar({
                             </Button>
                           </PopoverContent>
                         </Popover>
-                      : null}
+                        : null}
                     </div>
                   </InvertedTip>
                 ))}
                 {onClearAllSessions && sessions.length > 0 ?
-                  <div className="mt-2 border-zinc-700/60 border-t pt-2">
+                  <div className="mt-2 border-sidebar-border border-t pt-2">
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-auto w-full justify-start gap-2 rounded-xl py-2.5 pl-3 pr-2 text-left text-xs text-red-300/90 hover:bg-red-500/10 hover:text-red-200"
+                      className="h-auto w-full justify-start gap-2 rounded-xl py-2.5 pl-3 pr-2 text-left text-xs text-destructive/80 hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => setClearAllOpen(true)}
                     >
                       <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       Clear all chats
                     </Button>
                   </div>
-                : null}
+                  : null}
               </div>
             )}
           </ScrollArea>
@@ -346,7 +346,7 @@ export function ChatHistorySidebar({
         description={
           deleteOneTarget ?
             `“${deleteOneTarget.title.length > 80 ? `${deleteOneTarget.title.slice(0, 80)}…` : deleteOneTarget.title}” will be removed from your history. This cannot be undone.`
-          : "This conversation will be removed from your history. This cannot be undone."
+            : "This conversation will be removed from your history. This cannot be undone."
         }
         confirmLabel="Delete chat"
         onConfirm={async () => {
@@ -380,7 +380,7 @@ export function ChatHistorySidebar({
       {historyOpen ? (
         <button
           type="button"
-          className="absolute inset-0 z-20 bg-black/45 backdrop-blur-[1px] transition-opacity motion-reduce:backdrop-blur-none"
+          className="absolute inset-0 z-20 bg-background/80 backdrop-blur-[1px] transition-opacity motion-reduce:backdrop-blur-none"
           aria-label="Close chat history menu"
           onClick={() => {
             setSearchOpen(false)

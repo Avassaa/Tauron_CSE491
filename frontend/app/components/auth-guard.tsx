@@ -22,19 +22,28 @@ export function AuthGuard({
   const navigate = useNavigate()
 
   const checkAuth = React.useCallback(() => {
-    try {
-      const token = localStorage.getItem("access_token")
-      if (token && token.trim().length > 0) {
-        setStatus("authenticated")
-      } else {
+    const performCheck = (isRetry = false) => {
+      try {
+        const token = localStorage.getItem("access_token")
+        console.log("[AuthGuard] Checking token at", window.location.pathname, ":", !!token, "isRetry:", isRetry)
+        if (token && token.trim().length > 0) {
+          console.log("[AuthGuard] Token found, setting authenticated")
+          setStatus("authenticated")
+        } else if (!isRetry) {
+          console.log("[AuthGuard] No token found, retrying in 500ms...")
+          setTimeout(() => performCheck(true), 500)
+        } else {
+          console.log("[AuthGuard] Unauthenticated after retry, redirecting to /login")
+          setStatus("unauthenticated")
+          void navigate("/login", { replace: true })
+        }
+      } catch (err) {
+        console.error("[AuthGuard] Error during checkAuth:", err)
         setStatus("unauthenticated")
-        void navigate("/", { replace: true })
+        window.location.replace("/login")
       }
-    } catch {
-      // If localStorage is blocked (privacy mode, sandbox), never stay stuck in "checking".
-      setStatus("unauthenticated")
-      window.location.replace("/")
     }
+    performCheck()
   }, [navigate])
 
   React.useEffect(() => {
