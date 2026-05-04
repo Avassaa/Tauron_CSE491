@@ -47,37 +47,37 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: isDark ? "#000000" : "#ffffff" },
-        textColor: isDark ? "rgba(255, 255, 255, 0.4)" : "rgba(0, 0, 0, 0.4)",
+        background: { type: ColorType.Solid, color: isDark ? "#000000" : "#f9fafb" },
+        textColor: isDark ? "rgba(255, 255, 255, 0.5)" : "rgba(0, 0, 0, 0.7)",
         fontSize: 11,
         fontFamily: "Inter, sans-serif",
       },
       grid: {
-        vertLines: { color: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)", style: LineStyle.Solid },
-        horzLines: { color: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)", style: LineStyle.Solid },
+        vertLines: { color: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.08)", style: LineStyle.Solid },
+        horzLines: { color: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.08)", style: LineStyle.Solid },
       },
       crosshair: {
         mode: 0,
         vertLine: {
           width: 1,
-          color: isDark ? "rgba(96,165,250,0.5)" : "rgba(37,99,235,0.5)",
+          color: isDark ? "rgba(96,165,250,0.5)" : "rgba(37,99,235,0.6)",
           style: LineStyle.LargeDashed,
           labelBackgroundColor: isDark ? "#3b82f6" : "#2563eb",
         },
         horzLine: {
           width: 1,
-          color: isDark ? "rgba(96,165,250,0.5)" : "rgba(37,99,235,0.5)",
+          color: isDark ? "rgba(96,165,250,0.5)" : "rgba(37,99,235,0.6)",
           style: LineStyle.LargeDashed,
           labelBackgroundColor: isDark ? "#3b82f6" : "#2563eb",
         },
       },
       timeScale: {
-        borderColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)",
+        borderColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.12)",
         timeVisible: true,
         secondsVisible: false,
       },
       rightPriceScale: {
-        borderColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)",
+        borderColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.12)",
         scaleMargins: { top: 0.06, bottom: 0.12 },
         borderVisible: false,
       },
@@ -250,7 +250,7 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
   }, [historicalData, predictions, isDark])
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden [&_a]:hidden [&_.tv-lightweight-charts-logo]:hidden">
       <div ref={chartContainerRef} className="h-full w-full" />
       <div
         ref={tooltipRef}
