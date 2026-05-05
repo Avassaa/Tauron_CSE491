@@ -64,8 +64,23 @@ def news_scrape_prerequisite_error() -> Optional[str]:
 
 
 def _default_scrapers_dir() -> Path:
-    """``…/repo/scrapers`` when the repo layout is ``…/repo/backend/app/workers/``."""
-    return Path(__file__).resolve().parents[3] / "scrapers"
+    """
+    Resolve the ``scrapers`` tree containing ``main.py``.
+
+    Order: ``SCRAPERS_DIR`` env, then monorepo ``<repo>/scrapers`` (worker at
+    ``backend/app/workers/``), then ``/scrapers`` (Docker image or bind mount).
+    """
+    override = os.environ.get("SCRAPERS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    monorepo_root = Path(__file__).resolve().parents[3]
+    standard = monorepo_root / "scrapers"
+    if (standard / "main.py").is_file():
+        return standard
+    docker_path = Path("/scrapers")
+    if (docker_path / "main.py").is_file():
+        return docker_path
+    return standard
 
 
 def _parse_iso_datetime(value: Any) -> Optional[datetime]:

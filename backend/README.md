@@ -68,7 +68,9 @@ With the app running:
 
 ## Docker
 
+Build from the **repository root** (the image includes `scrapers/` and `uv` for news ingest):
+
 ```bash
-docker build -t tauron .
-docker run -p 8000:8000 --env-file .env tauron
+docker build -f backend/Dockerfile -t tauron .
+docker run -p 8000:8000 --env-file backend/.env tauron
 ```
