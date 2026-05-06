@@ -4,6 +4,7 @@ import * as React from "react"
 import { Loader2, Menu, MessageSquare, MoreVertical, Search, SquarePen, Trash2 } from "lucide-react"
 
 import { DeleteChatConfirmDialog } from "~/components/assistant/delete-chat-confirm-dialog"
+import { glassPanelSurface } from "~/components/ui/card"
 import { Button } from "~/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover"
 import { ScrollArea } from "~/components/ui/scroll-area"
@@ -19,8 +20,10 @@ export type ChatSession = {
 const geminiIconBtn =
   "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
 
-const geminiShell =
-  "border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.06)] dark:shadow-[inset_-1px_0_0_rgba(255,255,255,0.02)]"
+const dockHistoryRailSurface = cn(
+  glassPanelSurface,
+  "text-foreground shadow-[inset_-1px_0_0_rgba(0,0,0,0.04)] dark:shadow-[inset_-1px_0_0_rgba(255,255,255,0.04)]",
+)
 
 const sessionPopoverContent =
   "w-44 border-border bg-popover p-1 text-popover-foreground shadow-xl"
@@ -87,7 +90,7 @@ export function ChatHistorySidebar({
   const showNewChatLabel = !(compact ?? false)
 
   const expandedWidth =
-    density === "dock" ? "w-[7.875rem] min-w-[7.875rem] sm:w-[13rem] sm:min-w-[13rem]" : "w-64 min-w-64"
+    density === "dock" ? "w-[9.875rem] min-w-[9.875rem] sm:w-[16.25rem] sm:min-w-[16.25rem]" : "w-64 min-w-64"
 
   const collapsedWidth = "w-12 min-w-12"
 
@@ -99,9 +102,9 @@ export function ChatHistorySidebar({
   const rail = (
     <div
       className={cn(
-        "flex h-full shrink-0 flex-col overflow-hidden transition-[width] duration-200 motion-reduce:transition-none",
-        geminiShell,
-        useDockOverlay && "absolute left-0 top-0 z-30 h-full shadow-[4px_0_24px_rgba(0,0,0,0.18)]",
+        "flex h-full max-w-full shrink-0 flex-col overflow-hidden transition-[width] duration-200 motion-reduce:transition-none",
+        dockHistoryRailSurface,
+        useDockOverlay && "absolute left-0 top-0 z-30 h-full shadow-[4px_0_24px_rgba(0,0,0,0.14)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.35)]",
         open ? expandedWidth : collapsedWidth,
         className,
       )}
@@ -228,7 +231,7 @@ export function ChatHistorySidebar({
             ) : null}
           </div>
 
-          <ScrollArea className={cn("min-h-0 flex-1", density === "dock" ? "px-2 pb-4 sm:px-3" : "px-2 pb-4 sm:px-3")}>
+          <ScrollArea className={cn("min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden", density === "dock" ? "px-2 pb-4 sm:px-3" : "px-2 pb-4 sm:px-3")}>
             {isLoading ? (
               <div className="flex items-center justify-center p-6 text-zinc-500">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -245,30 +248,34 @@ export function ChatHistorySidebar({
             ) : visibleSessions.length === 0 ? (
               <div className="px-2 py-6 text-center text-xs text-zinc-500">No chats match your search.</div>
             ) : (
-              <div className="flex flex-col gap-0.5 pr-2 pb-2">
+              <div className="flex w-full min-w-0 max-w-full flex-col gap-0.5 pb-2">
                 {visibleSessions.map((session) => (
-                  <InvertedTip label={session.title} key={session.session_id}>
-                    <div
-                      className={cn(
-                        "group flex w-full items-stretch gap-0.5 rounded-xl transition-colors",
-                        currentSessionId === session.session_id ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50",
-                      )}
-                    >
+                  <div
+                    key={session.session_id}
+                    className={cn(
+                      "group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl transition-colors",
+                      currentSessionId === session.session_id ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50",
+                    )}
+                  >
+                    <InvertedTip label={session.title}>
                       <button
                         type="button"
                         onClick={() => onSelectSession(session.session_id)}
                         className={cn(
-                          "flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors",
-                          density === "dock" ? "text-xs sm:text-sm" : "text-sm",
+                          "flex min-h-[2.5rem] w-full min-w-0 max-w-full items-center gap-2 overflow-hidden py-2 text-left transition-colors sm:gap-3",
+                          onDeleteSession ? "pl-2.5 pr-10 sm:pl-3 sm:pr-11" : "px-2.5 sm:px-3",
+                          density === "dock" ? "text-xs sm:text-sm" : "py-2.5 text-sm",
                           currentSessionId === session.session_id ?
                             "font-medium text-sidebar-accent-foreground"
                             : "text-sidebar-foreground/70 hover:text-sidebar-foreground",
                         )}
                       >
                         <MessageSquare className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                        <span className="truncate">{session.title}</span>
+                        <span className="min-w-0 flex-1 truncate text-start">{session.title}</span>
                       </button>
-                      {onDeleteSession ?
+                    </InvertedTip>
+                    {onDeleteSession ?
+                      <div className="absolute inset-y-0 right-0 z-10 flex items-center">
                         <Popover
                           open={sessionMenuOpenId === session.session_id}
                           onOpenChange={(next) => setSessionMenuOpenId(next ? session.session_id : null)}
@@ -279,8 +286,8 @@ export function ChatHistorySidebar({
                               variant="ghost"
                               size="icon"
                               className={cn(
-                                "h-auto shrink-0 rounded-lg px-2 text-sidebar-foreground/50 opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
-                                density === "dock" && "px-1.5",
+                                "h-full min-h-[2.5rem] shrink-0 rounded-none rounded-r-xl px-2 text-sidebar-foreground/60 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground focus-visible:bg-sidebar-accent/80 data-[state=open]:bg-sidebar-accent/80 sm:px-2.5",
+                                density === "dock" && "px-1.5 sm:px-2",
                               )}
                               aria-label={`Chat options: ${session.title}`}
                               onClick={(e) => e.stopPropagation()}
@@ -309,9 +316,9 @@ export function ChatHistorySidebar({
                             </Button>
                           </PopoverContent>
                         </Popover>
-                        : null}
-                    </div>
-                  </InvertedTip>
+                      </div>
+                    : null}
+                  </div>
                 ))}
                 {onClearAllSessions && sessions.length > 0 ?
                   <div className="mt-2 border-sidebar-border border-t pt-2">

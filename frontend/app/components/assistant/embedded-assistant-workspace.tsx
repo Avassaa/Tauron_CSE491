@@ -2,11 +2,13 @@
 
 import * as React from "react"
 import type { UIMessage } from "@ai-sdk/react"
-import { Loader2, X } from "lucide-react"
+import { Loader2, X, ArrowUpRight } from "lucide-react"
+import { Link } from "react-router"
 
 import { GeminiChatPanel } from "~/components/assistant/gemini-chat-panel"
 import { ChatHistorySidebar, type ChatSession } from "~/components/assistant/chat-history-sidebar"
 import { Button } from "~/components/ui/button"
+import { assistantGlassShell } from "~/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip"
 import {
   CHAT_LAST_SESSION_KEY,
@@ -70,36 +72,11 @@ export function EmbeddedAssistantWorkspace({
       }
       setSessions(list)
 
-      if (list.length === 0) {
-        const id = crypto.randomUUID()
-        setCurrentSessionId(id)
-        setInitialMessages([])
-        localStorage.setItem(CHAT_LAST_SESSION_KEY, id)
-      } else {
-        const stored = localStorage.getItem(CHAT_LAST_SESSION_KEY)
-        const resolvedId =
-          stored && list.some((s) => String(s.session_id) === stored)
-            ? stored
-            : String(list[0].session_id)
-        setCurrentSessionId(resolvedId)
-        localStorage.setItem(CHAT_LAST_SESSION_KEY, resolvedId)
-
-        const msgUrl = `${apiBaseUrl}/chat-history?${new URLSearchParams({
-          session_id: resolvedId,
-          page: "1",
-          page_size: String(HISTORY_PAGE_SIZE),
-        })}`
-        const histRes = await fetch(msgUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (histRes.ok) {
-          const data = (await histRes.json()) as { items?: unknown[] }
-          setInitialMessages(chatItemsToUIMessages(data.items ?? []))
-        } else {
-          setInitialMessages([])
-          console.error("[assistant-dock] GET history failed:", histRes.status, await histRes.text())
-        }
-      }
+      // Same as /chat: always open a fresh composer; load history from the sidebar only.
+      const id = crypto.randomUUID()
+      setCurrentSessionId(id)
+      setInitialMessages([])
+      localStorage.setItem(CHAT_LAST_SESSION_KEY, id)
     } catch (e) {
       console.error("Assistant dock bootstrap:", e)
       const id = crypto.randomUUID()
@@ -229,27 +206,57 @@ export function EmbeddedAssistantWorkspace({
   const [dockHistoryRailExpanded, setDockHistoryRailExpanded] = React.useState(false)
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background", className)}>
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-1 flex-col overflow-hidden",
+        assistantGlassShell,
+        className,
+      )}
+    >
       {onRequestClose ? (
-        <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b px-2 sm:px-3">
-          <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            AI assistant
-          </span>
-          <Tooltip delayDuration={200}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={onRequestClose}
-                aria-label="Close assistant panel"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent variant="inverted">Close assistant panel</TooltipContent>
-          </Tooltip>
+        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-border/50 bg-white/65 px-2 py-1.5 backdrop-blur-md dark:bg-background/35 dark:backdrop-blur-xl sm:px-3">
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+            <span className="truncate text-xs font-semibold uppercase tracking-wide text-foreground/80">
+              Tauron AI Assistant
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+              Context from this page
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  asChild
+                >
+                  <Link to="/chat" aria-label="Open full chat page">
+                    <ArrowUpRight className="h-4 w-4" aria-hidden />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent variant="inverted">Open full chat</TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={onRequestClose}
+                  aria-label="Close assistant panel"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent variant="inverted">Close assistant panel</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       ) : null}
 

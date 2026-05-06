@@ -442,6 +442,18 @@ const CustomDivider: React.FC = () => (
   </div>
 );
 
+/** Inline “slot” composer for templated quick prompts (asset fills the pill mid-sentence). */
+export type PromptInputTemplateSlot = {
+  protocolLabel: string;
+  beforeText: string;
+  afterText: string;
+  slotPlaceholder?: string;
+  slotValue: string;
+  onSlotChange: (value: string) => void;
+  buildMessage: (slot: string) => string;
+  onDismiss?: () => void;
+};
+
 // Main PromptInputBox Component
 interface PromptInputBoxProps {
   onSend?: (message: string, files?: File[]) => void;
@@ -452,6 +464,10 @@ interface PromptInputBoxProps {
   className?: string;
   /** Max height for autosizing textarea (default 240). Lower for compact side panels. */
   textareaMaxHeight?: number;
+  /** When `nonce` changes, replaces the textarea value (e.g. quick prompts). */
+  composerSeed?: { text: string; nonce: number };
+  /** When set, replaces the textarea with an inline template row; submit uses `buildMessage(slotValue)`. */
+  promptTemplate?: PromptInputTemplateSlot | null;
 }
 export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref: React.Ref<HTMLDivElement>) => {
   const {
@@ -461,8 +477,11 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     placeholder = "Type your message here...",
     className,
     textareaMaxHeight,
+    composerSeed,
+    promptTemplate,
   } = props;
   const [input, setInput] = React.useState("");
+  const lastSeedNonceRef = React.useRef(0);
   const [files, setFiles] = React.useState<File[]>([]);
   const [filePreviews, setFilePreviews] = React.useState<{ [key: string]: string }>({});
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
@@ -501,6 +520,19 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     reader.onload = (e) => setFilePreviews({ [file.name]: e.target?.result as string });
     reader.readAsDataURL(file);
   };
+
+  React.useEffect(() => {
+    if (!composerSeed) return;
+    if (promptTemplate) return;
+    if (composerSeed.nonce === lastSeedNonceRef.current) return;
+    lastSeedNonceRef.current = composerSeed.nonce;
+    setInput(composerSeed.text);
+  }, [composerSeed, promptTemplate]);
+
+  React.useEffect(() => {
+    if (!promptTemplate) return;
+    setInput("");
+  }, [promptTemplate?.protocolLabel]);
 
   const handleDragOver = React.useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -548,14 +580,20 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     return () => document.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
+  const resolveOutboundText = () => {
+    const base = promptTemplate ? promptTemplate.buildMessage(promptTemplate.slotValue) : input;
+    let messagePrefix = "";
+    if (showSearch) messagePrefix = "[Search: ";
+    else if (showThink) messagePrefix = "[Think: ";
+    else if (showCanvas) messagePrefix = "[Canvas: ";
+    return messagePrefix ? `${messagePrefix}${base}]` : base;
+  };
+
   const handleSubmit = () => {
-    if (input.trim() || files.length > 0) {
-      let messagePrefix = "";
-      if (showSearch) messagePrefix = "[Search: ";
-      else if (showThink) messagePrefix = "[Think: ";
-      else if (showCanvas) messagePrefix = "[Canvas: ";
-      const formattedInput = messagePrefix ? `${messagePrefix}${input}]` : input;
-      onSend(formattedInput, files);
+    const outbound = resolveOutboundText();
+    const textOk = outbound.trim() !== "";
+    if (textOk || files.length > 0) {
+      onSend(outbound, files);
       setInput("");
       setFiles([]);
       setFilePreviews({});
@@ -570,7 +608,9 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
     onSend(`[Voice message - ${duration} seconds]`, []);
   };
 
-  const hasContent = input.trim() !== "" || files.length > 0;
+  const hasContent =
+    files.length > 0 ||
+    (promptTemplate ? promptTemplate.slotValue.trim() !== "" : input.trim() !== "");
 
   return (
     <>
@@ -627,18 +667,61 @@ export const PromptInputBox = React.forwardRef((props: PromptInputBoxProps, ref:
             isRecording ? "h-0 overflow-hidden opacity-0" : "opacity-100"
           )}
         >
-          <PromptInputTextarea
-            placeholder={
-              showSearch
-                ? "Search the web..."
-                : showThink
-                ? "Think deeply..."
-                : showCanvas
-                ? "Create on canvas..."
-                : placeholder
-            }
-            className="text-base"
-          />
+          {promptTemplate ?
+            <div className="relative min-h-[40px] px-3 py-2 text-base leading-relaxed">
+              <span className="sr-only">{promptTemplate.protocolLabel}</span>
+              {promptTemplate.onDismiss ?
+                <button
+                  type="button"
+                  onClick={() => promptTemplate.onDismiss?.()}
+                  className="absolute right-1.5 top-1 z-20 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                  aria-label="Dismiss prompt template"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              : null}
+              <p className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5 pr-7 text-[15px] text-foreground sm:text-base">
+                <span className="text-foreground/90">{promptTemplate.beforeText}</span>
+                <span className="relative inline-flex max-w-full align-middle">
+                  <input
+                    value={promptTemplate.slotValue}
+                    onChange={(e) => promptTemplate.onSlotChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (hasContent || files.length > 0) handleSubmit();
+                      }
+                    }}
+                    placeholder={promptTemplate.slotPlaceholder ?? "[Asset name]"}
+                    autoComplete="off"
+                    disabled={isLoading || isRecording}
+                    aria-label="Asset or symbol for this question"
+                    className={cn(
+                      "z-10 box-border h-7 w-[7.75rem] max-w-[min(100%,10rem)] shrink-0 rounded-md px-2 py-0 text-center text-sm font-semibold",
+                      "border border-sky-400/75 bg-sky-500/12 text-sky-950 shadow-[0_0_14px_rgba(14,165,233,0.28)] backdrop-blur-md",
+                      "placeholder:text-center placeholder:font-medium placeholder:text-sky-600/65",
+                      "transition-[box-shadow,border-color,background-color] focus-visible:border-sky-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/45",
+                      "disabled:cursor-not-allowed disabled:opacity-50",
+                      "dark:border-sky-400/55 dark:bg-sky-950/45 dark:text-sky-100 dark:shadow-[0_0_18px_rgba(56,189,248,0.35)] dark:placeholder:text-sky-300/55",
+                    )}
+                  />
+                </span>
+                <span className="min-w-0 text-foreground/90">{promptTemplate.afterText}</span>
+              </p>
+            </div>
+          : <PromptInputTextarea
+              placeholder={
+                showSearch
+                  ? "Search the web..."
+                  : showThink
+                  ? "Think deeply..."
+                  : showCanvas
+                  ? "Create on canvas..."
+                  : placeholder
+              }
+              className="text-base"
+            />
+          }
         </div>
 
         {isRecording && (

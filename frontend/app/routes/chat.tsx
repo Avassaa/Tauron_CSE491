@@ -75,41 +75,11 @@ export default function ChatPage() {
       }
       setSessions(list)
 
-      if (list.length === 0) {
-        const id = crypto.randomUUID()
-        setCurrentSessionId(id)
-        setInitialMessages([])
-        localStorage.setItem(CHAT_LAST_SESSION_KEY, id)
-      } else {
-        const stored = localStorage.getItem(CHAT_LAST_SESSION_KEY)
-        const resolvedId =
-          stored && list.some((s) => String(s.session_id) === stored)
-            ? stored
-            : String(list[0].session_id)
-        setCurrentSessionId(resolvedId)
-        localStorage.setItem(CHAT_LAST_SESSION_KEY, resolvedId)
-
-        const msgUrl = `${apiBaseUrl}/chat-history?${new URLSearchParams({
-          session_id: resolvedId,
-          page: "1",
-          page_size: String(HISTORY_PAGE_SIZE),
-        })}`
-        const histRes = await fetch(msgUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (histRes.ok) {
-          const data = (await histRes.json()) as { items?: unknown[] }
-          setInitialMessages(chatItemsToUIMessages(data.items ?? []))
-        } else {
-          setInitialMessages([])
-          console.error(
-            "[chat] GET /chat-history failed:",
-            histRes.status,
-            histRes.statusText,
-            await histRes.text(),
-          )
-        }
-      }
+      // Always open a fresh composer; load a past thread only from the sidebar.
+      const id = crypto.randomUUID()
+      setCurrentSessionId(id)
+      setInitialMessages([])
+      localStorage.setItem(CHAT_LAST_SESSION_KEY, id)
     } catch (e) {
       console.error("Failed to bootstrap chat:", e)
       const id = crypto.randomUUID()
@@ -247,7 +217,7 @@ export default function ChatPage() {
             paddingTop: "var(--market-banner-offset, 0px)",
           }}
         >
-          <header className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md">
+          <header className="relative z-20 flex min-h-12 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 py-1.5 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>
@@ -260,16 +230,9 @@ export default function ChatPage() {
                 </TooltipContent>
               </Tooltip>
               <Separator orientation="vertical" className="mr-2 h-4" />
-              <Tooltip delayDuration={200}>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex rounded-md">
-                    <span className="font-medium">AI Chat</span>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent variant="inverted" side="bottom">
-                  Full-screen assistant workspace
-                </TooltipContent>
-              </Tooltip>
+              <div className="min-w-0">
+                <span className="font-semibold leading-none text-foreground">Tauron AI Assistant</span>
+              </div>
             </div>
             <NotificationInbox />
           </header>
@@ -290,7 +253,7 @@ export default function ChatPage() {
             
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden px-5 py-5 pb-8 sm:px-8 sm:py-6 md:px-10">
               <p className="shrink-0 text-sm text-muted-foreground">
-                Chat with Tauron&apos;s assistant—quick answers and explanations, right in your workspace.
+                Tauron AI Assistant—risk scans, markets, and watchlists in one place.
               </p>
               {chatReady && currentSessionId ? (
                 /* Force remount when session changes to reset internal SDK state safely */

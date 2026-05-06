@@ -1,7 +1,19 @@
 "use client"
 
 import * as React from "react"
-import { Bot, RefreshCw, Trash2 } from "lucide-react"
+import {
+  Activity,
+  Bell,
+  Bot,
+  LayoutGrid,
+  ListTodo,
+  Newspaper,
+  RefreshCw,
+  Shield,
+  Trash2,
+  TrendingUp,
+  Zap,
+} from "lucide-react"
 import {
   isFileUIPart,
   isReasoningUIPart,
@@ -19,6 +31,7 @@ import { useAssistantClientPagePayload } from "~/components/assistant/assistant-
 import { PromptInputBox } from "~/components/ui/ai-prompt-box"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { Button } from "~/components/ui/button"
+import { glassPanelSurface } from "~/components/ui/card"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -30,6 +43,12 @@ import {
 import { MarkdownContent } from "~/components/ui/markdown-content"
 
 import { useGeminiChat } from "~/lib/ai/use-gemini-chat"
+import {
+  ASSISTANT_FEATURED_PROMPT_IDS,
+  ASSISTANT_QUICK_PROMPTS,
+  type AssistantPromptIcon,
+  type AssistantQuickPrompt,
+} from "~/lib/ai/assistant-quick-prompts"
 import type { AssistantClientPagePayload } from "~/lib/ai/assistant-client-page-context"
 import { cn } from "~/lib/utils"
 
@@ -147,6 +166,183 @@ function UserMessageBody({ message }: { message: UIMessage }) {
   )
 }
 
+const PROMPT_ICONS: Record<AssistantPromptIcon, React.ComponentType<{ className?: string }>> = {
+  shield: Shield,
+  activity: Activity,
+  bell: Bell,
+  newspaper: Newspaper,
+  list: ListTodo,
+  trending: TrendingUp,
+  grid: LayoutGrid,
+}
+
+function AssistantQuickBubble({
+  q,
+  selected,
+  onClick,
+  compact,
+}: {
+  q: AssistantQuickPrompt
+  selected: boolean
+  onClick: () => void
+  compact?: boolean
+}) {
+  const Icon = PROMPT_ICONS[q.icon]
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={q.label}
+      className={cn(
+        "group inline-flex min-w-0 max-w-full items-center rounded-lg text-left transition-colors duration-200",
+        compact ?
+          "min-h-[2rem] min-w-[6.25rem] justify-center gap-2 px-2.5 py-1.5 text-[12px] leading-snug sm:min-h-[2.25rem] sm:py-2"
+        : "gap-1.5 px-2.5 py-2 text-[12px] leading-snug sm:py-2.5",
+        "border-0 bg-background/70 text-foreground shadow-none backdrop-blur-md",
+        "dark:bg-white/[0.06] dark:text-foreground",
+        "hover:bg-background/92 hover:shadow-md dark:hover:bg-white/[0.1]",
+        selected && "bg-primary/18 text-primary dark:bg-primary/24",
+      )}
+    >
+      <Icon
+        className={cn(
+          "shrink-0 text-primary",
+          compact ? "size-3.5" : "size-4",
+          selected ? "opacity-100" : "opacity-80",
+        )}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1 truncate font-semibold tracking-tight">{q.label}</span>
+    </button>
+  )
+}
+
+function AssistantWelcomeHero({
+  onSelectPrompt,
+  activeId,
+  isDock,
+}: {
+  onSelectPrompt: (q: AssistantQuickPrompt) => void
+  activeId: string | null
+  isDock: boolean
+}) {
+  const featured = (ASSISTANT_FEATURED_PROMPT_IDS as readonly string[])
+    .map((id) => ASSISTANT_QUICK_PROMPTS.find((p) => p.id === id))
+    .filter((p): p is AssistantQuickPrompt => Boolean(p))
+
+  return (
+    <div
+      className={cn(
+        "mx-auto flex w-full min-w-0 max-w-2xl scroll-mt-3 flex-col items-center px-2 text-center sm:px-3",
+        isDock ? "py-2" : "py-4 sm:py-5",
+      )}
+    >
+      <div className="mb-3 flex items-center justify-center">
+        <Zap
+          className={cn(
+            "origin-center text-sky-400 dark:text-sky-300",
+            isDock ?
+              "h-11 w-9 sm:h-12 sm:w-10"
+            : "h-12 w-10 sm:h-14 sm:w-11",
+            "scale-y-[1.14]",
+            "drop-shadow-[0_0_14px_rgba(56,189,248,0.88),0_0_32px_rgba(56,189,248,0.5)]",
+            "dark:drop-shadow-[0_0_16px_rgba(56,189,248,0.95),0_0_38px_rgba(56,189,248,0.58)]",
+          )}
+          aria-hidden
+        />
+      </div>
+      <h2
+        className={cn(
+          "font-semibold tracking-tight text-foreground",
+          isDock ? "text-base sm:text-lg" : "text-lg sm:text-xl",
+        )}
+      >
+        How can we assist your strategy?
+      </h2>
+      <p className="mx-auto mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
+        Ask for risk scans, live market context, alerts, and watchlist tools—all synced with your Tauron workspace.
+      </p>
+
+      <div
+        className={cn(
+          "mx-auto mt-3 grid w-full max-w-2xl grid-cols-1 gap-x-3 gap-y-2 sm:mt-4 sm:grid-cols-2",
+          isDock && "mt-3",
+        )}
+      >
+        {featured.map((q) => {
+          const Icon = PROMPT_ICONS[q.icon]
+          const selected = activeId === q.id
+          return (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => onSelectPrompt(q)}
+              className={cn(
+                "flex w-full min-w-0 flex-row items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors duration-200",
+                "border-0 bg-background/55 shadow-none backdrop-blur-md dark:bg-white/[0.04]",
+                "hover:bg-background/85 dark:hover:bg-white/[0.07]",
+                selected && "bg-primary/[0.12] dark:bg-primary/[0.16]",
+              )}
+            >
+              <Icon
+                className={cn("size-3.5 shrink-0 text-primary", selected ? "opacity-100" : "opacity-75")}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-primary">
+                  {q.cardTitle}
+                </div>
+                <p className="line-clamp-2 text-left text-xs leading-snug text-muted-foreground">{q.cardDescription}</p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {!isDock ?
+        <div className="mt-3 flex w-full min-w-0 max-w-2xl flex-wrap justify-center gap-1.5 sm:mt-4 sm:gap-2">
+          {ASSISTANT_QUICK_PROMPTS.map((q) => (
+            <AssistantQuickBubble
+              key={q.id}
+              q={q}
+              selected={activeId === q.id}
+              onClick={() => onSelectPrompt(q)}
+            />
+          ))}
+        </div>
+      : null}
+
+      <p className="mx-auto mt-3 w-full max-w-sm px-2 text-center text-[8px] uppercase leading-tight tracking-wider text-muted-foreground/75 [text-wrap:balance] sm:mt-4 sm:text-[9px]">
+        Tauron AI can make mistakes. Verify critical trade data.
+      </p>
+    </div>
+  )
+}
+
+function AssistantQuickChipsRow({
+  activeId,
+  onSelectPrompt,
+  compact,
+}: {
+  activeId: string | null
+  onSelectPrompt: (q: AssistantQuickPrompt) => void
+  compact?: boolean
+}) {
+  return (
+    <div className={cn("flex w-full min-w-0 flex-wrap content-center justify-center gap-1.5 sm:gap-2")}>
+      {ASSISTANT_QUICK_PROMPTS.map((q) => (
+        <AssistantQuickBubble
+          key={q.id}
+          q={q}
+          selected={activeId === q.id}
+          onClick={() => onSelectPrompt(q)}
+          compact={compact}
+        />
+      ))}
+    </div>
+  )
+}
+
 export function GeminiChatPanel({
   className,
   id,
@@ -197,6 +393,26 @@ export function GeminiChatPanel({
 
   const [username, setUsername] = React.useState("You")
   const [deleteConversationOpen, setDeleteConversationOpen] = React.useState(false)
+  const [activePrompt, setActivePrompt] = React.useState<AssistantQuickPrompt | null>(null)
+  const [assetSlot, setAssetSlot] = React.useState("")
+  const [composerSeed, setComposerSeed] = React.useState<{ text: string; nonce: number } | null>(null)
+
+  const applyPrompt = React.useCallback((q: AssistantQuickPrompt) => {
+    if (q.templateParts) {
+      setActivePrompt(q)
+      setAssetSlot("")
+    } else {
+      setActivePrompt(null)
+      setAssetSlot("")
+      setComposerSeed({ text: q.build(""), nonce: Date.now() })
+    }
+  }, [])
+
+  const clearPromptTemplate = React.useCallback(() => {
+    setActivePrompt(null)
+    setAssetSlot("")
+    setComposerSeed({ text: "", nonce: Date.now() })
+  }, [])
 
   React.useEffect(() => {
     setMessages(initialMessages ?? [])
@@ -214,6 +430,7 @@ export function GeminiChatPanel({
   }, [])
 
   React.useEffect(() => {
+    if (messages.length === 0) return
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages])
 
@@ -221,6 +438,8 @@ export function GeminiChatPanel({
     const t = text.trim()
     if (!t && !files?.length) return
     onNewMessage?.(t || "Media attachment")
+    setActivePrompt(null)
+    setAssetSlot("")
     if (files?.length) {
       const dt = new DataTransfer()
       files.forEach((f) => dt.items.add(f))
@@ -242,6 +461,19 @@ export function GeminiChatPanel({
           ? "Error"
           : null
 
+  const promptTemplate = React.useMemo(() => {
+    if (!activePrompt?.templateParts) return null
+    return {
+      protocolLabel: activePrompt.protocolLabel,
+      beforeText: activePrompt.templateParts.before,
+      afterText: activePrompt.templateParts.after,
+      slotValue: assetSlot,
+      onSlotChange: setAssetSlot,
+      buildMessage: (slot: string) => activePrompt.build(slot),
+      onDismiss: clearPromptTemplate,
+    }
+  }, [activePrompt, assetSlot, clearPromptTemplate])
+
   const composer = (
     <PromptInputBox
       onSend={(msg, files) => void handleSend(msg, files)}
@@ -249,7 +481,11 @@ export function GeminiChatPanel({
       isLoading={streaming}
       placeholder="Ask the assistant…"
       textareaMaxHeight={isDock ? 112 : undefined}
-      className={cn(isDock ? "rounded-2xl p-1.5" : "")}
+      composerSeed={composerSeed ?? undefined}
+      promptTemplate={promptTemplate}
+      className={cn(
+        isDock ? "rounded-2xl border-border/60 bg-white/75 p-1.5 shadow-sm backdrop-blur-md dark:border-border/50 dark:bg-background/40" : "",
+      )}
     />
   )
 
@@ -281,16 +517,10 @@ export function GeminiChatPanel({
   ) : null
 
   const messageScrollInner = (
-    <div className="space-y-5 pb-2 pt-1">
+    <div className="space-y-5 pb-2 pt-3 sm:pt-4">
       {messages.length === 0 ? (
-        <div className={cn(isDock ? "py-4 text-center sm:py-6" : "py-10 text-center")}>
-          <p className="text-base font-medium text-foreground">Say hello to your assistant</p>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Ask about markets, news, or ideas for your watchlist. Answers show up here as they&apos;re written.
-          </p>
-          {onRequestDeleteConversation ? (
-            <p className="mt-3 text-xs text-muted-foreground/80">Tip: right-click here for chat options.</p>
-          ) : null}
+        <div className="flex w-full justify-center">
+          <AssistantWelcomeHero onSelectPrompt={applyPrompt} activeId={activePrompt?.id ?? null} isDock={isDock} />
         </div>
       ) : null}
 
@@ -333,11 +563,14 @@ export function GeminiChatPanel({
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Chatbot
+                      Tauron AI
                     </span>
                     <div
                       className={cn(
-                        "rounded-2xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground shadow-sm",
+                        "rounded-2xl border px-3.5 py-2.5 text-sm text-foreground shadow-sm",
+                        isDock
+                          ? cn(glassPanelSurface, "border-border/60")
+                          : "border-border bg-background",
                       )}
                     >
                       <AssistantMessageBody message={m} streaming={streaming} isLast={isLast} />
@@ -418,6 +651,9 @@ export function GeminiChatPanel({
         {messageArea}
         {!isDock ? (
           <>
+            {messages.length === 0 ?
+              <AssistantQuickChipsRow activeId={activePrompt?.id ?? null} onSelectPrompt={applyPrompt} />
+            : null}
             {statusLabel ? (
               <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
             ) : null}
@@ -425,12 +661,23 @@ export function GeminiChatPanel({
             <div className="shrink-0">{composer}</div>
           </>
         ) : (
-          <div className="flex min-h-0 shrink-0 flex-col gap-2 border-t border-border/50 bg-background px-2 pb-2 pt-2 shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.08)] sm:px-3 dark:shadow-[0_-12px_32px_-8px_rgba(0,0,0,0.35)]">
-            {statusLabel ? (
-              <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
-            ) : null}
-            {errorBanner}
-            {composer}
+          <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-2">
+            {messages.length === 0 ?
+              <div className="flex justify-center px-2 pt-1 sm:px-3">
+                <AssistantQuickChipsRow
+                  compact
+                  activeId={activePrompt?.id ?? null}
+                  onSelectPrompt={applyPrompt}
+                />
+              </div>
+            : null}
+            <div className="flex min-h-0 min-w-0 flex-col gap-2 border-t border-border/50 bg-white/72 px-2 pb-2 pt-2 shadow-[0_-8px_28px_-6px_rgba(0,0,0,0.08)] backdrop-blur-xl sm:px-3 dark:bg-background/45 dark:shadow-[0_-8px_28px_-6px_rgba(0,0,0,0.4)]">
+              {statusLabel ? (
+                <p className="text-center text-[11px] uppercase tracking-wide text-muted-foreground">{statusLabel}</p>
+              ) : null}
+              {errorBanner}
+              {composer}
+            </div>
           </div>
         )}
       </div>

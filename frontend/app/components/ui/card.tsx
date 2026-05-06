@@ -21,6 +21,10 @@ export function glassSurfaceVariants(): string {
 export const glassPanelSurface =
   "glass-panel-surface border border-border/50 bg-white shadow-sm dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
 
+/** Assistant panel(s): frosted shell in light mode; same dark glass language as `glassPanelSurface`. */
+export const assistantGlassShell =
+  "isolate overflow-hidden border border-border/50 bg-white/86 shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:border-border/50 dark:bg-background/45 dark:backdrop-blur-xl dark:backdrop-saturate-125"
+
 export interface CardProps extends React.ComponentProps<"div"> {}
 
 const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, ...props }, ref) => (

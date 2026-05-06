@@ -44,16 +44,32 @@ function AssistantDockMobileSheet({
   open: boolean
   onOpenChange: (next: boolean) => void
 }) {
+  /** Radix Sheet keeps sheet content mounted while closed, so chat state survives closes unless we remount. */
+  const [workspaceKey, setWorkspaceKey] = React.useState(0)
+  const hasOpenedBeforeRef = React.useRef(false)
+  const prevOpenRef = React.useRef(false)
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      if (hasOpenedBeforeRef.current) {
+        setWorkspaceKey((k) => k + 1)
+      } else {
+        hasOpenedBeforeRef.current = true
+      }
+    }
+    prevOpenRef.current = open
+  }, [open])
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="flex w-[min(100vw,432px)] max-w-none flex-col gap-0 border-l bg-background p-0"
+        className="flex w-[min(100vw,432px)] max-w-none flex-col gap-0 border-l border-border/50 bg-transparent p-0"
         aria-describedby={undefined}
       >
         <SheetTitle className="sr-only">AI assistant</SheetTitle>
         <EmbeddedAssistantWorkspace
+          key={workspaceKey}
           className="min-h-0"
           onRequestClose={() => onOpenChange(false)}
         />
@@ -131,7 +147,7 @@ export function AssistantDockSplitMain({
       <aside
         aria-hidden={!open}
         className={cn(
-          "flex min-h-0 flex-col overflow-hidden border-transparent bg-muted/25 backdrop-blur-md transition-[min-width,max-width,border-color,opacity,width,height] duration-200 ease-out motion-reduce:transition-none",
+          "flex min-h-0 flex-col overflow-hidden border-transparent bg-muted/15 backdrop-blur-md transition-[min-width,max-width,border-color,opacity,width,height] duration-200 ease-out motion-reduce:transition-none dark:bg-black/20",
           open
             ? cn(
                 "relative z-30 h-full self-stretch border-border/70 border-l",
