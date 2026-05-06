@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { CardTitleWithTooltip } from "~/components/dashboard/card-title-with-tooltip"
 import {
@@ -25,260 +25,202 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
+import type { KlinePoint } from "~/hooks/use-dashboard-data"
+import {
+  FALLBACK_BTC_KLINES,
+  FALLBACK_ETH_KLINES,
+  FALLBACK_SOL_KLINES,
+} from "~/lib/dashboard-placeholder-data"
 
-export const description = "An interactive area chart"
+export const description = "BTC vs ETH vs SOL — normalized performance"
 
-const chartData = [
-  { date: "2024-04-01", desktop: 222, mobile: 150 },
-  { date: "2024-04-02", desktop: 97, mobile: 180 },
-  { date: "2024-04-03", desktop: 167, mobile: 120 },
-  { date: "2024-04-04", desktop: 242, mobile: 260 },
-  { date: "2024-04-05", desktop: 373, mobile: 290 },
-  { date: "2024-04-06", desktop: 301, mobile: 340 },
-  { date: "2024-04-07", desktop: 245, mobile: 180 },
-  { date: "2024-04-08", desktop: 409, mobile: 320 },
-  { date: "2024-04-09", desktop: 59, mobile: 110 },
-  { date: "2024-04-10", desktop: 261, mobile: 190 },
-  { date: "2024-04-11", desktop: 327, mobile: 350 },
-  { date: "2024-04-12", desktop: 292, mobile: 210 },
-  { date: "2024-04-13", desktop: 342, mobile: 380 },
-  { date: "2024-04-14", desktop: 137, mobile: 220 },
-  { date: "2024-04-15", desktop: 120, mobile: 170 },
-  { date: "2024-04-16", desktop: 138, mobile: 190 },
-  { date: "2024-04-17", desktop: 446, mobile: 360 },
-  { date: "2024-04-18", desktop: 364, mobile: 410 },
-  { date: "2024-04-19", desktop: 243, mobile: 180 },
-  { date: "2024-04-20", desktop: 89, mobile: 150 },
-  { date: "2024-04-21", desktop: 137, mobile: 200 },
-  { date: "2024-04-22", desktop: 224, mobile: 170 },
-  { date: "2024-04-23", desktop: 138, mobile: 230 },
-  { date: "2024-04-24", desktop: 387, mobile: 290 },
-  { date: "2024-04-25", desktop: 215, mobile: 250 },
-  { date: "2024-04-26", desktop: 75, mobile: 130 },
-  { date: "2024-04-27", desktop: 383, mobile: 420 },
-  { date: "2024-04-28", desktop: 122, mobile: 180 },
-  { date: "2024-04-29", desktop: 315, mobile: 240 },
-  { date: "2024-04-30", desktop: 454, mobile: 380 },
-  { date: "2024-05-01", desktop: 165, mobile: 220 },
-  { date: "2024-05-02", desktop: 293, mobile: 310 },
-  { date: "2024-05-03", desktop: 247, mobile: 190 },
-  { date: "2024-05-04", desktop: 385, mobile: 420 },
-  { date: "2024-05-05", desktop: 481, mobile: 390 },
-  { date: "2024-05-06", desktop: 498, mobile: 520 },
-  { date: "2024-05-07", desktop: 388, mobile: 300 },
-  { date: "2024-05-08", desktop: 149, mobile: 210 },
-  { date: "2024-05-09", desktop: 227, mobile: 180 },
-  { date: "2024-05-10", desktop: 293, mobile: 330 },
-  { date: "2024-05-11", desktop: 335, mobile: 270 },
-  { date: "2024-05-12", desktop: 197, mobile: 240 },
-  { date: "2024-05-13", desktop: 197, mobile: 160 },
-  { date: "2024-05-14", desktop: 448, mobile: 490 },
-  { date: "2024-05-15", desktop: 473, mobile: 380 },
-  { date: "2024-05-16", desktop: 338, mobile: 400 },
-  { date: "2024-05-17", desktop: 499, mobile: 420 },
-  { date: "2024-05-18", desktop: 315, mobile: 350 },
-  { date: "2024-05-19", desktop: 235, mobile: 180 },
-  { date: "2024-05-20", desktop: 177, mobile: 230 },
-  { date: "2024-05-21", desktop: 82, mobile: 140 },
-  { date: "2024-05-22", desktop: 81, mobile: 120 },
-  { date: "2024-05-23", desktop: 252, mobile: 290 },
-  { date: "2024-05-24", desktop: 294, mobile: 220 },
-  { date: "2024-05-25", desktop: 201, mobile: 250 },
-  { date: "2024-05-26", desktop: 213, mobile: 170 },
-  { date: "2024-05-27", desktop: 420, mobile: 460 },
-  { date: "2024-05-28", desktop: 233, mobile: 190 },
-  { date: "2024-05-29", desktop: 78, mobile: 130 },
-  { date: "2024-05-30", desktop: 340, mobile: 280 },
-  { date: "2024-05-31", desktop: 178, mobile: 230 },
-  { date: "2024-06-01", desktop: 178, mobile: 200 },
-  { date: "2024-06-02", desktop: 470, mobile: 410 },
-  { date: "2024-06-03", desktop: 103, mobile: 160 },
-  { date: "2024-06-04", desktop: 439, mobile: 380 },
-  { date: "2024-06-05", desktop: 88, mobile: 140 },
-  { date: "2024-06-06", desktop: 294, mobile: 250 },
-  { date: "2024-06-07", desktop: 323, mobile: 370 },
-  { date: "2024-06-08", desktop: 385, mobile: 320 },
-  { date: "2024-06-09", desktop: 438, mobile: 480 },
-  { date: "2024-06-10", desktop: 155, mobile: 200 },
-  { date: "2024-06-11", desktop: 92, mobile: 150 },
-  { date: "2024-06-12", desktop: 492, mobile: 420 },
-  { date: "2024-06-13", desktop: 81, mobile: 130 },
-  { date: "2024-06-14", desktop: 426, mobile: 380 },
-  { date: "2024-06-15", desktop: 307, mobile: 350 },
-  { date: "2024-06-16", desktop: 371, mobile: 310 },
-  { date: "2024-06-17", desktop: 475, mobile: 520 },
-  { date: "2024-06-18", desktop: 107, mobile: 170 },
-  { date: "2024-06-19", desktop: 341, mobile: 290 },
-  { date: "2024-06-20", desktop: 408, mobile: 450 },
-  { date: "2024-06-21", desktop: 169, mobile: 210 },
-  { date: "2024-06-22", desktop: 317, mobile: 270 },
-  { date: "2024-06-23", desktop: 480, mobile: 530 },
-  { date: "2024-06-24", desktop: 132, mobile: 180 },
-  { date: "2024-06-25", desktop: 141, mobile: 190 },
-  { date: "2024-06-26", desktop: 434, mobile: 380 },
-  { date: "2024-06-27", desktop: 448, mobile: 490 },
-  { date: "2024-06-28", desktop: 149, mobile: 200 },
-  { date: "2024-06-29", desktop: 103, mobile: 160 },
-  { date: "2024-06-30", desktop: 446, mobile: 400 },
-]
+// Crypto-brand colors
+const BTC_COLOR = "#f7931a"
+const ETH_COLOR = "#8b5cf6"
+const SOL_COLOR = "#10b981"
 
 const chartConfig = {
-  visitors: {
-    label: "Visitors",
-  },
-  desktop: {
-    label: "Desktop",
-    color: "var(--chart-1)",
-  },
-  mobile: {
-    label: "Mobile",
-    color: "var(--chart-2)",
-  },
+  btc: { label: "BTC", color: BTC_COLOR },
+  eth: { label: "ETH", color: ETH_COLOR },
+  sol: { label: "SOL", color: SOL_COLOR },
 } satisfies ChartConfig
 
-/**
- * Stacked area chart with a time-range select (shadcn Chart + Recharts).
- *
- * @example
- * ```tsx
- * import { ChartAreaInteractive } from "~/components/dashboard/chart-area-interactive"
- *
- * export default function AnalyticsSection() {
- *   return (
- *     <section className="space-y-4 p-4">
- *       <ChartAreaInteractive />
- *     </section>
- *   )
- * }
- * ```
- */
-export function ChartAreaInteractive() {
-  const [timeRange, setTimeRange] = React.useState("90d")
+interface ChartAreaInteractiveProps {
+  btcKlines?: KlinePoint[]
+  ethKlines?: KlinePoint[]
+  solKlines?: KlinePoint[]
+}
 
-  const filteredData = chartData.filter((item) => {
-    const date = new Date(item.date)
-    const referenceDate = new Date("2024-06-30")
-    let daysToSubtract = 90
-    if (timeRange === "30d") {
-      daysToSubtract = 30
-    } else if (timeRange === "7d") {
-      daysToSubtract = 7
-    }
-    const startDate = new Date(referenceDate)
-    startDate.setDate(startDate.getDate() - daysToSubtract)
-    return date >= startDate
-  })
+function indexTo100(klines: KlinePoint[]): number[] {
+  if (klines.length === 0) return []
+  const base = klines[0].price
+  if (!base || base <= 0) return klines.map(() => 100)
+  return klines.map((k) => Math.round((k.price / base) * 10000) / 100)
+}
+
+export function ChartAreaInteractive({
+  btcKlines,
+  ethKlines,
+  solKlines,
+}: ChartAreaInteractiveProps) {
+  const [timeRange, setTimeRange] = React.useState("30d")
+
+  const btc = btcKlines && btcKlines.length > 0 ? btcKlines : FALLBACK_BTC_KLINES
+  const eth = ethKlines && ethKlines.length > 0 ? ethKlines : FALLBACK_ETH_KLINES
+  const sol = solKlines && solKlines.length > 0 ? solKlines : FALLBACK_SOL_KLINES
+
+  const sliceDays = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30
+
+  const sliceKlines = (k: KlinePoint[]) =>
+    k.length > sliceDays ? k.slice(k.length - sliceDays) : k
+
+  const btcSliced = sliceKlines(btc)
+  const ethSliced = sliceKlines(eth)
+  const solSliced = sliceKlines(sol)
+
+  const btcIdx = indexTo100(btcSliced)
+  const ethIdx = indexTo100(ethSliced)
+  const solIdx = indexTo100(solSliced)
+
+  const chartData = btcSliced.map((point, i) => ({
+    date: point.date,
+    btc: btcIdx[i] ?? 100,
+    eth: ethIdx[i] ?? 100,
+    sol: solIdx[i] ?? 100,
+  }))
+
+  const btcFinal = btcIdx[btcIdx.length - 1] ?? 100
+  const ethFinal = ethIdx[ethIdx.length - 1] ?? 100
+  const solFinal = solIdx[solIdx.length - 1] ?? 100
+
+  const fmtChange = (v: number) => {
+    const diff = v - 100
+    return `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}%`
+  }
+
+  const colorFor = (v: number) => (v >= 100 ? "#10b981" : "#f43f5e")
 
   return (
     <Card className="pt-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
         <div className="grid flex-1 gap-1">
-          <CardTitleWithTooltip tooltip="Stacked area chart of two series over time. Use the range control to change the window; hover points for details.">
-            Area Chart - Interactive
+          <CardTitleWithTooltip tooltip="Normalized performance of BTC, ETH, and SOL indexed to 100 at the start of the period. Values above 100 mean the asset gained; below 100 means it lost.">
+            Performance Index
           </CardTitleWithTooltip>
           <CardDescription>
-            Showing total visitors for the last 3 months
+            BTC · ETH · SOL — indexed to 100 at period start
+            <span className="ml-3 inline-flex gap-3 text-[10px] font-black">
+              <span style={{ color: btcFinal >= 100 ? "#10b981" : "#f43f5e" }}>
+                BTC {fmtChange(btcFinal)}
+              </span>
+              <span style={{ color: ethFinal >= 100 ? "#10b981" : "#f43f5e" }}>
+                ETH {fmtChange(ethFinal)}
+              </span>
+              <span style={{ color: solFinal >= 100 ? "#10b981" : "#f43f5e" }}>
+                SOL {fmtChange(solFinal)}
+              </span>
+            </span>
           </CardDescription>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger
-            className="hidden w-[160px] rounded-lg sm:ml-auto sm:flex"
-            aria-label="Select a value"
+            className="hidden w-[140px] rounded-lg sm:ml-auto sm:flex"
+            aria-label="Select time range"
           >
-            <SelectValue placeholder="Last 3 months" />
+            <SelectValue placeholder="Last 30 days" />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
-            <SelectItem value="90d" className="rounded-lg">
-              Last 3 months
-            </SelectItem>
-            <SelectItem value="30d" className="rounded-lg">
-              Last 30 days
-            </SelectItem>
-            <SelectItem value="7d" className="rounded-lg">
-              Last 7 days
-            </SelectItem>
+            <SelectItem value="7d" className="rounded-lg">Last 7 days</SelectItem>
+            <SelectItem value="14d" className="rounded-lg">Last 14 days</SelectItem>
+            <SelectItem value="30d" className="rounded-lg">Last 30 days</SelectItem>
           </SelectContent>
         </Select>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto min-h-[250px] h-[250px] w-full"
+          className="aspect-auto min-h-[260px] h-[260px] w-full"
         >
-          <AreaChart data={filteredData}>
+          <AreaChart data={chartData}>
             <defs>
-              <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={1}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-desktop)"
-                  stopOpacity={0.35}
-                />
+              <linearGradient id="fillBtc" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={BTC_COLOR} stopOpacity={0.35} />
+                <stop offset="95%" stopColor={BTC_COLOR} stopOpacity={0.02} />
               </linearGradient>
-              <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={1}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-mobile)"
-                  stopOpacity={0.35}
-                />
+              <linearGradient id="fillEth" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={ETH_COLOR} stopOpacity={0.30} />
+                <stop offset="95%" stopColor={ETH_COLOR} stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="fillSol" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={SOL_COLOR} stopOpacity={0.28} />
+                <stop offset="95%" stopColor={SOL_COLOR} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} />
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               minTickGap={32}
-              tickFormatter={(value) => {
-                const date = new Date(value as string)
-                return date.toLocaleDateString("en-US", {
+              tick={{ fontSize: 10 }}
+              tickFormatter={(value) =>
+                new Date(value as string).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                 })
-              }}
+              }
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              width={38}
+              tick={{ fontSize: 10 }}
+              tickFormatter={(v) => `${v}`}
+              domain={["auto", "auto"]}
             />
             <ChartTooltip
-              cursor={false}
+              cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
               content={
                 <ChartTooltipContent
-                  labelFormatter={(value) => {
-                    return new Date(value as string).toLocaleDateString(
-                      "en-US",
-                      {
-                        month: "short",
-                        day: "numeric",
-                      }
-                    )
-                  }}
+                  labelFormatter={(value) =>
+                    new Date(value as string).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  }
+                  formatter={(value, name) => [
+                    `${Number(value).toFixed(2)} (${Number(value) >= 100 ? "+" : ""}${(Number(value) - 100).toFixed(2)}%)`,
+                    String(name).toUpperCase(),
+                  ]}
                   indicator="dot"
                 />
               }
             />
             <Area
-              dataKey="mobile"
-              type="natural"
-              fill="url(#fillMobile)"
-              stroke="var(--color-mobile)"
+              dataKey="sol"
+              type="monotone"
+              fill="url(#fillSol)"
+              stroke={SOL_COLOR}
               strokeWidth={2}
-              stackId="a"
+              stackId="none"
             />
             <Area
-              dataKey="desktop"
-              type="natural"
-              fill="url(#fillDesktop)"
-              stroke="var(--color-desktop)"
+              dataKey="eth"
+              type="monotone"
+              fill="url(#fillEth)"
+              stroke={ETH_COLOR}
               strokeWidth={2}
-              stackId="a"
+              stackId="none"
+            />
+            <Area
+              dataKey="btc"
+              type="monotone"
+              fill="url(#fillBtc)"
+              stroke={BTC_COLOR}
+              strokeWidth={2.5}
+              stackId="none"
             />
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>

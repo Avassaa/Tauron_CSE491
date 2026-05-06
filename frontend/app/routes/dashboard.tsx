@@ -1,10 +1,21 @@
 "use client"
 
 import * as React from "react"
+import {
+  BarChart3,
+  Bitcoin,
+  ChevronRight,
+  Coins,
+  Globe2,
+  Layers,
+  ListChecks,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react"
+// BarChart3, Bitcoin, Globe2, Layers used in QuickLinkCard and stat helpers kept for future use
+import { useNavigate, useSearchParams } from "react-router"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
-import { useSearchParams } from "react-router"
-import { Separator } from "~/components/ui/separator"
 import {
   ChartAreaInteractive,
   ChartBarDefault,
@@ -13,6 +24,17 @@ import {
   ChartPieSimple,
   ChartRadarLinesOnly,
 } from "~/components/dashboard/dashboard-charts"
+import { DashboardChartsSkeleton } from "~/components/dashboard/dashboard-charts-skeleton"
+import { DashboardTableSkeleton } from "~/components/dashboard/dashboard-table-skeleton"
+import { DashboardNewsStrip } from "~/components/dashboard/dashboard-news-strip"
+import { DashboardResultsTable } from "~/components/dashboard/dashboard-results-table"
+import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
+import { Card, CardContent, glassPanelSurface } from "~/components/ui/card"
+import { Separator } from "~/components/ui/separator"
+import { Skeleton } from "~/components/ui/skeleton"
+import { cn } from "~/lib/utils"
+import { useDashboardData } from "~/hooks/use-dashboard-data"
+import { FALLBACK_COINS } from "~/lib/dashboard-placeholder-data"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,72 +44,104 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "~/components/ui/context-menu"
-import { format } from "date-fns"
-import { DATE_FNS_LOCALE } from "~/lib/date-locale"
 import { toast } from "sonner"
-import {
-  DashboardFiltersSection,
-  type DashboardApplyPayload,
-} from "~/components/dashboard/dashboard-filters-section"
-import { glassPanelSurface } from "~/components/ui/card"
-import { DashboardChartsSkeleton } from "~/components/dashboard/dashboard-charts-skeleton"
-import { DashboardResultsTable } from "~/components/dashboard/dashboard-results-table"
-import { DashboardTableSkeleton } from "~/components/dashboard/dashboard-table-skeleton"
-import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
-import { cn } from "~/lib/utils"
 
-const INITIAL_DATA_MOCK_MS = 1500
-const APPLY_MOCK_MS = 1500
+// ─── Quick Link Card ──────────────────────────────────────────────────────────
+
+function QuickLinkCard({
+  icon,
+  label,
+  description,
+  href,
+}: {
+  icon: React.ReactNode
+  label: string
+  description: string
+  href: string
+}) {
+  const navigate = useNavigate()
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(href)}
+      className={cn(
+        "group relative flex items-center gap-3 overflow-hidden rounded-2xl px-4 py-3.5 text-left",
+        "border border-border/50 bg-card/60 backdrop-blur-xl backdrop-saturate-150",
+        "supports-[backdrop-filter]:bg-card/45",
+        "transition-all duration-300",
+        "hover:border-border/80 hover:bg-card/80",
+        "hover:shadow-xl hover:shadow-black/8 dark:hover:shadow-black/40",
+        "hover:scale-[1.015] active:scale-[0.99]",
+      )}
+    >
+      {/* Radial glow in top-right */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.05),transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.10),transparent_60%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+      {/* Shimmer ring */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-1 ring-inset ring-foreground/8 transition-opacity duration-300 group-hover:opacity-100" />
+
+      {/* Icon pill */}
+      <div className={cn(
+        "relative flex size-9 shrink-0 items-center justify-center rounded-xl",
+        "border border-border/50 bg-gradient-to-br from-primary/20 to-primary/5",
+        "text-primary shadow-[0_0_14px_-4px_hsl(var(--primary)/0.35)]",
+        "transition-all duration-300",
+        "group-hover:border-primary/40 group-hover:from-primary/30 group-hover:shadow-[0_0_18px_-4px_hsl(var(--primary)/0.55)]",
+      )}>
+        {icon}
+      </div>
+
+      <div className="relative min-w-0">
+        <div className="text-sm font-black tracking-tight text-foreground/85 transition-colors group-hover:text-foreground">
+          {label}
+        </div>
+        <div className="truncate text-[10px] text-muted-foreground/60">{description}</div>
+      </div>
+
+      <ChevronRight className="relative ml-auto size-4 shrink-0 translate-x-1 text-muted-foreground/40 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:text-primary/80 group-hover:opacity-100" />
+    </button>
+  )
+}
+
+// ─── Dashboard Page Client ────────────────────────────────────────────────────
 
 function DashboardPageClient() {
   const [searchParams] = useSearchParams()
   const selectedAssetId = searchParams.get("asset")
+  const { coins, btcKlines, ethKlines, solKlines, loading } = useDashboardData()
 
-  const [filtersReady, setFiltersReady] = React.useState(false)
-  const [applyBusy, setApplyBusy] = React.useState(false)
-  const applyTimerRef = React.useRef<number | null>(null)
-  const applyBusyRef = React.useRef(false)
+  const source = coins.length > 0 ? coins : FALLBACK_COINS
 
-  React.useEffect(() => {
-    const id = window.setTimeout(() => setFiltersReady(true), INITIAL_DATA_MOCK_MS)
-    return () => window.clearTimeout(id)
-  }, [])
+  const btcCoin = source.find((c) => c.symbol === "BTC")
+  const ethCoin = source.find((c) => c.symbol === "ETH")
 
-  React.useEffect(() => {
-    return () => {
-      if (applyTimerRef.current != null) {
-        window.clearTimeout(applyTimerRef.current)
-        applyTimerRef.current = null
-      }
-      applyBusyRef.current = false
-    }
-  }, [])
+  const totalMcap = source.slice(0, 20).reduce((s, c) => s + (c.market_cap ?? 0), 0)
+  const totalVol = source.slice(0, 20).reduce((s, c) => s + (c.volume ?? 0), 0)
 
-  const handleApply = React.useCallback((payload: DashboardApplyPayload) => {
-    if (applyBusyRef.current) return
-    applyBusyRef.current = true
-    setApplyBusy(true)
-    if (applyTimerRef.current != null) {
-      window.clearTimeout(applyTimerRef.current)
-    }
-    applyTimerRef.current = window.setTimeout(() => {
-      applyTimerRef.current = null
-      const { date, placeholderOn } = payload
-      const label =
-        date?.from && date.to
-          ? `${format(date.from, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })} – ${format(date.to, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })}`
-          : date?.from
-            ? format(date.from, "MMM d, yyyy", { locale: DATE_FNS_LOCALE })
-            : "No range selected"
-      toast.success("Filters applied (demo).", {
-        description: `${label}${placeholderOn ? " · Placeholder on" : ""}`,
+  const fmtPrice = (price: number | null) => {
+    if (price == null) return "—"
+    if (price >= 1000)
+      return price.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
       })
-      applyBusyRef.current = false
-      setApplyBusy(false)
-    }, APPLY_MOCK_MS)
-  }, [])
+    return `$${price.toFixed(4)}`
+  }
 
-  const dataBusy = !filtersReady || applyBusy
+  const fmtCompact = (v: number) => {
+    if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
+    if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`
+    if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`
+    return `$${v.toLocaleString()}`
+  }
+
+  const btcDominance =
+    btcCoin?.market_cap && totalMcap > 0
+      ? ((btcCoin.market_cap / totalMcap) * 100).toFixed(1)
+      : null
+
+  const dataBusy = loading
 
   return (
     <DashboardLayout
@@ -111,10 +165,39 @@ function DashboardPageClient() {
       >
         <PageBlueBackdrop />
         <div className="relative z-[1] flex flex-1 flex-col gap-6 p-4 md:p-8">
-          <DashboardFiltersSection
-            applyBusy={applyBusy}
-            onApply={handleApply}
-          />
+
+          {/* ── Latest Curated News ─────────────────────────────────── */}
+          <DashboardNewsStrip />
+
+          {/* ── Quick Links ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <QuickLinkCard
+              icon={<Coins className="size-4" />}
+              label="Assets"
+              description="Browse all coins"
+              href="/assets"
+            />
+            <QuickLinkCard
+              icon={<ListChecks className="size-4" />}
+              label="Watchlists"
+              description="Your saved lists"
+              href="/watchlists"
+            />
+            <QuickLinkCard
+              icon={<TrendingUp className="size-4" />}
+              label="Predictions"
+              description="AI price forecasts"
+              href="/predictions"
+            />
+            <QuickLinkCard
+              icon={<Sparkles className="size-4" />}
+              label="AI Assistant"
+              description="Market insights"
+              href="/chat"
+            />
+          </div>
+
+          {/* ── Top Movers Table ────────────────────────────────────── */}
           <div className="relative">
             <div
               className={cn(
@@ -123,22 +206,24 @@ function DashboardPageClient() {
               )}
               aria-hidden={dataBusy}
             >
-              <DashboardResultsTable />
+              <DashboardResultsTable coins={coins} />
             </div>
-            {dataBusy ? (
+            {dataBusy && (
               <div
                 className={cn(
                   "absolute inset-0 z-10 isolate overflow-auto rounded-xl p-1 ring-1 ring-border/50",
-                  glassPanelSurface,
+                  glassPanelSurface
                 )}
                 role="status"
                 aria-busy
-                aria-label={applyBusy ? "Updating results" : "Loading results"}
+                aria-label="Loading market data"
               >
                 <DashboardTableSkeleton />
               </div>
-            ) : null}
+            )}
           </div>
+
+          {/* ── Charts ──────────────────────────────────────────────── */}
           <ContextMenu>
             <ContextMenuTrigger asChild>
               <div className="relative flex min-h-0 flex-1 flex-col gap-6 outline-none">
@@ -149,50 +234,65 @@ function DashboardPageClient() {
                   )}
                   aria-hidden={dataBusy}
                 >
-                  <ChartAreaInteractive />
+                  {/* Big performance area chart */}
+                  <ChartAreaInteractive
+                    btcKlines={btcKlines}
+                    ethKlines={ethKlines}
+                    solKlines={solKlines}
+                  />
+
+                  {/* 4-column grid */}
                   <div className="grid gap-4 xl:grid-cols-4">
-                    <ChartBarDefault />
-                    <ChartLineDefault />
-                    <ChartPieSimple />
-                    <ChartRadarLinesOnly />
+                    <ChartBarDefault coins={coins} />
+                    <ChartLineDefault btcKlines={btcKlines} coins={coins} />
+                    <ChartPieSimple coins={coins} />
+                    <ChartRadarLinesOnly coins={coins} />
                   </div>
-                  <ChartLineMultiple />
+
+                  {/* Full-width multi-line comparison */}
+                  <ChartLineMultiple
+                    btcKlines={btcKlines}
+                    ethKlines={ethKlines}
+                    solKlines={solKlines}
+                  />
                 </div>
-                {dataBusy ? (
+
+                {dataBusy && (
                   <div
                     className={cn(
                       "absolute inset-0 z-10 isolate overflow-auto rounded-xl p-1 ring-1 ring-border/50",
-                      glassPanelSurface,
+                      glassPanelSurface
                     )}
                     role="status"
                     aria-busy
-                    aria-label={
-                      applyBusy ? "Updating charts" : "Loading charts"
-                    }
+                    aria-label="Loading charts"
                   >
                     <DashboardChartsSkeleton />
                   </div>
-                ) : null}
+                )}
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-56">
               <ContextMenuLabel>Dashboard</ContextMenuLabel>
               <ContextMenuSeparator />
               <ContextMenuItem
-                onSelect={() => toast.success("Refreshed (demo).")}
+                onSelect={() => {
+                  window.location.reload()
+                  toast.success("Refreshing market data…")
+                }}
               >
                 Refresh data
                 <ContextMenuShortcut>R</ContextMenuShortcut>
               </ContextMenuItem>
               <ContextMenuItem
-                onSelect={() => toast.message("Export started (demo).")}
+                onSelect={() => toast.message("Export coming soon.")}
               >
                 Export view
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem
                 variant="destructive"
-                onSelect={() => toast.error("Nothing to undo (demo).")}
+                onSelect={() => toast.error("Nothing to clear.")}
               >
                 Clear selection
               </ContextMenuItem>
