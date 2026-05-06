@@ -61,6 +61,42 @@ services:
       retries: 24
       start_period: 28800s
 
+  ai_engine:
+    build:
+      context: .
+      dockerfile: ai_engine/Dockerfile
+    container_name: tauron-ai-engine
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tauron
+      POSTGRES_SSL: "false"
+      DATABASE_SCHEMA: tauron
+      BACKEND_BASE_URL: http://backend:8000
+      MODEL_PATH: /models
+      ML_SERVICE_KEY: docker-compose-ai-engine-internal-key-change-me
+      TRAIN_MAX_ASSETS: "25"
+    expose:
+      - "8001"
+    volumes:
+      - tauron_ai_models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 6
+      start_period: 45s
+
   frontend:
     build:
       context: ./frontend
@@ -100,6 +136,9 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
+      ai_engine:
+        condition: service_healthy
 
 volumes:
   tauron_pgdata:
+  tauron_ai_models:

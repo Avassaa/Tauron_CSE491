@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -32,14 +33,11 @@ logger = logging.getLogger(__name__)
 
 _news_worker_task: Optional[asyncio.Task[None]] = None
 
-# Fixed operational defaults (not env-configurable).
 _SCRAPER_INITIAL_DELAY_SECONDS = 300
 _SCRAPER_SUBPROCESS_TIMEOUT_SECONDS = 7200
 _UV_COMMAND = "uv"
-_EMBED_BASE_DELAY_SECONDS = 6.0
-_EMBED_BATCH_SIZE = 20
-_CURATE_BASE_DELAY_SECONDS = 6.0
 
+# Fixed operational defaults (not env-configurable).
 # ``main.py`` output keys -> ``scraper_logs.source`` / article ``source`` field (VARCHAR 50).
 _FOLDER_TO_SOURCE_LABEL: dict[str, str] = {
     "bloomberg": "BLOOMBERG",
@@ -245,6 +243,14 @@ def _build_embedding_input(title: Optional[str], content: str) -> str:
     return cleaned_title or cleaned_content
 
 
+def _single_line_log_preview(raw_text: Optional[str], max_chars: int) -> str:
+    """Collapse whitespace and truncate for safe single-line log output."""
+    collapsed = " ".join(str(raw_text or "").split())
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return f"{collapsed[: max(0, max_chars - 3)]}..."
+
+
 def _gemini_post_json_sync(url: str, payload: dict[str, Any]) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
     request = Request(
@@ -284,52 +290,79 @@ def _parse_embedding_vector(payload: Any) -> Optional[list[float]]:
     return vector
 
 
-async def _embed_texts_with_gemini(
-    text_values: list[str],
-    *,
-    delay_state: Optional[dict[str, float]] = None,
-) -> list[Optional[list[float]]]:
+async def _embed_texts_with_gemini(text_values: list[str]) -> list[Optional[list[float]]]:
+    """
+    Run Gemini ``embedContent`` for each chunk entry sequentially.
+
+    No fixed pause between successes by default. When Gemini returns HTTP 429, sleeps with
+    exponential backoff (``GEMINI_EMBED_429_*`` settings) then retries that same text until
+    success or retries are exhausted.
+
+    Setting ``GEMINI_EMBED_DELAY_SECONDS`` above zero adds optional pacing before every attempt.
+    """
     if not settings.GEMINI_API_KEY.strip() or not text_values:
         return [None for _ in text_values]
+
+    pacing_seconds = float(max(settings.GEMINI_EMBED_DELAY_SECONDS, 0.0))
+
+    backoff_floor = float(max(settings.GEMINI_EMBED_429_INITIAL_BACKOFF_SECONDS, 1e-3))
+    backoff_ceiling = float(max(settings.GEMINI_EMBED_429_MAX_BACKOFF_SECONDS, backoff_floor))
+    max_attempts_per_text = int(max(settings.GEMINI_EMBED_429_MAX_RETRIES, 1))
+
+    logger.info(
+        "Gemini embedContent: %s text(s); optional_pacing_s=%s; "
+        "429_backoff_floor_s=%s 429_cap_s=%s max_attempts_per_text=%s.",
+        len(text_values),
+        pacing_seconds,
+        backoff_floor,
+        backoff_ceiling,
+        max_attempts_per_text,
+    )
     endpoint = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{settings.GEMINI_EMBEDDING_MODEL}:embedContent?key={settings.GEMINI_API_KEY}"
     )
     vectors: list[Optional[list[float]]] = []
     for text_value in text_values:
-        if delay_state is not None:
-            current_delay = float(
-                max(delay_state.get("current_delay", _EMBED_BASE_DELAY_SECONDS), 0.0),
-            )
-            await asyncio.sleep(current_delay)
-
         payload = {
             "model": f"models/{settings.GEMINI_EMBEDDING_MODEL}",
             "content": {"parts": [{"text": text_value}]},
             "outputDimensionality": settings.GEMINI_EMBEDDING_DIMENSIONS,
         }
-        try:
-            response = await asyncio.to_thread(_gemini_post_json_sync, endpoint, payload)
-        except HTTPError as exc:
-            if exc.code == 429 and delay_state is not None:
-                current_delay = float(
-                    max(delay_state.get("current_delay", _EMBED_BASE_DELAY_SECONDS), 0.0),
-                )
-                next_delay = max(current_delay, _EMBED_BASE_DELAY_SECONDS) * 2
-                delay_state["current_delay"] = next_delay
-                logger.warning(
-                    "Gemini embedding rate-limited (429). Increasing embed delay to %.1fs.",
-                    next_delay,
-                )
-            logger.warning("Gemini embedding request failed: %s", exc)
-            vectors.append(None)
-            continue
-        except (URLError, TimeoutError) as exc:
-            logger.warning("Gemini embedding request failed: %s", exc)
-            vectors.append(None)
-            continue
 
-        vectors.append(_parse_embedding_vector(response))
+        backoff_seconds = backoff_floor
+        parsed_vector: Optional[list[float]] = None
+
+        for attempt_index in range(1, max_attempts_per_text + 1):
+            if pacing_seconds > 0:
+                await asyncio.sleep(pacing_seconds)
+            try:
+                response_payload = await asyncio.to_thread(_gemini_post_json_sync, endpoint, payload)
+            except HTTPError as exc:
+                if exc.code == 429:
+                    pause_seconds = min(backoff_seconds, backoff_ceiling)
+                    logger.warning(
+                        "Gemini embedding HTTP 429 (attempt %s/%s); sleeping %.2fs before retry.",
+                        attempt_index,
+                        max_attempts_per_text,
+                        pause_seconds,
+                    )
+                    await asyncio.sleep(pause_seconds)
+                    backoff_seconds = min(backoff_seconds * 2.0, backoff_ceiling)
+                    continue
+                logger.warning("Gemini embedding request failed: %s", exc)
+                parsed_vector = None
+                break
+            except (URLError, TimeoutError) as exc:
+                logger.warning("Gemini embedding request failed: %s", exc)
+                parsed_vector = None
+                break
+
+            parsed_vector = _parse_embedding_vector(response_payload)
+            break
+
+        vectors.append(parsed_vector)
+
     return vectors
 
 
@@ -369,7 +402,7 @@ async def _rephrase_news_item_with_gemini(
         return None
     if delay_state is not None:
         current_delay = float(
-            max(delay_state.get("current_delay", _CURATE_BASE_DELAY_SECONDS), 0.0),
+            max(delay_state.get("current_delay", settings.GEMINI_CURATE_DELAY_SECONDS), 0.0),
         )
         await asyncio.sleep(current_delay)
     endpoint = (
@@ -384,8 +417,11 @@ async def _rephrase_news_item_with_gemini(
         "You are a crypto news editor. The article below may be written in any language.\n"
         "Your entire response MUST be in English only: translate where needed.\n"
         "Return strict JSON with exactly these keys:\n"
-        '  "headline": string — a short English headline for a news feed (max ~120 characters);\n'
-        '  "summary": string — a concise neutral English summary for end users (2–5 sentences);\n'
+        '  "headline": string — plain text only, short English headline for a news feed (max ~120 characters);\n'
+        '  "summary": string — English body formatted as GitHub-Flavored Markdown (not raw HTML). '
+        "Use short paragraphs, bullet lists for key takeaways when it helps clarity, and **bold** for tickers, "
+        "protocols, or pivotal figures. Avoid one long undifferentiated slab of text. "
+        "Do not use Markdown level-1 headings (#). Optional ### subheadings are allowed sparingly.\n"
         '  "sentiment_score": number — between -1 (bearish) and +1 (bullish).\n'
         "Do not put non-English text in headline or summary.\n\n"
         f"Source: {source}\n"
@@ -399,9 +435,9 @@ async def _rephrase_news_item_with_gemini(
     except HTTPError as exc:
         if exc.code == 429 and delay_state is not None:
             current_delay = float(
-                max(delay_state.get("current_delay", _CURATE_BASE_DELAY_SECONDS), 0.0),
+                max(delay_state.get("current_delay", settings.GEMINI_CURATE_DELAY_SECONDS), 0.0),
             )
-            next_delay = max(current_delay, _CURATE_BASE_DELAY_SECONDS) * 2
+            next_delay = max(current_delay, settings.GEMINI_CURATE_DELAY_SECONDS) * 2
             delay_state["current_delay"] = next_delay
             logger.warning(
                 "Gemini curation rate-limited (429). Increasing curate delay to %.1fs.",
@@ -513,17 +549,36 @@ async def _sync_news_into_knowledge_base_and_curated_news(
     *,
     force_curate: bool = False,
 ) -> dict[str, int]:
+    logger.info(
+        "News knowledge/curation pipeline starting "
+        "(force_curate=%s NEWS_KNOWLEDGE_SYNC_ENABLED=%s NEWS_CURATION_ENABLED=%s).",
+        force_curate,
+        settings.NEWS_KNOWLEDGE_SYNC_ENABLED,
+        settings.NEWS_CURATION_ENABLED,
+    )
     if not settings.NEWS_KNOWLEDGE_SYNC_ENABLED:
-        return {"knowledge_rows_inserted": 0, "curated_rows_inserted": 0}
+        logger.info(
+            "Skipping knowledge_base sync and curated_news pipeline "
+            "because NEWS_KNOWLEDGE_SYNC_ENABLED is false.",
+        )
+        return {
+            "knowledge_rows_inserted": 0,
+            "knowledge_embeddings_backfilled": 0,
+            "knowledge_embedding_failures": 0,
+            "curated_rows_inserted": 0,
+            "curated_rows_failed": 0,
+        }
 
     news_table = _schema_table("news_data")
     knowledge_table = _schema_table("knowledge_base")
     inserted_knowledge = 0
     embedding_failures = 0
     embedding_backfilled = 0
-    embed_delay_state: dict[str, float] = {"current_delay": _EMBED_BASE_DELAY_SECONDS}
     should_run_embedding_phase = False
 
+    logger.info(
+        "Querying database for knowledge_base embedding backlog (this should be quick).",
+    )
     async with async_session_factory() as session:
         missing_embedding_count = int(
             (
@@ -559,8 +614,21 @@ async def _sync_news_into_knowledge_base_and_curated_news(
         )
         should_run_embedding_phase = missing_embedding_count > 0 or unsynced_news_count > 0
 
+    logger.info(
+        "Knowledge_base counts: rows_with_null_embedding=%s news_data_rows_not_in_kb=%s "
+        "embedding_phase=%s",
+        missing_embedding_count,
+        unsynced_news_count,
+        should_run_embedding_phase,
+    )
+
     if should_run_embedding_phase:
-        # First, try to repair all existing rows that previously landed with NULL embeddings.
+        logger.info(
+            "Knowledge_base Gemini embedding phase begins: requests send without delay by default "
+            "(set GEMINI_EMBED_DELAY_SECONDS>0 for pacing); backoff only after HTTP 429; "
+            "large backlogs can still hit quota (see batch logs)."
+        )
+
         while True:
             async with async_session_factory() as session:
                 missing_embedding_rows = (
@@ -579,6 +647,11 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 if not missing_embedding_rows:
                     break
 
+                logger.info(
+                    "Knowledge_base embedding backfill: fetched %s row(s) with NULL embedding.",
+                    len(missing_embedding_rows),
+                )
+
                 round_updates = 0
                 candidates = [
                     (
@@ -592,11 +665,20 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 ]
                 embedding_failures += len(candidates) - len(valid_candidates)
 
-                for start in range(0, len(valid_candidates), _EMBED_BATCH_SIZE):
-                    chunk = valid_candidates[start : start + _EMBED_BATCH_SIZE]
+                for start in range(0, len(valid_candidates), settings.GEMINI_EMBED_BATCH_SIZE):
+                    chunk = valid_candidates[start : start + settings.GEMINI_EMBED_BATCH_SIZE]
+                    slice_end_exclusive = min(
+                        start + settings.GEMINI_EMBED_BATCH_SIZE,
+                        len(valid_candidates),
+                    )
+                    logger.info(
+                        "Knowledge_base backfill calling Gemini for texts %s–%s of %s in this DB batch.",
+                        start + 1,
+                        slice_end_exclusive,
+                        len(valid_candidates),
+                    )
                     vectors = await _embed_texts_with_gemini(
                         [text_value for _, text_value in chunk],
-                        delay_state=embed_delay_state,
                     )
                     for (row_id, _text_value), vector in zip(chunk, vectors):
                         if vector is None:
@@ -606,16 +688,32 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                             text(f"UPDATE {knowledge_table} SET embedding = :embedding WHERE id = :row_id"),
                             {"embedding": vector, "row_id": row_id},
                         )
+                        try:
+                            await session.commit()
+                        except SQLAlchemyError:
+                            await session.rollback()
+                            logger.exception(
+                                "knowledge_base embedding backfill commit failed for row_id=%s",
+                                row_id,
+                            )
+                            embedding_failures += 1
+                            continue
                         embedding_backfilled += 1
                         round_updates += 1
 
-                if round_updates > 0:
-                    await session.commit()
-                else:
+                    ok_in_chunk = sum(1 for vector in vectors if vector is not None)
+                    logger.info(
+                        "Knowledge_base backfill chunk finished: successes_in_chunk=%s failures_in_chunk=%s "
+                        "(cumulative backfilled=%s)",
+                        ok_in_chunk,
+                        len(chunk) - ok_in_chunk,
+                        embedding_backfilled,
+                    )
+
+                if round_updates <= 0:
                     # Avoid infinite loop when current quota prevents any successful backfill.
                     break
 
-        # Then process all news_data rows not represented in knowledge_base (in batches).
         while True:
             async with async_session_factory() as session:
                 result = await session.execute(
@@ -636,6 +734,12 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 rows = result.mappings().all()
                 if not rows:
                     break
+
+                logger.info(
+                    "Knowledge_base new inserts batch: syncing up to %s news_data row(s) into kb.",
+                    len(rows),
+                )
+
                 prepared = [
                     (
                         row,
@@ -645,19 +749,28 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 ]
                 valid_prepared = [(row, text_value) for row, text_value in prepared if text_value]
                 embedding_failures += len(prepared) - len(valid_prepared)
-                to_add: list[KnowledgeBase] = []
-                for start in range(0, len(valid_prepared), _EMBED_BATCH_SIZE):
-                    chunk = valid_prepared[start : start + _EMBED_BATCH_SIZE]
+                inserts_this_iteration = 0
+                for start in range(0, len(valid_prepared), settings.GEMINI_EMBED_BATCH_SIZE):
+                    chunk = valid_prepared[start : start + settings.GEMINI_EMBED_BATCH_SIZE]
+                    slice_end_exclusive = min(
+                        start + settings.GEMINI_EMBED_BATCH_SIZE,
+                        len(valid_prepared),
+                    )
+                    logger.info(
+                        "Knowledge_base insert batch calling Gemini for texts %s–%s of %s.",
+                        start + 1,
+                        slice_end_exclusive,
+                        len(valid_prepared),
+                    )
                     vectors = await _embed_texts_with_gemini(
                         [text_value for _row, text_value in chunk],
-                        delay_state=embed_delay_state,
                     )
                     for (row, _text_value), vector in zip(chunk, vectors):
                         if vector is None:
                             # Do not insert a knowledge row without embedding.
                             embedding_failures += 1
                             continue
-                        to_add.append(
+                        session.add(
                             KnowledgeBase(
                                 source_type="news",
                                 title=row.get("title"),
@@ -670,21 +783,104 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                                 },
                             )
                         )
-                if to_add:
-                    session.add_all(to_add)
-                    await session.commit()
-                    inserted_knowledge += len(to_add)
-                else:
+                        try:
+                            await session.commit()
+                        except SQLAlchemyError:
+                            await session.rollback()
+                            logger.exception(
+                                "knowledge_base insert commit failed for news_data_id=%s",
+                                row.get("id"),
+                            )
+                            embedding_failures += 1
+                            continue
+                        inserts_this_iteration += 1
+                        inserted_knowledge += 1
+
+                    ok_in_chunk = sum(1 for vector in vectors if vector is not None)
+                    logger.info(
+                        "Knowledge_base insert chunk finished: successes_in_chunk=%s failures_in_chunk=%s "
+                        "(cumulative inserted=%s)",
+                        ok_in_chunk,
+                        len(chunk) - ok_in_chunk,
+                        inserted_knowledge,
+                    )
+
+                if inserts_this_iteration <= 0:
                     # Avoid infinite loop when every row in current batch fails embedding.
                     break
 
+        logger.info("Knowledge_base Gemini embedding phase finished for this run.")
+
+    remaining_null_embeddings = 0
+    remaining_unsynced_news = 0
+    async with async_session_factory() as session:
+        remaining_null_embeddings = int(
+            (
+                await session.scalar(
+                    text(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {knowledge_table}
+                        WHERE source_type = 'news' AND embedding IS NULL
+                        """
+                    )
+                )
+            )
+            or 0
+        )
+        remaining_unsynced_news = int(
+            (
+                await session.scalar(
+                    text(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {news_table} nd
+                        WHERE NOT EXISTS (
+                            SELECT 1
+                            FROM {knowledge_table} kb
+                            WHERE kb.metadata ->> 'news_data_id' = nd.id::text
+                        )
+                        """
+                    )
+                )
+            )
+            or 0
+        )
+    embedding_backlog_remain = remaining_null_embeddings > 0 or remaining_unsynced_news > 0
+    logger.info(
+        "Knowledge_base gate for curation: "
+        "null_news_embeddings=%s news_data_not_in_knowledge_base=%s backlog_blocks_curation=%s",
+        remaining_null_embeddings,
+        remaining_unsynced_news,
+        embedding_backlog_remain,
+    )
+
     inserted_curated = 0
     curated_failures = 0
-    curate_delay_state: dict[str, float] = {"current_delay": _CURATE_BASE_DELAY_SECONDS}
+    curate_delay_state: dict[str, float] = {"current_delay": settings.GEMINI_CURATE_DELAY_SECONDS}
     curation_enabled = force_curate or settings.NEWS_CURATION_ENABLED
-    if curation_enabled and settings.GEMINI_API_KEY.strip() and not should_run_embedding_phase:
+
+    if curation_enabled and not settings.GEMINI_API_KEY.strip():
+        logger.warning(
+            "News curation/embeddings skipped: GEMINI_API_KEY is unset.",
+        )
+
+    if curation_enabled and settings.GEMINI_API_KEY.strip() and embedding_backlog_remain:
+        logger.info(
+            "Curated-news phase deferred until knowledge_base sync settles "
+            "(news rows with NULL embedding=%s news_data rows not in knowledge_base=%s). "
+            "Run /news/curate again after Gemini embedding catches up.",
+            remaining_null_embeddings,
+            remaining_unsynced_news,
+        )
+
+    if curation_enabled and settings.GEMINI_API_KEY.strip() and not embedding_backlog_remain:
+        limit_items = max(settings.NEWS_CURATION_MAX_ITEMS, 1)
+        logger.info(
+            "Curated-news phase running (max_items=%s).",
+            limit_items,
+        )
         async with async_session_factory() as session:
-            # Queue-style capped throughput: process only one curation batch per run.
             missing_curated_rows = (
                 await session.execute(
                     text(
@@ -701,10 +897,21 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                         """
                     ),
                     {
-                        "max_items": max(settings.NEWS_CURATION_MAX_ITEMS, 1),
+                        "max_items": limit_items,
                     },
                 )
             ).mappings().all()
+
+            pending_curate_count = len(missing_curated_rows)
+            logger.info(
+                "Curated-news: loaded %s news row(s) without a curated_news row this run.",
+                pending_curate_count,
+            )
+            if pending_curate_count == 0:
+                logger.info(
+                    "Curated-news: nothing to do (every ingested story already has curated_news "
+                    "or NEWS_CURATION_MAX_ITEMS yielded an empty batch).",
+                )
 
             for row in missing_curated_rows:
                 source = str(row.get("source") or "NEWS")
@@ -714,6 +921,12 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                 if not isinstance(published_at_value, datetime):
                     published_at_value = datetime.now(timezone.utc)
 
+                logger.info(
+                    "Curated-news: calling Gemini for news_data_id=%s source=%s title_preview=%s",
+                    row["id"],
+                    source,
+                    _single_line_log_preview(title, 160),
+                )
                 curated = await _rephrase_news_item_with_gemini(
                     source=source,
                     title=title,
@@ -722,6 +935,11 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                     delay_state=curate_delay_state,
                 )
                 if not curated:
+                    logger.warning(
+                        "Curated-news: Gemini did not produce a row for news_data_id=%s "
+                        "(see earlier WARNING lines for HTTP/JSON details).",
+                        row["id"],
+                    )
                     curated_failures += 1
                     continue
 
@@ -757,10 +975,26 @@ async def _sync_news_into_knowledge_base_and_curated_news(
                         data_points_used=dp_used,
                     )
                 )
+                try:
+                    await session.commit()
+                except SQLAlchemyError:
+                    await session.rollback()
+                    logger.exception(
+                        "curated_news insert commit failed for news_data_id=%s",
+                        row.get("id"),
+                    )
+                    curated_failures += 1
+                    continue
                 inserted_curated += 1
-
-            if inserted_curated > 0:
-                await session.commit()
+                logger.info(
+                    "Curated-news: committed news_data_id=%s curated_row_count_this_run=%s "
+                    "headline_preview=%s sentiment=%s asset_id=%s",
+                    row["id"],
+                    inserted_curated,
+                    _single_line_log_preview(english_headline or title, 160),
+                    curated.get("sentiment_score"),
+                    resolved_asset_id,
+                )
 
     if inserted_knowledge > 0:
         await _append_scraper_log("KNOWLEDGE_BASE", "SUCCESS", None, inserted_knowledge)
@@ -782,7 +1016,7 @@ async def _sync_news_into_knowledge_base_and_curated_news(
             f"Curation failed for {curated_failures} row(s).",
             curated_failures,
         )
-    return {
+    result_summary: dict[str, int] = {
         "knowledge_rows_inserted": inserted_knowledge,
         "knowledge_embeddings_backfilled": embedding_backfilled,
         "knowledge_embedding_failures": embedding_failures,
@@ -790,6 +1024,17 @@ async def _sync_news_into_knowledge_base_and_curated_news(
         "curated_rows_failed": curated_failures,
     }
 
+    logger.info(
+        "News knowledge/curation pipeline finished: "
+        "knowledge_inserted=%s embedding_backfilled=%s embedding_failures=%s "
+        "curated_inserted=%s curated_failed=%s",
+        inserted_knowledge,
+        embedding_backfilled,
+        embedding_failures,
+        inserted_curated,
+        curated_failures,
+    )
+    return result_summary
 
 async def run_news_curation_once() -> dict[str, int]:
     """
