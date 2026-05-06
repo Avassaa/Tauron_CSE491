@@ -4,6 +4,10 @@ import { createTauronFinanceTools } from "~/lib/ai/gemini-chat-tools"
 import { formatAssistantPageContextForSystemPrompt } from "~/lib/ai/assistant-client-page-context"
 import { internalJsonFetch, resolveInternalApiBaseUrl } from "~/lib/ai/gemini-internal-api"
 import { getGeminiChatModel, resolveGeminiApiKey } from "~/lib/ai/gemini-model"
+import {
+  assistantBodyTextFromFinish,
+  buildPersistedAssistantUiParts,
+} from "~/lib/ai/persist-assistant-ui-parts.server"
 import { TAURON_CHAT_SYSTEM_PROMPT } from "~/lib/ai/gemini-system-prompt"
 
 function textFromUIMessagePayload(message: UIMessage): string {
@@ -67,7 +71,7 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
     return Response.json({ error: "Expected a non-empty `messages` array." }, { status: 400 })
   }
 
-  const saveMessageToDb = async (role: string, content: string) => {
+  const saveMessageToDb = async (role: string, content: string, uiPayload?: Record<string, unknown> | null) => {
     if (!authHeader || !sessionId) {
       if (!sessionId) {
         console.warn("[api/chat] Skipped DB persist: missing session id on request body")
@@ -77,14 +81,23 @@ export async function handleGeminiChatPost(request: Request): Promise<Response> 
       return
     }
     try {
+      const body: {
+        session_id: string
+        role: string
+        content: string
+        ui_payload?: Record<string, unknown>
+      } = {
+        session_id: sessionId,
+        role,
+        content,
+      }
+      if (uiPayload && Object.keys(uiPayload).length > 0) {
+        body.ui_payload = uiPayload
+      }
       const res = await internalJsonFetch<{ detail?: string }>(`/chat-history`, {
         authHeader,
         method: "POST",
-        body: {
-          session_id: sessionId,
-          role,
-          content,
-        },
+        body,
       })
       if (!res.ok) {
         console.error(`[api/chat] Failed to save DB message: ${res.status}`, res.rawBody)
@@ -141,7 +154,11 @@ ${ctxBlock}
             stepCount: steps?.length ?? 0,
           }),
         )
-        await saveMessageToDb("assistant", text ?? "")
+        const stepList = steps ?? []
+        const persistedParts = buildPersistedAssistantUiParts(stepList)
+        const bodyText = assistantBodyTextFromFinish(text, stepList)
+        const uiPayload = persistedParts.length > 0 ? { v: 1, parts: persistedParts } : null
+        await saveMessageToDb("assistant", bodyText, uiPayload)
       },
     })
 
