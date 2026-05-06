@@ -5,6 +5,7 @@ import { AlarmClock, Bell, CheckCheck, Info, LayoutGrid } from "lucide-react"
 import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
+import { glassPanelSurface } from "~/components/ui/card"
 import {
   Popover,
   PopoverContent,
@@ -38,8 +39,8 @@ function getNotificationCondition(item: NotificationResponse) {
 }
 
 function NotificationIcon({ item }: { item: NotificationResponse }) {
-  if (item.type === "price_alert") return <AlarmClock className="size-5" />
-  return <Info className="size-5" />
+  if (item.type === "price_alert") return <AlarmClock className="size-4" />
+  return <Info className="size-4" />
 }
 
 export function NotificationInbox() {
@@ -121,28 +122,49 @@ export function NotificationInbox() {
           Notifications — unread and recent alerts
         </TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" side="bottom" sideOffset={12} className="w-[360px] overflow-hidden rounded-2xl p-0">
-        <div className="flex items-center justify-between border-b px-5 py-4">
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={12}
+        className={cn(
+          glassPanelSurface,
+          "w-[360px] overflow-hidden rounded-2xl border-border/55 bg-white/88 p-0 shadow-xl backdrop-blur-xl backdrop-saturate-125",
+          "dark:border-border/50 dark:bg-background/50",
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-border/40 bg-white/55 px-5 py-3.5 backdrop-blur-md dark:bg-background/35">
           <div className="text-lg font-semibold">Notifications</div>
           <div className="flex items-center gap-1">
-            <Tooltip delayDuration={200}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  onClick={markAllRead}
-                  disabled={unreadCount === 0}
-                  aria-label="Mark all notifications as read"
-                >
-                  <CheckCheck className="size-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent variant="inverted" side="bottom">
-                Mark all as read
-              </TooltipContent>
-            </Tooltip>
+            {unreadCount === 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                disabled
+                aria-label="Mark all notifications as read"
+              >
+                <CheckCheck className="size-4" />
+              </Button>
+            ) : (
+              <Tooltip delayDuration={400}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={markAllRead}
+                    aria-label="Mark all notifications as read"
+                  >
+                    <CheckCheck className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent variant="inverted" side="bottom">
+                  Mark every notification as read
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
                 <span className="inline-flex rounded-md">
@@ -169,7 +191,7 @@ export function NotificationInbox() {
           <div
             className={cn(
               INBOX_LIST_MAX_HEIGHT_CLASS,
-              "overflow-y-auto overscroll-contain overflow-x-hidden",
+              "overflow-y-auto overscroll-contain overflow-x-hidden scrollbar-none",
             )}
           >
             {items.map((item) => (
@@ -180,10 +202,10 @@ export function NotificationInbox() {
                 key={item.id}
                 type="button"
                 className={cn(
-                  "relative flex w-full gap-4 border-b px-5 py-4 text-left transition-colors last:border-b-0",
-                  item.is_read
-                    ? "bg-background text-muted-foreground hover:bg-muted/40"
-                    : "bg-blue-500/10 text-foreground shadow-[inset_3px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
+                  "relative flex w-full gap-4 border-b border-border/35 px-5 py-4 text-left transition-colors last:border-b-0",
+                  item.is_read ?
+                    "bg-transparent text-muted-foreground hover:bg-white/55 dark:hover:bg-white/[0.04]"
+                  : "bg-primary/8 text-foreground shadow-[inset_3px_0_0_hsl(var(--primary))] backdrop-blur-sm hover:bg-primary/12 dark:bg-primary/12",
                 )}
                 onClick={() => {
                   if (!item.is_read) void markRead(item.id)
@@ -191,10 +213,8 @@ export function NotificationInbox() {
               >
                 <div
                   className={cn(
-                    "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full",
-                    item.is_read
-                      ? "text-muted-foreground"
-                      : "bg-primary/10 text-primary"
+                    "mt-0.5 flex size-9 shrink-0 items-center justify-center",
+                    item.is_read ? "text-muted-foreground" : "text-primary",
                   )}
                 >
                   <NotificationIcon item={item} />

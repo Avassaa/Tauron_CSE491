@@ -1,13 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { AlarmClock, Bell, CheckCheck, Info } from "lucide-react"
+import { AlarmClock, Bell, Check, CheckCheck, ChevronDown, Info, SlidersHorizontal } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { CollapsiblePageNav } from "~/components/dashboard/collapsible-page-nav"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
+import { glassPanelSurface } from "~/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import { Separator } from "~/components/ui/separator"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Skeleton } from "~/components/ui/skeleton"
@@ -35,15 +42,25 @@ function getNotificationCondition(item: NotificationResponse) {
 }
 
 function NotificationIcon({ item }: { item: NotificationResponse }) {
-  if (item.type === "price_alert") return <AlarmClock className="size-5" />
-  return <Info className="size-5" />
+  if (item.type === "price_alert") return <AlarmClock className="size-4" />
+  return <Info className="size-4" />
 }
+
+type NotificationFilter = "all" | "unread" | "read"
+
+const NOTIFICATION_FILTER_OPTIONS: { value: NotificationFilter; label: string; description: string }[] = [
+  { value: "all", label: "All", description: "Every notification" },
+  { value: "unread", label: "Unread", description: "Not marked as read" },
+  { value: "read", label: "Read", description: "Already opened" },
+]
 
 export default function NotificationsPage() {
   const mainScrollRef = React.useRef<HTMLDivElement>(null)
   const [items, setItems] = React.useState<NotificationResponse[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+
+  const [filter, setFilter] = React.useState<NotificationFilter>("all")
 
   const refresh = React.useCallback(async () => {
     setLoading(true)
@@ -94,6 +111,14 @@ export default function NotificationsPage() {
 
   const unreadCount = items.filter((item) => !item.is_read).length
 
+  const filteredItems = React.useMemo(() => {
+    if (filter === "unread") return items.filter((i) => !i.is_read)
+    if (filter === "read") return items.filter((i) => i.is_read)
+    return items
+  }, [items, filter])
+
+  const filterLabel = NOTIFICATION_FILTER_OPTIONS.find((o) => o.value === filter)?.label ?? "All"
+
   return (
     <AuthGuard>
       <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
@@ -138,10 +163,15 @@ export default function NotificationsPage() {
               items={[{ id: "inbox", label: "Inbox", icon: Bell }]}
               onSelect={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
             />
-            <div ref={mainScrollRef} className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+            <div ref={mainScrollRef} className="min-h-0 min-w-0 flex-1 overflow-auto p-4 scrollbar-none">
               <section className="space-y-5">
-                <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
-                  <div className="min-w-0">
+                <div
+                  className={cn(
+                    glassPanelSurface,
+                    "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-2xl border-border/55 bg-white/80 px-5 py-4 shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:bg-background/45",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 font-semibold">
                       <Bell className="size-4 text-primary" />
                       Notification inbox
@@ -152,27 +182,59 @@ export default function NotificationsPage() {
                         : "You are all caught up."}
                     </div>
                   </div>
-                  <Tooltip delayDuration={200}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="gap-2"
-                        onClick={markAllRead}
-                        disabled={unreadCount === 0}
-                      >
+                  <div className="flex shrink-0 items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-10 rounded-2xl px-3 text-[10px] font-black uppercase tracking-wider">
+                          <SlidersHorizontal className="mr-1 size-3.5" />
+                          {filterLabel}
+                          <ChevronDown className="ml-1 size-3 opacity-70" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {NOTIFICATION_FILTER_OPTIONS.map((option) => (
+                          <DropdownMenuItem
+                            key={option.value}
+                            onSelect={() => setFilter(option.value)}
+                            className="flex cursor-pointer items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold">{option.label}</div>
+                              <div className="text-[10px] text-muted-foreground">{option.description}</div>
+                            </div>
+                            {filter === option.value ? <Check className="size-3 shrink-0 text-primary" aria-hidden /> : null}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {unreadCount === 0 ? (
+                      <Button type="button" variant="outline" className="gap-2" disabled>
                         <CheckCheck className="size-4" />
                         Mark all read
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent variant="inverted" side="left">
-                      Mark every notification as read
-                    </TooltipContent>
-                  </Tooltip>
+                    ) : (
+                      <Tooltip delayDuration={400}>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="outline" className="gap-2" onClick={markAllRead}>
+                            <CheckCheck className="size-4" />
+                            Mark all read
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent variant="inverted" side="left">
+                          Mark every notification as read
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border">
-                  <div className="border-b px-5 py-4">
+                <div
+                  className={cn(
+                    glassPanelSurface,
+                    "overflow-hidden rounded-2xl border-border/55 bg-white/80 shadow-sm backdrop-blur-xl backdrop-saturate-125 dark:bg-background/45",
+                  )}
+                >
+                  <div className="border-b border-border/40 bg-white/50 px-5 py-4 backdrop-blur-md dark:bg-background/30">
                     <div className="text-xl font-semibold">All notifications</div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Price alert notifications and future system messages appear here.
@@ -191,13 +253,13 @@ export default function NotificationsPage() {
                       <Skeleton className="h-16 w-full" />
                       <Skeleton className="h-16 w-full" />
                     </div>
-                  ) : items.length === 0 ? (
+                  ) : filteredItems.length === 0 ? (
                     <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                      No notifications yet.
+                      {items.length === 0 ? "No notifications yet." : "No notifications match this filter."}
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {items.map((item) => (
+                      {filteredItems.map((item) => (
                         (() => {
                           const condition = getNotificationCondition(item)
                           return (
@@ -206,9 +268,9 @@ export default function NotificationsPage() {
                           type="button"
                           className={cn(
                             "relative flex w-full gap-4 px-5 py-4 text-left transition-colors",
-                            item.is_read
-                              ? "bg-background text-muted-foreground hover:bg-muted/40"
-                              : "bg-blue-500/10 text-foreground shadow-[inset_4px_0_0_hsl(var(--primary))] ring-1 ring-inset ring-blue-500/10 hover:bg-blue-500/15"
+                            item.is_read ?
+                              "bg-transparent text-muted-foreground hover:bg-white/55 dark:hover:bg-white/[0.04]"
+                            : "bg-primary/8 text-foreground shadow-[inset_4px_0_0_hsl(var(--primary))] backdrop-blur-sm hover:bg-primary/12 dark:bg-primary/12",
                           )}
                           onClick={() => {
                             if (!item.is_read) void markRead(item.id)
@@ -216,10 +278,8 @@ export default function NotificationsPage() {
                         >
                           <div
                             className={cn(
-                              "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full border",
-                              item.is_read
-                                ? "border-border text-muted-foreground"
-                                : "border-primary/15 bg-primary/10 text-primary"
+                              "mt-0.5 flex size-9 shrink-0 items-center justify-center",
+                              item.is_read ? "text-muted-foreground" : "text-primary",
                             )}
                           >
                             <NotificationIcon item={item} />
