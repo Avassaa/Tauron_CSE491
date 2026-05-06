@@ -12,6 +12,7 @@ import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { AssetPagination } from "~/components/assets"
 import { glassCardSurface } from "~/components/ui/card"
+import { MarkdownContent } from "~/components/ui/markdown-content"
 import { apiGet, apiPost, type CuratedNewsResponse, type PaginatedResponse } from "~/lib/api-client"
 import { cn } from "~/lib/utils"
 
@@ -297,9 +298,9 @@ export default function NewsPage() {
                     {headline ? (
                       <h2 className="mt-2 text-sm font-semibold leading-snug text-foreground">{headline}</h2>
                     ) : null}
-                    <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                      {item.summary}
-                    </p>
+                    <div className="mt-2 max-h-[5.75rem] overflow-hidden text-ellipsis">
+                      <MarkdownContent tone="muted">{item.summary}</MarkdownContent>
+                    </div>
                     <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-primary/80">
                       Read full article →
                     </p>

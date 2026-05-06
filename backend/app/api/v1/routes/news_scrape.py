@@ -37,8 +37,11 @@ def _schedule_background_ingest() -> None:
 
 
 def _schedule_background_curate() -> None:
+    logger.info("Queued background news curation (POST /api/v1/news/curate accepted).")
+
     async def _runner() -> None:
         try:
+            logger.info("Background news curation run started.")
             summary = await run_news_curation_once()
             logger.info("Background news curation finished: %s", summary)
         except Exception:

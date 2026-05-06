@@ -734,7 +734,9 @@ function NewsArticleBody({
                 <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
                   Curated summary
                 </h2>
-                <p className={cn("whitespace-pre-wrap", bodyText)}>{item.summary}</p>
+                <MarkdownContent textClassName={bodyText} className="mt-0.5">
+                  {item.summary}
+                </MarkdownContent>
               </CardContent>
             </Card>
 

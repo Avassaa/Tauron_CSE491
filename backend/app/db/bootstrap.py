@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import InvalidOperation
 from typing import Optional
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import quote, urlencode, urlparse, urlunparse
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -30,6 +30,7 @@ _COINMETRICS_URL = "https://community-api.coinmetrics.io/v4/timeseries/asset-met
 _COINMETRICS_CATALOG_URL = "https://community-api.coinmetrics.io/v4/catalog/asset-metrics"
 _BINANCE_EXCHANGE_INFO_URL = "https://api.binance.com/api/v3/exchangeInfo"
 _BINANCE_TICKER_24H_URL = "https://api.binance.com/api/v3/ticker/24hr"
+_BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 _COINMETRICS_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _METRIC_BATCH_SIZE = 30
 _FALLBACK_METRICS = ["ReferenceRateUSD", "CapMrktCurUSD", "SplyCur", "TxCnt"]
@@ -762,6 +763,8 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
             asset_seed_rows,
         )
 
+    await auto_populate_market_data_if_empty(engine)
+
     logger.info("Auto-populate: ensuring configured symbols have on-chain metrics.")
 
     async with engine.connect() as conn:
@@ -952,6 +955,279 @@ async def auto_populate_onchain_if_empty(engine: AsyncEngine) -> None:
             to_insert,
         )
     logger.info("Auto-populate completed: %s on_chain_metrics rows upserted.", len(to_insert))
+
+
+def _compose_binance_spot_pair_slug(base_asset_symbol: str, quote_asset: str) -> str | None:
+    """Join base and quote for Binance Spot klines requests, or decline invalid pairs."""
+
+    stripped_base = base_asset_symbol.strip().upper()
+    stripped_quote = quote_asset.strip().upper()
+    if not stripped_base or not stripped_quote:
+        return None
+    if stripped_base == stripped_quote:
+        return None
+    if not _SAFE_ASSET_SYMBOL.match(stripped_base):
+        return None
+    composite = f"{stripped_base}{stripped_quote}"
+    if len(composite) > 24:
+        return None
+    return composite
+
+
+def _fetch_binance_klines_segment_sync(*, pair_symbol: str, interval: str, start_ms: int, end_ms: int) -> list[list]:
+    """
+    Retrieve up to ``limit`` klines ascending by open time inside an inclusive millis window.
+
+    Returns the raw Binance JSON array payloads (list rows) upon success, otherwise [].
+    """
+
+    window_lo = int(min(start_ms, end_ms))
+    window_hi = int(max(start_ms, end_ms))
+    query = urlencode(
+        {
+            "symbol": pair_symbol,
+            "interval": interval,
+            "startTime": str(window_lo),
+            "endTime": str(window_hi),
+            "limit": "1000",
+        }
+    )
+    full_url = f"{_BINANCE_KLINES_URL}?{query}"
+    request_builder = Request(full_url, headers={"User-Agent": "tauron-bootstrap/1.0"})
+    try:
+        with urlopen(request_builder, timeout=60, context=_COINMETRICS_SSL_CONTEXT) as response_handle:
+            payload = json.loads(response_handle.read().decode("utf-8"))
+    except HTTPError:
+        return []
+    except Exception:
+        logger.exception(
+            "Binance klines request failed unexpectedly for interval=%s symbol=%s",
+            interval,
+            pair_symbol,
+        )
+        return []
+
+    return payload if isinstance(payload, list) else []
+
+
+def _materialize_daily_market_payloads_from_klines(
+    *,
+    asset_primary_key_text: str,
+    klines_nested_arrays: list[list],
+) -> list[dict[str, object]]:
+    """Flatten Binance kline arrays into dictionaries suitable for Postgres upsert."""
+
+    materialized_batches: list[dict[str, object]] = []
+
+    for kline_row in klines_nested_arrays:
+        if not isinstance(kline_row, list) or len(kline_row) < 6:
+            continue
+        opened_at_millis_raw = kline_row[0]
+        try:
+            opened_at_epoch_ms = int(opened_at_millis_raw)
+        except (TypeError, ValueError):
+            continue
+
+        bucket_open_wallclock = datetime.fromtimestamp(
+            opened_at_epoch_ms / 1000.0,
+            tz=timezone.utc,
+        )
+
+        numeric_open_price = float(kline_row[1])
+        numeric_high_price = float(kline_row[2])
+        numeric_low_price = float(kline_row[3])
+        numeric_close_price = float(kline_row[4])
+        numeric_base_volume_total = float(kline_row[5])
+
+        materialized_batches.append(
+            {
+                "time": bucket_open_wallclock,
+                "asset_id": asset_primary_key_text,
+                "open": numeric_open_price,
+                "high": numeric_high_price,
+                "low": numeric_low_price,
+                "close": numeric_close_price,
+                "volume": numeric_base_volume_total,
+                "resolution": "1d",
+            }
+        )
+
+    return materialized_batches
+
+
+def _harvest_daily_klines_across_deep_history_sync(pair_symbol: str, lookback_days: int) -> list[list]:
+    """Page Binance ``1d`` klines forward from the lookback horizon through the current wall clock."""
+
+    if lookback_days <= 0:
+        return []
+
+    millisecond_span_per_day = 86_400_000
+
+    coarse_end_epoch_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    coarse_start_epoch_ms = int(
+        (datetime.now(timezone.utc) - timedelta(days=lookback_days)).timestamp() * 1000
+    )
+
+    chronological_accumulator: list[list] = []
+    rolling_window_start_ms = coarse_start_epoch_ms
+
+    maximum_http_round_trips = max(lookback_days // 900 + 6, 12)
+    http_round_trips_completed = 0
+
+    while rolling_window_start_ms <= coarse_end_epoch_ms and http_round_trips_completed < maximum_http_round_trips:
+        http_round_trips_completed += 1
+        segment_payload = _fetch_binance_klines_segment_sync(
+            pair_symbol=pair_symbol,
+            interval="1d",
+            start_ms=rolling_window_start_ms,
+            end_ms=coarse_end_epoch_ms,
+        )
+        if not segment_payload:
+            break
+        chronological_accumulator.extend(segment_payload)
+        last_kline_open_ms = int(segment_payload[-1][0])
+        rolling_window_start_ms = last_kline_open_ms + millisecond_span_per_day
+        if len(segment_payload) < 1000:
+            break
+
+    deduplicated_by_open_time: dict[int, list] = {}
+    for candidate_row in chronological_accumulator:
+        if not isinstance(candidate_row, list) or not candidate_row:
+            continue
+        opened_at_key = int(candidate_row[0])
+        if opened_at_key < coarse_start_epoch_ms or opened_at_key > coarse_end_epoch_ms:
+            continue
+        deduplicated_by_open_time[opened_at_key] = candidate_row
+
+    ordered_open_stamps = sorted(deduplicated_by_open_time.keys())
+    return [deduplicated_by_open_time[stamp] for stamp in ordered_open_stamps]
+
+
+async def auto_populate_market_data_if_empty(engine: AsyncEngine) -> None:
+    """
+    When ``market_data`` is empty, hydrate daily Binance Spot OHLC rows for capped active assets.
+
+    Intended for compose-first-boot alongside ``auto_populate_onchain_if_empty`` so ML joins close prices.
+    """
+
+    if not settings.AUTO_POPULATE_MARKET_DATA_ON_EMPTY_DB:
+        return
+
+    if engine.dialect.name != "postgresql":
+        return
+
+    schema_namespace = settings.effective_database_schema
+
+    dotted_table_prefix_piece = f'"{schema_namespace}".' if schema_namespace else ""
+
+    async with engine.connect() as conn:
+        count_scalar = await conn.scalar(text(f"SELECT COUNT(*) FROM {dotted_table_prefix_piece}market_data"))
+
+    total_rows_existing = int(count_scalar or 0)
+
+    if total_rows_existing > 0:
+        logger.info(
+            "Market-data auto-populate skipped: market_data already has %s rows.",
+            total_rows_existing,
+        )
+        return
+
+    asset_row_cap = max(int(settings.AUTO_POPULATE_MARKET_DATA_MAX_ASSETS), 1)
+    lookback_span_days = max(int(settings.AUTO_POPULATE_MARKET_DATA_LOOKBACK_DAYS), 30)
+    quote_currency = settings.AUTO_POPULATE_MARKET_DATA_QUOTE_ASSET.strip().upper() or "USDT"
+
+    async with engine.connect() as conn:
+        asset_cursor = await conn.execute(
+            text(
+                f"""
+                SELECT id::text AS asset_id_text, symbol
+                FROM {dotted_table_prefix_piece}assets
+                WHERE is_active IS TRUE
+                ORDER BY symbol ASC
+                LIMIT :row_cap
+                """
+            ),
+            {"row_cap": asset_row_cap},
+        )
+        asset_mapping_tuples = asset_cursor.mappings().all()
+
+    if not asset_mapping_tuples:
+        logger.warning("Market-data auto-populate skipped: zero active assets in registry.")
+        return
+
+    logger.info(
+        "Market-data auto-populate starting for up to %s assets (lookback_days=%s quote=%s).",
+        len(asset_mapping_tuples),
+        lookback_span_days,
+        quote_currency,
+    )
+
+    accumulated_market_rows: list[dict[str, object]] = []
+
+    for asset_row in asset_mapping_tuples:
+        symbol_text = str(asset_row["symbol"]).strip().upper()
+        asset_uuid_text = str(asset_row["asset_id_text"])
+
+        pair_token = _compose_binance_spot_pair_slug(symbol_text, quote_currency)
+        if pair_token is None:
+            logger.warning(
+                "Market-data auto-populate skipped symbol=%s (cannot compose Binance pair).",
+                symbol_text,
+            )
+            continue
+
+        deep_klines_nested = await asyncio.to_thread(
+            _harvest_daily_klines_across_deep_history_sync,
+            pair_token,
+            lookback_span_days,
+        )
+
+        if not deep_klines_nested:
+            logger.warning(
+                "Market-data auto-populate Binance returned no rows for symbol=%s pair=%s",
+                symbol_text,
+                pair_token,
+            )
+            continue
+
+        accumulated_market_rows.extend(
+            _materialize_daily_market_payloads_from_klines(
+                asset_primary_key_text=asset_uuid_text,
+                klines_nested_arrays=deep_klines_nested,
+            )
+        )
+
+        await asyncio.sleep(0.12)
+
+    if not accumulated_market_rows:
+        logger.warning("Market-data auto-populate finished with zero rows inserted.")
+        return
+
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                f"""
+                INSERT INTO {dotted_table_prefix_piece}market_data
+                    (time, asset_id, open, high, low, close, volume, resolution)
+                VALUES
+                    (:time, CAST(:asset_id AS uuid), :open, :high, :low, :close, :volume, :resolution)
+                ON CONFLICT (time, asset_id)
+                DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume,
+                    resolution = EXCLUDED.resolution
+                """
+            ),
+            accumulated_market_rows,
+        )
+
+    logger.info(
+        "Market-data auto-populate completed: %s market_data rows upserted.",
+        len(accumulated_market_rows),
+    )
 
 
 async def backfill_onchain_for_asset(

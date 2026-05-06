@@ -1,15 +1,18 @@
 """Model predictions time series (read: JWT; write: admin)."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import PaginationParams, get_pagination
 from app.core.security import get_current_user_id, require_admin_api_key
+from app.db.models.market_data import MarketData
 from app.db.models.predictions import Prediction
+from app.db.repositories.ml_model_repository import MlModelRepository
 from app.db.repositories.prediction_repository import PredictionRepository
+from app.db.repositories.timeseries_repositories import MarketDataRepository
 from app.db.session import get_db_session
 from app.models.request.table_requests import (
     PredictionBatchRequest,
@@ -17,6 +20,8 @@ from app.models.request.table_requests import (
 )
 from app.models.response.table_responses import (
     AssetPredictionSummaryResponse,
+    MarketDataResponse,
+    MlModelResponse,
     PaginatedResponse,
     PredictionResponse,
 )
@@ -40,23 +45,98 @@ def _to_prediction_response(row: Prediction) -> PredictionResponse:
     )
 
 
+def _to_market_data_response(row: MarketData) -> MarketDataResponse:
+    """Map OHLCV ORM row to API model."""
+    return MarketDataResponse(
+        time=row.time,
+        asset_id=row.asset_id,
+        open=float(row.open),
+        high=float(row.high),
+        low=float(row.low),
+        close=float(row.close),
+        volume=float(row.volume),
+        resolution=row.resolution,
+    )
+
+
+_PREDICTIONS_DEFAULT_HISTORY_DAYS = 730
+_PREDICTIONS_DEFAULT_FUTURE_DAYS = 365
+
+
+@router.get("/models", response_model=PaginatedResponse[MlModelResponse])
+async def list_models_under_predictions_alias(
+    pagination: PaginationParams = Depends(get_pagination),
+    asset_id: uuid.UUID | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """List ML models via the predictions UI path (delegates to ``ml-models`` semantics)."""
+    repository = MlModelRepository(session)
+    total = await repository.count(asset_id=asset_id, is_active=is_active)
+    rows = await repository.list_page(
+        offset=pagination.offset,
+        limit=pagination.page_size,
+        asset_id=asset_id,
+        is_active=is_active,
+    )
+    return PaginatedResponse(
+        items=[MlModelResponse.model_validate(r) for r in rows],
+        total=total,
+        page=pagination.page,
+        page_size=pagination.page_size,
+    )
+
+
+@router.get("/market-data", response_model=list[MarketDataResponse])
+async def list_market_data_under_predictions_alias(
+    asset_id: uuid.UUID = Query(),
+    limit: int = Query(default=720, ge=1, le=10000),
+    resolution: str = Query(default="1h"),
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Return recent candles for charts (last ``limit`` steps at ``resolution``)."""
+    time_to = datetime.now(timezone.utc)
+    time_from = time_to - timedelta(hours=limit)
+    repository = MarketDataRepository(session)
+    rows = await repository.list_range(
+        asset_id=asset_id,
+        time_from=time_from,
+        time_to=time_to,
+        resolution=resolution,
+        offset=0,
+        limit=limit,
+    )
+    return [_to_market_data_response(r) for r in rows]
+
+
 @router.get("", response_model=PaginatedResponse[PredictionResponse])
 async def list_predictions(
     asset_id: uuid.UUID = Query(),
-    time_from: datetime = Query(),
-    time_to: datetime = Query(),
+    time_from: datetime | None = Query(default=None),
+    time_to: datetime | None = Query(default=None),
     model_id: uuid.UUID | None = Query(default=None),
     pagination: PaginationParams = Depends(get_pagination),
     session: AsyncSession = Depends(get_db_session),
     _user_id: uuid.UUID = Depends(get_current_user_id),
 ):
-    """List predictions in a time range for one asset."""
+    """List predictions in a time range for one asset.
+
+    When ``time_from`` / ``time_to`` are omitted, a wide default window is used so the
+    dashboard can query with pagination only.
+    """
+    now = datetime.now(timezone.utc)
+    effective_from = time_from if time_from is not None else now - timedelta(days=_PREDICTIONS_DEFAULT_HISTORY_DAYS)
+    effective_to = time_to if time_to is not None else now + timedelta(days=_PREDICTIONS_DEFAULT_FUTURE_DAYS)
     repository = PredictionRepository(session)
-    total = await repository.count_range(asset_id, time_from, time_to, model_id=model_id)
+    total = await repository.count_range(
+        asset_id, effective_from, effective_to, model_id=model_id
+    )
     rows = await repository.list_range(
         asset_id=asset_id,
-        time_from=time_from,
-        time_to=time_to,
+        time_from=effective_from,
+        time_to=effective_to,
         model_id=model_id,
         offset=pagination.offset,
         limit=pagination.page_size,

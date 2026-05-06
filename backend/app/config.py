@@ -137,12 +137,47 @@ class Settings(BaseSettings):
         description="Gemini model name for text generation (curated summary).",
     )
     GEMINI_EMBEDDING_MODEL: str = Field(
-        default="gemini-embedding-2",
+        default="gemini-embedding-001",
         description="Gemini embedding model name for knowledge_base vectors.",
     )
     GEMINI_EMBEDDING_DIMENSIONS: int = Field(
         default=1536,
         description="Target output dimensions for embeddings stored in pgvector.",
+    )
+    GEMINI_EMBED_BATCH_SIZE: int = Field(
+        default=8,
+        ge=1,
+        le=200,
+        description="News texts per Gemini embedding burst; lower reduces 429 risk.",
+    )
+    GEMINI_EMBED_DELAY_SECONDS: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Optional pacing: seconds to sleep before **each** embed HTTP attempt when greater than zero. "
+            "Default zero sends requests without a fixed delay."
+        ),
+    )
+    GEMINI_EMBED_429_INITIAL_BACKOFF_SECONDS: float = Field(
+        default=4.0,
+        ge=0.0,
+        description="Sleep duration before retrying embed same text after Gemini HTTP 429 (then doubles until max).",
+    )
+    GEMINI_EMBED_429_MAX_BACKOFF_SECONDS: float = Field(
+        default=120.0,
+        ge=1.0,
+        description="Cap for exponential backoff after repeated embedding 429 responses.",
+    )
+    GEMINI_EMBED_429_MAX_RETRIES: int = Field(
+        default=14,
+        ge=1,
+        le=128,
+        description="Maximum embedding HTTP attempts per text (counts each HTTP try including 429 retries).",
+    )
+    GEMINI_CURATE_DELAY_SECONDS: float = Field(
+        default=15.0,
+        ge=0.0,
+        description="Seconds to wait between Gemini curated-summary HTTP calls.",
     )
 
     # Email Settings
@@ -189,6 +224,30 @@ class Settings(BaseSettings):
             "When AUTO_POPULATE_ONCHAIN_SYMBOLS is empty, fetch this many top "
             "market-cap coins from Binance for startup auto-populate."
         ),
+    )
+    AUTO_POPULATE_MARKET_DATA_ON_EMPTY_DB: bool = Field(
+        default=True,
+        description=(
+            "When True on first PostgreSQL startup, Binance Spot daily candles are "
+            "fetched into market_data whenever that table contains zero rows."
+        ),
+    )
+    AUTO_POPULATE_MARKET_DATA_MAX_ASSETS: int = Field(
+        default=150,
+        ge=1,
+        le=800,
+        description="Upper bound on how many active assets receive Binance candles per empty-DB populate.",
+    )
+    AUTO_POPULATE_MARKET_DATA_LOOKBACK_DAYS: int = Field(
+        default=730,
+        ge=30,
+        le=3660,
+        description="Historical depth (UTC calendar days, daily interval) seeded from Binance per asset.",
+    )
+    AUTO_POPULATE_MARKET_DATA_QUOTE_ASSET: str = Field(
+        default="USDT",
+        max_length=6,
+        description="Binance quote asset used for pairing, e.g. BASE + USDT = BTCUSDT.",
     )
 
     @property

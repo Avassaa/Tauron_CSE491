@@ -500,7 +500,6 @@ export default function PredictionsPage() {
   const [timeRange, setTimeRange] = React.useState<TimeRangeKey>("30D")
   const [predictions, setPredictions] = React.useState<PredictionResponse[]>([])
   const [marketData, setMarketData] = React.useState<MarketDataResponse[]>([])
-  const [total, setTotal] = React.useState(0)
   const [page, setPage] = React.useState(1)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -541,7 +540,7 @@ export default function PredictionsPage() {
     setModels([])
 
     apiGet<PaginatedResponse<MlModelResponse>>("/predictions/models", {
-      asset_id: selectedAssetId,
+      asset_id: selectedAssetId || undefined,
       page: 1,
       page_size: 50,
     })
@@ -568,13 +567,13 @@ export default function PredictionsPage() {
         const rangeCfg = TIME_RANGES.find((r) => r.key === timeRange) ?? TIME_RANGES[1]
         
         // Parallel fetch for market data and predictions from the predictions service
-        const [realMarketData, realPredictions] = await Promise.all([
+        const [realMarketData, predictionsPage] = await Promise.all([
           apiGet<MarketDataResponse[]>("/predictions/market-data", {
             asset_id: selectedAssetId,
             limit: rangeCfg.days * 24,
             resolution: "1h"
           }),
-          apiGet<PredictionResponse[]>("/predictions", {
+          apiGet<PaginatedResponse<PredictionResponse>>("/predictions", {
             asset_id: selectedAssetId,
             model_id: selectedModelId === "__all__" ? undefined : selectedModelId,
             page: targetPage,
@@ -582,11 +581,10 @@ export default function PredictionsPage() {
           })
         ])
 
-        setPredictions(realPredictions)
-        setTotal(realPredictions.length)
+        setPredictions(predictionsPage.items)
         setMarketData(realMarketData)
 
-        if (realPredictions.length === 0) {
+        if (predictionsPage.items.length === 0) {
           setError("No prediction data found for this asset and timeframe.")
         }
       } catch (err) {

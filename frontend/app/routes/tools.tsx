@@ -26,6 +26,7 @@ import { useAssistantChatExtras } from "~/components/assistant/assistant-chat-ex
 import { Button } from "~/components/ui/button"
 import { glassSurfaceVariants } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
+import { MarkdownContent } from "~/components/ui/markdown-content"
 import { Separator } from "~/components/ui/separator"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Switch } from "~/components/ui/switch"
@@ -1622,9 +1623,11 @@ export default function ToolsPage() {
                                     {sentiment}
                                   </span>
                                 </div>
-                                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                                  {row.news?.summary ?? getAttentionLabel(row)}
-                                </p>
+                                <div className="mt-2 max-h-12 overflow-hidden">
+                                  <MarkdownContent textClassName="text-xs leading-snug text-muted-foreground">
+                                    {(row.news?.summary ?? getAttentionLabel(row)).trim()}
+                                  </MarkdownContent>
+                                </div>
                               </div>
 
                               <div className="flex items-center justify-between gap-6 md:justify-end">

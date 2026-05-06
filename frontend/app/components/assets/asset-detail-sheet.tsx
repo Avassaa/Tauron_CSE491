@@ -48,6 +48,7 @@ import {
   apiPost,
   type AssetResponse,
   type MlModelResponse,
+  type PaginatedResponse,
   type PredictionResponse,
   type MarketDataResponse,
   type PriceAlertResponse,
@@ -459,24 +460,24 @@ export function AssetDetailSheet({
 
       try {
         // Parallel fetch for market data and predictions
-        const [marketData, predictionsData] = await Promise.all([
+        const [marketData, predictionsPage] = await Promise.all([
           apiGet<MarketDataResponse[]>("/predictions/market-data", {
             asset_id: selectedAsset.id,
-            limit: 7 * 24, // 7 days of hourly data
+            limit: 7 * 24,
             resolution: "1h"
           }),
-          apiGet<PredictionResponse[]>("/predictions", {
+          apiGet<PaginatedResponse<PredictionResponse>>("/predictions", {
             asset_id: selectedAsset.id,
-            model_id: predictionModel?.id, // Use consensus if null
+            model_id: predictionModel?.id,
             page: 1,
-            page_size: 24 // Next 24 hours
+            page_size: 24
           })
         ])
 
         setPreviewMarketData(marketData)
-        setPreviewPredictions(predictionsData)
-
-        if (predictionsData.length === 0) {
+        setPreviewPredictions(predictionsPage.items)
+        
+        if (predictionsPage.items.length === 0) {
           // No error, just empty state
           console.log("No predictions found for this asset")
         }

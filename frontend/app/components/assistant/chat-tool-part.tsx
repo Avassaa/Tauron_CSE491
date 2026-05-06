@@ -21,6 +21,7 @@ import {
 } from "~/components/assistant/assistant-watchlists-overview"
 import { useAssistantToolApproval } from "~/components/assistant/assistant-tool-approval-context"
 import { Button } from "~/components/ui/button"
+import { MarkdownContent } from "~/components/ui/markdown-content"
 import { cn } from "~/lib/utils"
 
 function toolShell({
@@ -494,7 +495,12 @@ export function AssistantChatToolPart({ part }: { part: AnyMessagePart }) {
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1.5 text-[13px] leading-snug text-foreground">{summary}</p>
+                  <MarkdownContent
+                    textClassName="text-[13px] leading-snug text-muted-foreground"
+                    className="mt-1.5"
+                  >
+                    {summary}
+                  </MarkdownContent>
                 </li>
               )
             })}
