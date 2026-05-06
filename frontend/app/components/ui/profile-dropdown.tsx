@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { Settings, CreditCard, LogOut, User } from "lucide-react"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
+import { LogoutConfirmDialog } from "~/components/dashboard/logout-confirm-dialog"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
 import { cn } from "~/lib/utils"
 import {
@@ -49,10 +50,13 @@ export function ProfileDropdown({
   className,
   settingsTo = "/settings",
   profileTo = "/profile",
-  logoutTo = "/login",
+  logoutTo = "/",
   onLogout,
   ...props
 }: ProfileDropdownProps) {
+  const navigate = useNavigate()
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = React.useState(false)
+
   const initials =
     data.initials ??
     data.name
@@ -75,7 +79,7 @@ export function ProfileDropdown({
 
   return (
     <div className={cn("relative", className)} {...props}>
-      <DropdownMenu>
+      <DropdownMenu modal={!isLogoutDialogOpen}>
         <div className="group relative">
           <DropdownMenuTrigger asChild>
             <button
@@ -109,7 +113,7 @@ export function ProfileDropdown({
             align="end"
             side="top"
             sideOffset={8}
-            className="w-64 origin-bottom-left rounded-2xl border border-zinc-200/60 bg-white/95 p-2 shadow-xl shadow-zinc-900/5 backdrop-blur-sm dark:border-zinc-800/60 dark:bg-zinc-900/95 dark:shadow-zinc-950/20"
+            className="w-[calc(100vw-2.5rem)] max-w-64 origin-bottom-left rounded-2xl border border-zinc-200/60 bg-white/95 p-2 shadow-xl shadow-zinc-900/5 backdrop-blur-sm dark:border-zinc-800/60 dark:bg-zinc-900/95 dark:shadow-zinc-950/20 sm:w-64"
           >
             <div className="space-y-1">
               {menuItems.map((item) => (
@@ -136,23 +140,30 @@ export function ProfileDropdown({
 
             <DropdownMenuSeparator className="my-3 bg-gradient-to-r from-transparent via-zinc-200 to-transparent dark:via-zinc-800" />
 
-            <DropdownMenuItem asChild>
-              <Link
-                to={logoutTo}
-                onClick={onLogout}
-                // Use replace to prevent the user from navigating back to protected pages after logout
-                replace
-                className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent bg-red-500/10 p-3 transition-all duration-200 hover:border-red-500/30 hover:bg-red-500/20 hover:shadow-sm"
-              >
-                <LogOut className="h-4 w-4 text-red-500 group-hover:text-red-600" />
-                <span className="text-sm font-medium text-red-500 group-hover:text-red-600">
-                  Sign out
-                </span>
-              </Link>
+            <DropdownMenuItem
+              onSelect={() => {
+                setTimeout(() => setIsLogoutDialogOpen(true), 100)
+              }}
+              className="group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-transparent bg-red-500/10 p-3 transition-all duration-200 hover:border-red-500/30 hover:bg-red-500/20 hover:shadow-sm"
+            >
+              <LogOut className="h-4 w-4 text-red-500 group-hover:text-red-600" />
+              <span className="text-sm font-medium text-red-500 group-hover:text-red-600">
+                Sign out
+              </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </div>
       </DropdownMenu>
+
+      <LogoutConfirmDialog
+        isOpen={isLogoutDialogOpen}
+        onClose={() => setIsLogoutDialogOpen(false)}
+        onConfirm={() => {
+          setIsLogoutDialogOpen(false)
+          onLogout?.()
+          navigate(logoutTo)
+        }}
+      />
     </div>
   )
 }

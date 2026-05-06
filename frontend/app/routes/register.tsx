@@ -1,4 +1,5 @@
-import { redirect } from "react-router"
+import { Link, redirect } from "react-router"
+import { ArrowLeft } from "lucide-react"
 
 import { getMe, persistSession, register } from "~/lib/auth-client"
 import { RegisterForm } from "~/components/register-form"
@@ -70,6 +71,17 @@ export async function action(_args: Route.ActionArgs) {
 export default function RegisterPage() {
   return (
     <div className="relative grid min-h-svh lg:grid-cols-2">
+      <div className="absolute start-4 top-4 z-20 md:start-8 md:top-8">
+        <Link
+          to="/"
+          className="group flex items-center gap-2 text-sm font-medium text-zinc-500 transition-all hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+        >
+          <div className="flex size-8 items-center justify-center rounded-full border border-zinc-200 bg-white/50 shadow-sm backdrop-blur-sm transition-all group-hover:bg-white dark:border-white/10 dark:bg-white/5 dark:group-hover:bg-white/10">
+            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
+          </div>
+          <span className="tracking-tight">Back to home page</span>
+        </Link>
+      </div>
       <div className="absolute end-4 top-4 z-20 md:end-6 md:top-6">
         <AnimatedThemeToggler className="text-foreground" />
       </div>

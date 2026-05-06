@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Check, X, ShieldCheck } from "lucide-react"
 import { Link, Form, useActionData, useNavigation } from "react-router"
 import { toast } from "sonner"
 
@@ -26,8 +26,19 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
   const navigation = useNavigation()
   const pending = navigation.state === "submitting"
   const [showPassword, setShowPassword] = React.useState(false)
+  const [passwordValue, setPasswordValue] = React.useState("")
   const [invalidFields, setInvalidFields] = React.useState<Set<string>>(new Set())
   const invalidTimerRef = React.useRef<number | null>(null)
+
+  const requirements = [
+    { label: "At least 8 characters", met: passwordValue.length >= 8 },
+    { label: "At least one uppercase letter", met: /[A-Z]/.test(passwordValue) },
+    { label: "At least one lowercase letter", met: /[a-z]/.test(passwordValue) },
+    { label: "At least one number", met: /\d/.test(passwordValue) },
+    { label: "At least one special character", met: /[^A-Za-z0-9]/.test(passwordValue) },
+  ]
+
+  const allRequirementsMet = requirements.every((r) => r.met)
 
   React.useEffect(() => {
     return () => {
@@ -71,9 +82,10 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
       if (!password) {
         nextInvalid.add("password")
         messages.push("Password is required.")
-      } else if (password.length < 8) {
+      } else if (!allRequirementsMet) {
         nextInvalid.add("password")
-        messages.push("Password must be at least 8 characters.")
+        const missing = requirements.filter(r => !r.met).map(r => r.label).join(", ")
+        messages.push(`Password must meet all requirements: ${missing}`)
       }
 
       if (!passwordConfirm) {
@@ -99,7 +111,7 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
         setInvalidFields(new Set())
       }, 3000)
     },
-    [],
+    [allRequirementsMet, requirements],
   )
 
   return (
@@ -107,11 +119,11 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
       method="post"
       noValidate
       onSubmit={handleSubmit}
-      className={cn("flex flex-col gap-6", className)}
+      className={cn("flex flex-col gap-4", className)}
       {...props}
     >
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-1 text-center">
+      <FieldGroup className="gap-3.5">
+        <div className="flex flex-col items-center gap-1 text-center mb-2">
           <Link
             to="/"
             className="mb-1 cursor-pointer text-4xl font-semibold tracking-tight text-foreground no-underline hover:opacity-90 md:text-5xl"
@@ -158,7 +170,7 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
             aria-invalid={invalidFields.has("email")}
           />
           <FieldDescription>
-            Use a valid email address. We will use it for login.
+            Use a valid email address.
           </FieldDescription>
         </Field>
         <Field>
@@ -175,8 +187,13 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
               disabled={pending}
+              value={passwordValue}
+              onChange={(e) => setPasswordValue(e.target.value)}
               aria-invalid={invalidFields.has("password")}
-              className="pr-10"
+              className={cn(
+                "pr-10 transition-all duration-300",
+                allRequirementsMet && passwordValue.length > 0 && "border-emerald-500/50 ring-emerald-500/20 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/30 dark:border-emerald-500/40"
+              )}
             />
             <button
               type="button"
@@ -185,10 +202,22 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
               disabled={pending}
             >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              {showPassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
             </button>
           </div>
-          <FieldDescription>Password must be at least 8 characters.</FieldDescription>
+
+          {passwordValue.length > 0 && !allRequirementsMet && (
+            <div className="mt-2 space-y-1 px-0.5">
+              {requirements.filter(r => !r.met).map((req, i) => (
+                <div key={i} className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <X className="size-3 text-red-500 stroke-[3]" />
+                  <span className="text-[12px] font-medium text-red-500 dark:text-red-400">
+                    {req.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </Field>
         <Field>
           <FieldLabel
@@ -214,7 +243,7 @@ export function RegisterForm({ className, ...props }: RegisterFormProps) {
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
               disabled={pending}
             >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              {showPassword ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
             </button>
           </div>
           <FieldDescription>Retype your password to confirm.</FieldDescription>

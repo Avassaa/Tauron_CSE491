@@ -68,7 +68,7 @@ export function SidebarUserMenu() {
       className="w-full"
       settingsTo="/settings"
       profileTo="/profile"
-      logoutTo="/login"
+      logoutTo="/"
       onLogout={() => {
         clearSession()
       }}

@@ -33,14 +33,14 @@ export function AuthGuard({
           console.log("[AuthGuard] No token found, retrying in 500ms...")
           setTimeout(() => performCheck(true), 500)
         } else {
-          console.log("[AuthGuard] Unauthenticated after retry, redirecting to /login")
+          console.log("[AuthGuard] Unauthenticated after retry, redirecting to /")
           setStatus("unauthenticated")
-          void navigate("/login", { replace: true })
+          void navigate("/", { replace: true })
         }
       } catch (err) {
         console.error("[AuthGuard] Error during checkAuth:", err)
         setStatus("unauthenticated")
-        window.location.replace("/login")
+        window.location.replace("/")
       }
     }
     performCheck()
