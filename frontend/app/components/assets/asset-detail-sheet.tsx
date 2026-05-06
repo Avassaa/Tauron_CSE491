@@ -1344,7 +1344,7 @@ export function AssetDetailSheet({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 z-0 border-0 bg-black/40 p-0 backdrop-blur-sm transition-colors duration-500"
+              className="absolute inset-0 z-0 border-0 bg-black/[0.12] p-0 backdrop-blur-sm transition-colors duration-500 dark:bg-black/50"
               onClick={() => setSelectedAsset(null)}
               aria-label="Close asset details"
             />
