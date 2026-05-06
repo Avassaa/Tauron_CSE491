@@ -28,6 +28,7 @@ export function DashboardLayout({
   actions,
 }: DashboardLayoutProps) {
   const [mainScrollEl, setMainScrollEl] = React.useState<HTMLDivElement | null>(null)
+  const [mainPortalEl, setMainPortalEl] = React.useState<HTMLDivElement | null>(null)
 
   return (
     <DashboardClientOnly fallback={fallback || <DefaultFallback title={typeof title === 'string' ? title : "Loading"} />}>
@@ -35,7 +36,7 @@ export function DashboardLayout({
         <SidebarProvider className="h-svh max-h-[100svh] min-h-0 overflow-hidden">
           <AppSidebar />
           <MarketMarqueeBanner />
-          <DashboardMainScrollElementContext.Provider value={mainScrollEl}>
+          <DashboardMainScrollElementContext.Provider value={{ scrollEl: mainScrollEl, portalEl: mainPortalEl }}>
             <div className="glass-page-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <header className="app-subtle-header sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/50 px-4 backdrop-blur-md">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -56,14 +57,16 @@ export function DashboardLayout({
                 </div>
               </header>
               {/* overflow-visible on mobile ensures content doesn't get clipped before reaching the internal scroll area */}
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden pt-10">
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
                 <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
-                  {/* flex-col ensures children stack vertically and grow the scroll area naturally */}
-                  <div
-                    ref={setMainScrollEl}
-                    className="relative flex flex-col min-h-0 min-w-0 flex-1 overflow-auto"
-                  >
-                    {children}
+                  {/* Outer container is relative and non-scrolling, making it a perfect portal target for docked overlays */}
+                  <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" ref={setMainPortalEl}>
+                    <div
+                      ref={setMainScrollEl}
+                      className="flex flex-col min-h-0 min-w-0 flex-1 overflow-auto pt-10"
+                    >
+                      {children}
+                    </div>
                   </div>
                 </AssistantDockSplitMain>
               </main>

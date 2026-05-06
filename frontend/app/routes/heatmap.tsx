@@ -367,7 +367,7 @@ export default function HeatmapPage() {
                         <Layers className="size-3 text-primary" />
                         <span className="text-[9px] font-black uppercase tracking-widest text-foreground">Depth</span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Tracking the top <span className="text-foreground font-bold">250 assets</span> simultaneously on one canvas.</p>
+                      <p className="text-[10px] text-muted-foreground">Tracking <span className="text-foreground font-bold">{processedData.length} assets</span> simultaneously on one canvas.</p>
                     </div>
                   </div>
                 </div>

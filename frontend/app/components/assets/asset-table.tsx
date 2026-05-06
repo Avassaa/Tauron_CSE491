@@ -239,26 +239,26 @@ export function AssetTable({
                   const normalizedBase = normalizeBinanceBaseSymbol(asset.symbol)
                   const liveTickerSymbol = normalizedBase ? `${normalizedBase}USDT` : `${asset.symbol.toUpperCase()}USDT`
                   return (
-                <AssetTableRow
-                  key={asset.id}
-                  asset={asset}
-                  index={index}
-                  mData={marketDataMap[asset.id]}
-                  isWatched={watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase())}
-                  liveTickerSymbol={normalizedBase ? toBinanceUsdtPair(normalizedBase) : liveTickerSymbol}
-                  liveTickers={liveTickers}
-                  quotePerUsd={quotePerUsd}
-                  currencyCode={currencyCode}
-                  flashBySymbol={flashBySymbol}
-                  currentPage={currentPage}
-                  pageSize={pageSize}
-                  setSelectedAsset={setSelectedAsset}
-                  watchlistLists={watchlistLists}
-                  watchlistAssetsByListId={watchlistAssetsByListId}
-                  onToggleWatchlistList={onToggleWatchlistList}
-                  onAddToWatchlistList={onAddToWatchlistList}
-                  onCreateWatchlistList={onCreateWatchlistList}
-                />
+                    <AssetTableRow
+                      key={asset.id}
+                      asset={asset}
+                      index={index}
+                      mData={marketDataMap[asset.id]}
+                      isWatched={watchlistIds.has(asset.id) || watchlistIds.has(asset.symbol.toUpperCase())}
+                      liveTickerSymbol={normalizedBase ? toBinanceUsdtPair(normalizedBase) : liveTickerSymbol}
+                      liveTickers={liveTickers}
+                      quotePerUsd={quotePerUsd}
+                      currencyCode={currencyCode}
+                      flashBySymbol={flashBySymbol}
+                      currentPage={currentPage}
+                      pageSize={pageSize}
+                      setSelectedAsset={setSelectedAsset}
+                      watchlistLists={watchlistLists}
+                      watchlistAssetsByListId={watchlistAssetsByListId}
+                      onToggleWatchlistList={onToggleWatchlistList}
+                      onAddToWatchlistList={onAddToWatchlistList}
+                      onCreateWatchlistList={onCreateWatchlistList}
+                    />
                   )
                 })()
               ))

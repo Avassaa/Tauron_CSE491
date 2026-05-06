@@ -275,10 +275,7 @@ function AssetsPageClient() {
         </div>
       }
     >
-      <div
-        className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
-        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-      >
+      <div className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <PageBlueBackdrop />
         <div className="relative z-[1] flex min-w-0 max-w-full flex-1 flex-col gap-6 p-4 md:p-8">
           <MarketHighlights
