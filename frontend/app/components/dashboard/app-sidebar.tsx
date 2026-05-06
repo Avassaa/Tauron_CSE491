@@ -11,6 +11,7 @@ import {
   FlaskConical,
   MessageSquare,
   Bell,
+  LayoutGrid,
 } from "lucide-react"
 import { Link, useLocation } from "react-router"
 
@@ -33,6 +34,7 @@ import {
 const navMain = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Assets", url: "/assets", icon: Coins },
+  { title: "Heatmap", url: "/heatmap", icon: LayoutGrid },
   { title: "Watchlist", url: "/watchlists", icon: Star },
 ]
 

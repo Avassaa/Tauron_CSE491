@@ -458,3 +458,17 @@ export interface UserPublicResponse {
   email: string
   created_at: string
 }
+
+export interface LiveMarketResponse {
+  symbol: string
+  price: number | null
+  volume: number | null
+  market_cap: number | null
+  rank: number
+  name: string
+  price_change_1h: number | null
+  price_change_24h: number | null
+  price_change_7d: number | null
+  price_change_30d: number | null
+  price_change_1y: number | null
+}

@@ -380,7 +380,7 @@ export function ChatHistorySidebar({
       {historyOpen ? (
         <button
           type="button"
-          className="absolute inset-0 z-20 bg-background/80 backdrop-blur-[1px] transition-opacity motion-reduce:backdrop-blur-none"
+          className="absolute inset-0 z-20 bg-background/45 backdrop-blur-sm transition-opacity dark:bg-background/80 dark:backdrop-blur-md motion-reduce:backdrop-blur-none"
           aria-label="Close chat history menu"
           onClick={() => {
             setSearchOpen(false)

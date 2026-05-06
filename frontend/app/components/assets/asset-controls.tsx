@@ -55,13 +55,13 @@ export function AssetControls({
           className="h-12 pl-11 pr-4 rounded-2xl border-border/50 bg-card/50 text-foreground placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-primary/20 focus-visible:border-primary transition-all font-medium"
         />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-12 rounded-2xl px-3 text-[10px] font-black uppercase tracking-wider">
-              <SlidersHorizontal className="mr-1 size-3.5" />
+            <Button variant="outline" size="sm" className="h-10 md:h-12 rounded-xl md:rounded-2xl px-2 md:px-3 text-[9px] md:text-[10px] font-black uppercase tracking-wider">
+              <SlidersHorizontal className="mr-1 size-3 md:size-3.5" />
               Filter
-              <ChevronDown className="ml-1 size-3 opacity-70" />
+              <ChevronDown className="ml-1 size-2.5 md:size-3 opacity-70" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -87,9 +87,9 @@ export function AssetControls({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-12 rounded-2xl px-3 text-[10px] font-black uppercase tracking-wider">
+            <Button variant="outline" size="sm" className="h-10 md:h-12 rounded-xl md:rounded-2xl px-2 md:px-3 text-[9px] md:text-[10px] font-black uppercase tracking-wider">
               {quoteCurrency}
-              <ChevronDown className="ml-1 size-3 opacity-70" />
+              <ChevronDown className="ml-1 size-2.5 md:size-3 opacity-70" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[110px]">
@@ -110,19 +110,20 @@ export function AssetControls({
           variant="outline"
           onClick={fetchAssets}
           disabled={loading}
-          className="h-12 w-12 rounded-2xl border-border/50 bg-card/50 hover:bg-card hover:text-primary transition-all"
+          className="h-10 w-10 md:h-12 md:w-12 rounded-xl md:rounded-2xl border-border/50 bg-card/50 hover:bg-card hover:text-primary transition-all"
         >
-          <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`size-3 md:size-3.5 ${loading ? "animate-spin" : ""}`} />
         </Button>
 
         {sortConfig && (
           <Button
             variant="ghost"
             onClick={() => setSortConfig(null)}
-            className="h-12 px-4 rounded-2xl gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 font-bold uppercase tracking-wider text-[10px]"
+            className="h-10 md:h-12 px-3 md:px-4 rounded-xl md:rounded-2xl gap-1.5 md:gap-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 font-bold uppercase tracking-wider text-[9px] md:text-[10px]"
           >
-            <X className="size-3.5" />
-            Clear Sort
+            <X className="size-3 md:size-3.5" />
+            <span className="hidden sm:inline">Clear Sort</span>
+            <span className="sm:hidden">Clear</span>
           </Button>
         )}
       </div>

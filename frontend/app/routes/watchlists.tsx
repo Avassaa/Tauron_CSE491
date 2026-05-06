@@ -358,7 +358,7 @@ function WatchlistPageClient() {
         style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
       >
         <PageBlueBackdrop />
-        <div className="relative z-[1] flex flex-1 flex-col gap-4 px-4 pb-4 pt-8 md:px-8 md:pb-8 md:pt-10">
+        <div className="relative z-[1] flex flex-1 flex-col gap-4 px-4 pb-4 md:px-8 md:pb-8">
 
           <Breadcrumb className="mt-4 mb-4">
             <BreadcrumbList className="flex-wrap">

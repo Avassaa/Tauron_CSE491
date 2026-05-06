@@ -74,6 +74,7 @@ function AssetsPageClient() {
   const isLosersSort = sortConfig?.key === "change24h" && sortConfig.direction === "asc"
 
   const [createWatchlistDialogOpen, setCreateWatchlistDialogOpen] = React.useState(false)
+  const [watchlistTargetAsset, setWatchlistTargetAsset] = React.useState<AssetResponse | null>(null)
 
   // Custom Hooks
   const {
@@ -275,10 +276,7 @@ function AssetsPageClient() {
         </div>
       }
     >
-      <div
-        className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
-        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-      >
+      <div className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <PageBlueBackdrop />
         <div className="relative z-[1] flex min-w-0 max-w-full flex-1 flex-col gap-6 p-4 md:p-8">
           <MarketHighlights
@@ -322,7 +320,10 @@ function AssetsPageClient() {
                 watchlistAssetsByListId={watchlistAssetsByListId}
                 onToggleWatchlistList={toggleAssetInNamedWatchlist}
                 onAddToWatchlistList={addAssetToNamedWatchlist}
-                onCreateWatchlistList={() => setCreateWatchlistDialogOpen(true)}
+                onCreateWatchlistList={(asset) => {
+                  if (asset) setWatchlistTargetAsset(asset)
+                  setCreateWatchlistDialogOpen(true)
+                }}
                 onToggleWatchlist={toggleWatchlist}
               />
               <AssetPagination page={page} totalPages={totalPages} setPage={setPage} loading={loading} />
@@ -354,8 +355,14 @@ function AssetsPageClient() {
 
           <CreateWatchlistDialog
             open={createWatchlistDialogOpen}
-            onOpenChange={setCreateWatchlistDialogOpen}
-            onConfirm={(name) => createWatchlistList(name, selectedAsset).then(() => setCreateWatchlistDialogOpen(false))}
+            onOpenChange={(open) => {
+              setCreateWatchlistDialogOpen(open)
+              if (!open) setWatchlistTargetAsset(null)
+            }}
+            onConfirm={(name) => createWatchlistList(name, watchlistTargetAsset || selectedAsset).then(() => {
+              setCreateWatchlistDialogOpen(false)
+              setWatchlistTargetAsset(null)
+            })}
             loading={creatingWatchlist}
           />
         </div>
