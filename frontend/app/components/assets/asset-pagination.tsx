@@ -97,19 +97,19 @@ export function AssetPagination({
   }
 
   return (
-    <div className={cn("flex items-center justify-end gap-2", className)}>
+    <div className={cn("flex flex-wrap items-center justify-center md:justify-end gap-2", className)}>
       <Button
         variant="outline"
         size="sm"
         onClick={() => setPage(page - 1)}
         disabled={page === 1 || loading}
-        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/75 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        className="h-9 cursor-pointer gap-1 md:gap-2 rounded-xl border-border/50 bg-card/75 px-3 md:px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
         <ChevronLeft className="size-3.5" />
-        Prev
+        <span className="hidden xs:inline">Prev</span>
       </Button>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5 md:gap-1">
         {renderPageButtons()}
       </div>
 
@@ -118,9 +118,9 @@ export function AssetPagination({
         size="sm"
         onClick={() => setPage(page + 1)}
         disabled={page === totalPages || loading}
-        className="h-9 cursor-pointer gap-2 rounded-xl border-border/50 bg-card/75 px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
+        className="h-9 cursor-pointer gap-1 md:gap-2 rounded-xl border-border/50 bg-card/75 px-3 md:px-4 text-[10px] font-black uppercase tracking-wider transition-all hover:bg-card hover:text-primary disabled:cursor-not-allowed disabled:opacity-30"
       >
-        Next
+        <span className="hidden xs:inline">Next</span>
         <ChevronRight className="size-3.5" />
       </Button>
     </div>

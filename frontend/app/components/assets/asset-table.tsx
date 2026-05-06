@@ -92,7 +92,7 @@ interface AssetTableProps {
   onToggleWatchlistList?: (asset: AssetResponse, listId: string, currentlyInList: boolean) => void
   onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
   watchlistAssetsByListId?: Record<string, AssetResponse[]>
-  onCreateWatchlistList?: () => void
+  onCreateWatchlistList?: (asset?: AssetResponse) => void
 }
 
 export function AssetTable({
@@ -190,32 +190,32 @@ export function AssetTable({
   return (
     <div className="min-w-0 w-full rounded-2xl border border-border/50 bg-card/80 backdrop-blur-xl overflow-hidden">
       <div className="min-w-0 overflow-x-auto scrollbar-thin">
-        <Table className="w-full table-fixed">
+        <Table className="w-full table-auto">
           <TableHeader>
             <TableRow className="hover:bg-transparent border-b border-border/50 bg-white/28 dark:bg-muted/40">
-              <TableHead className="w-12 pl-3 pr-0 text-left md:w-14 md:pl-6"></TableHead>
-              <TableHead className="w-8 font-black text-foreground/70 py-4 px-0.5 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors md:w-9" onClick={() => handleSort("rank")}>
+              <TableHead className="w-10 min-w-[40px] pl-3 pr-0 text-left md:w-14 md:pl-6"></TableHead>
+              <TableHead className="w-8 min-w-[32px] font-black text-foreground/70 py-4 px-0.5 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors md:w-9" onClick={() => handleSort("rank")}>
                 <div className="flex items-center justify-center gap-0.5"># <SortIcon column="rank" /></div>
               </TableHead>
-              <TableHead className="min-w-0 w-[30%] font-black text-foreground/70 py-4 px-3 uppercase tracking-widest text-[9px] cursor-pointer hover:text-primary transition-colors @md/dock-shell:w-[26%] md:px-6" onClick={() => handleSort("name")}>
+              <TableHead className="min-w-[150px] font-black text-foreground/70 py-4 px-3 uppercase tracking-widest text-[9px] cursor-pointer hover:text-primary transition-colors md:px-6" onClick={() => handleSort("name")}>
                 <div className="flex items-center gap-1">Coin <SortIcon column="name" /></div>
               </TableHead>
-              <TableHead className="w-[10%] font-black text-foreground/70 py-4 px-2 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors @md/dock-shell:w-[12%] md:px-4" onClick={() => handleSort("price")}>
+              <TableHead className="min-w-[90px] font-black text-foreground/70 py-4 px-2 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("price")}>
                 <div className="flex items-center justify-end gap-1">Price <SortIcon column="price" /></div>
               </TableHead>
-              <TableHead className="w-[7%] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors @md/dock-shell:w-[8%] md:px-4" onClick={() => handleSort("change1h")}>
+              <TableHead className="min-w-[65px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("change1h")}>
                 <div className="flex items-center justify-center gap-1">1h <SortIcon column="change1h" /></div>
               </TableHead>
-              <TableHead className="w-[7%] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors @md/dock-shell:w-[8%] md:px-4" onClick={() => handleSort("change24h")}>
+              <TableHead className="min-w-[65px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("change24h")}>
                 <div className="flex items-center justify-center gap-1">24h <SortIcon column="change24h" /></div>
               </TableHead>
-              <TableHead className="w-[7%] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors @md/dock-shell:w-[8%] md:px-4" onClick={() => handleSort("change7d")}>
+              <TableHead className="min-w-[65px] font-black text-foreground/70 py-4 px-1 uppercase tracking-widest text-[9px] text-center cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("change7d")}>
                 <div className="flex items-center justify-center gap-1">7d <SortIcon column="change7d" /></div>
               </TableHead>
-              <TableHead className="w-[12%] font-black text-foreground/70 py-4 px-2 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("volume")}>
+              <TableHead className="min-w-[85px] font-black text-foreground/70 py-4 px-2 uppercase tracking-widest text-[9px] text-right cursor-pointer hover:text-primary transition-colors md:px-4" onClick={() => handleSort("volume")}>
                 <div className="flex items-center justify-end gap-1">24h Vol <SortIcon column="volume" /></div>
               </TableHead>
-              <TableHead className="w-[14%] font-black text-foreground/70 py-4 px-3 uppercase tracking-widest text-[9px] text-center md:px-6">7d chart</TableHead>
+              <TableHead className="min-w-[120px] font-black text-foreground/70 py-4 px-3 uppercase tracking-widest text-[9px] text-center md:px-6">7d chart</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -305,7 +305,7 @@ function AssetTableRow({
   watchlistAssetsByListId: Record<string, AssetResponse[]>
   onToggleWatchlistList?: (asset: AssetResponse, listId: string, currentlyInList: boolean) => void
   onAddToWatchlistList?: (asset: AssetResponse, listId: string) => void
-  onCreateWatchlistList?: () => void
+  onCreateWatchlistList?: (asset: AssetResponse) => void
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
 
@@ -315,7 +315,7 @@ function AssetTableRow({
       className="group cursor-pointer border-border/40 transition-colors hover:bg-white/22 dark:hover:bg-muted/28"
       onClick={() => setSelectedAsset(asset)}
     >
-      <TableCell className="py-4 pl-3 pr-0 w-12 text-left md:w-14 md:pl-6" onClick={(e) => e.stopPropagation()}>
+      <TableCell className="py-4 pl-3 pr-0 w-10 text-left md:w-14 md:pl-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center h-full">
           <DropdownMenu onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -371,7 +371,7 @@ function AssetTableRow({
 
               <DropdownMenuSeparator className="my-2 bg-border/50" />
               <DropdownMenuItem
-                onClick={() => onCreateWatchlistList?.()}
+                onClick={() => onCreateWatchlistList?.(asset)}
                 className="flex items-center gap-2 cursor-pointer px-3 py-2 text-[10px] font-bold uppercase rounded-lg text-primary hover:bg-primary/5 transition-colors"
               >
                 <div className="size-4 rounded-md bg-primary/10 flex items-center justify-center">
@@ -388,12 +388,12 @@ function AssetTableRow({
       </TableCell>
       <TableCell className="min-w-0 py-4 px-3 md:px-6">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full transition-transform group-hover:scale-110 md:size-9">
-            <AssetIcon symbol={asset.symbol} alt={`${asset.symbol} icon`} fallbackClassName="text-[10px]" />
+          <div className="relative flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full transition-transform group-hover:scale-110 sm:size-8 md:size-9">
+            <AssetIcon symbol={asset.symbol} alt={`${asset.symbol} icon`} fallbackClassName="text-[8px] md:text-[10px]" />
           </div>
-          <div className="flex min-w-0 items-baseline gap-1.5 md:gap-2">
-            <span className="truncate font-bold tracking-tight">{asset.name}</span>
-            <span className="shrink-0 text-[10px] font-black uppercase text-muted-foreground opacity-60">{asset.symbol}</span>
+          <div className="flex min-w-0 flex-col items-start gap-0 md:flex-row md:items-baseline md:gap-2">
+            <span className="truncate max-w-[80px] sm:max-w-none font-bold tracking-tight text-xs sm:text-sm md:text-base">{asset.name}</span>
+            <span className="shrink-0 text-[8px] md:text-[10px] font-black uppercase text-muted-foreground opacity-60">{asset.symbol}</span>
           </div>
         </div>
       </TableCell>
@@ -413,7 +413,7 @@ function AssetTableRow({
       <TableCell className="py-4 px-1 md:px-4"><PriceChange value={mData?.price_change_1h} /></TableCell>
       <TableCell className="py-4 px-1 md:px-4"><PriceChange value={mData?.price_change_24h} /></TableCell>
       <TableCell className="py-4 px-1 md:px-4"><PriceChange value={mData?.price_change_7d} /></TableCell>
-      <TableCell className="py-4 px-2 text-right md:px-4"><span className="font-mono text-xs font-bold text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
+      <TableCell className="py-4 px-2 text-right md:px-4"><span className="font-mono text-[10px] md:text-xs font-bold text-foreground/80">{formatCompact(mData?.volume)}</span></TableCell>
       <TableCell className="py-4 px-3 md:px-6">
         <div className="flex justify-center">
           <Sparkline data={mData?.sparkline || []} isUp={(mData?.price_change_7d || 0) >= 0} />

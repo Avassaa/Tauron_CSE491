@@ -63,7 +63,7 @@ export function DashboardLayout({
                   <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" ref={setMainPortalEl}>
                     <div
                       ref={setMainScrollEl}
-                      className="flex flex-col min-h-0 min-w-0 flex-1 overflow-auto pt-10"
+                      className="flex flex-col min-h-0 min-w-0 flex-1 overflow-auto pt-8"
                     >
                       {children}
                     </div>
