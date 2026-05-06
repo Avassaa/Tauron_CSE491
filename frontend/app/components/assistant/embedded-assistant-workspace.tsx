@@ -214,14 +214,10 @@ export function EmbeddedAssistantWorkspace({
       )}
     >
       {onRequestClose ? (
-        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-border/50 bg-white/65 px-2 py-1.5 backdrop-blur-md dark:bg-background/35 dark:backdrop-blur-xl sm:px-3">
-          <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/50 bg-white/65 px-4 backdrop-blur-md dark:bg-background/35 dark:backdrop-blur-xl">
+          <div className="min-w-0 flex-1">
             <span className="truncate text-xs font-semibold uppercase tracking-wide text-foreground/80">
               Tauron AI Assistant
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <span className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
-              Context from this page
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">

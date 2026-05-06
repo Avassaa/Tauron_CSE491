@@ -484,6 +484,13 @@ export default function ToolsPage() {
       ? parsedAlertTargetPrice
       : null
 
+  const selectedAlertTriggerPhrase =
+    selectedAlertCurrentPrice != null &&
+    selectedAlertTargetPrice != null &&
+    selectedAlertTargetPrice >= selectedAlertCurrentPrice
+      ? "rises above"
+      : "falls below"
+
   const { setToolsOverlay } = useAssistantChatExtras()
 
   React.useEffect(() => {
@@ -771,6 +778,15 @@ export default function ToolsPage() {
       await refreshPriceAlerts()
     } catch {
       setPriceAlertsError("Could not delete selected price alerts.")
+    }
+  }
+
+  const handleDeletePriceAlert = async (alertId: string) => {
+    try {
+      await apiDelete(`/users/me/price-alerts/${alertId}`)
+      await refreshPriceAlerts()
+    } catch {
+      setPriceAlertsError("Could not delete this price alert.")
     }
   }
 
@@ -1327,6 +1343,165 @@ export default function ToolsPage() {
                 }}
                 className="scroll-mt-20 rounded-xl border"
               >
+                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-xl font-semibold">
+                      <Bell className="size-5 text-primary" />
+                      Price Alerts
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Create Midas-style alarms and receive an inbox notification when Binance live price crosses your threshold.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-5 px-5 py-4">
+                  <div className="grid gap-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Asset</label>
+                      <Select
+                        value={selectedAlertAssetId}
+                        onValueChange={setSelectedAlertAssetId}
+                        disabled={assetsLoading || alertAssets.length === 0}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={assetsLoading ? "Loading assets..." : "Select asset"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {alertAssets.map((asset) => (
+                            <SelectItem key={asset.id} value={asset.id}>
+                              {asset.symbol} - {asset.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Move</label>
+                      <Select value={alertMove} onValueChange={setAlertMove}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select move" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56">
+                          {ALERT_MOVE_OPTIONS.map((move) => (
+                            <SelectItem key={move} value={String(move)}>
+                              {move > 0 ? "+" : ""}{move}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleCreatePriceAlert}
+                      disabled={alertSaving || assetsLoading}
+                    >
+                      {alertSaving ? "Creating..." : "Create alert"}
+                    </Button>
+                  </div>
+
+                  <div className="rounded-lg bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                      <span>
+                        Current price:{" "}
+                        <span className="font-medium text-foreground">
+                          {formatUsd(selectedAlertCurrentPrice)}
+                        </span>
+                      </span>
+                      <span>
+                        Alert target:{" "}
+                        <span className="font-medium text-foreground">
+                          {formatUsd(calculatedAlertTargetPrice)}
+                        </span>
+                      </span>
+                      <span>
+                        Trigger:{" "}
+                        <span className="font-medium text-foreground">
+                          price {selectedAlertTriggerPhrase} target
+                        </span>
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs">
+                      The endpoint stores this calculated target price; the worker triggers when live Binance price crosses it.
+                    </p>
+                  </div>
+
+                  {priceAlertsError ? (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {priceAlertsError}
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-lg border">
+                    <div className="flex items-center justify-between border-b px-4 py-3">
+                      <div className="text-sm font-medium">Your alerts</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void refreshPriceAlerts()}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                    {priceAlertsLoading ? (
+                      <div className="space-y-3 p-4">
+                        <Skeleton className="h-14 w-full" />
+                        <Skeleton className="h-14 w-full" />
+                      </div>
+                    ) : priceAlerts.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No price alerts yet. Create one above to start watching live prices.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {priceAlerts.map((alert) => (
+                          <div key={alert.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-medium">
+                                <span>{alert.symbol}</span>
+                                <span
+                                  className={
+                                    alert.is_active
+                                      ? "rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600"
+                                      : "rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                                  }
+                                >
+                                  {alert.is_active ? "Active" : "Triggered"}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Notify when price is {alert.condition} {formatUsd(alert.target_price)}
+                                {alert.triggered_at
+                                  ? `, triggered ${new Date(alert.triggered_at).toLocaleString()}`
+                                  : ""}
+                              </p>
+                              {alert.percentage_change != null && alert.reference_price != null ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Created from {alert.percentage_change > 0 ? "+" : ""}{alert.percentage_change}%
+                                  at {formatUsd(alert.reference_price)}.
+                                </p>
+                              ) : null}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => void handleDeletePriceAlert(alert.id)}
+                              aria-label={`Delete ${alert.symbol} alert`}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border">
                 <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
                   <div>
                     <div className="flex items-center gap-2 text-xl font-semibold">

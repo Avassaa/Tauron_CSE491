@@ -230,6 +230,7 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetchWithAuth(`${getPublicApiBaseUrl()}${path}`, {
     method: "PATCH",
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: timeoutSignal(),
   })
   return handleResponse<T>(res)
 }

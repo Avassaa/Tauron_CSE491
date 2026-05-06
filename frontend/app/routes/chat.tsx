@@ -252,9 +252,6 @@ export default function ChatPage() {
             />
             
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden px-5 py-5 pb-8 sm:px-8 sm:py-6 md:px-10">
-              <p className="shrink-0 text-sm text-muted-foreground">
-                Tauron AI Assistant—risk scans, markets, and watchlists in one place.
-              </p>
               {chatReady && currentSessionId ? (
                 /* Force remount when session changes to reset internal SDK state safely */
                 <GeminiChatPanel
