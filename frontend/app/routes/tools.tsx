@@ -21,6 +21,7 @@ import {
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { CollapsiblePageNav } from "~/components/dashboard/collapsible-page-nav"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
+import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { AssistantDockToolbarButton, AssistantDockSplitMain } from "~/components/assistant/assistant-dock-ui"
 import { useAssistantChatExtras } from "~/components/assistant/assistant-chat-extras-context"
@@ -967,24 +968,27 @@ export default function ToolsPage() {
                   items={TOOL_SECTIONS.map(({ id, label, icon }) => ({ id, label, icon }))}
                   onSelect={(id) => scrollToToolSection(id as ToolSectionId)}
                 />
-                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto p-4">
+                <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+                  <PageBlueBackdrop />
+                  <div className="relative z-[1] p-4 md:p-6">
             <section className="space-y-5">
               <div
-                ref={(node) => {
-                  sectionRefs.current.currency = node
-                }}
-                className="scroll-mt-20 rounded-xl border"
+                ref={(node) => { sectionRefs.current.currency = node }}
+                className="scroll-mt-20 overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/45"
               >
-                <div className="border-b px-5 py-4">
-                  <div className="text-xl font-semibold">Currency Converter</div>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Convert from selected currency to another using dropdowns.
-                  </p>
+                <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-[0_0_14px_-4px_hsl(var(--primary)/0.3)]">
+                    <WalletCards className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-black tracking-tight text-foreground">Currency Converter</div>
+                    <div className="text-xs text-muted-foreground/70">Convert between currencies using live Binance rates</div>
+                  </div>
                 </div>
-                <div className="space-y-4 px-5 py-4">
-                  <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto_1fr] md:items-end">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="amount">
+                <div className="space-y-4 px-5 py-5">
+                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_1fr]">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60" htmlFor="amount">
                         Amount
                       </label>
                       <Input
@@ -1000,56 +1004,57 @@ export default function ToolsPage() {
                       {amountLimitError ? (
                         <p className="text-xs font-medium text-destructive">{amountLimitError}</p>
                       ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Max: {MAX_CONVERT_AMOUNT.toLocaleString("en-US")}
+                        <p className="text-[10px] text-muted-foreground/50">
+                          Max {MAX_CONVERT_AMOUNT.toLocaleString("en-US")}
                         </p>
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">From</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">From</label>
                       <Select
                         value={fromCurrency}
                         onValueChange={(value) => setFromCurrency(value as CurrencyCode)}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select source currency" />
+                          <SelectValue placeholder="Source currency" />
                         </SelectTrigger>
                         <SelectContent>
                           {CURRENCIES.map((currency) => (
                             <SelectItem key={currency} value={currency}>
-                              {currency} - {CURRENCY_LABELS[currency]}
+                              {currency} — {CURRENCY_LABELS[currency]}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="flex justify-center md:pb-1">
+                    <div className="flex flex-col justify-start pt-6">
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
                         onClick={switchCurrencies}
                         aria-label="Switch currencies"
+                        className="size-10 shrink-0 rounded-xl bg-black dark:bg-white text-white dark:text-black border-none hover:bg-black/90 dark:hover:bg-white/90 transition-all duration-200"
                       >
                         <ArrowRightLeft className="size-4" />
                       </Button>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">To</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">To</label>
                       <Select
                         value={toCurrency}
                         onValueChange={(value) => setToCurrency(value as CurrencyCode)}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select target currency" />
+                          <SelectValue placeholder="Target currency" />
                         </SelectTrigger>
                         <SelectContent>
                           {CURRENCIES.map((currency) => (
                             <SelectItem key={currency} value={currency}>
-                              {currency} - {CURRENCY_LABELS[currency]}
+                              {currency} — {CURRENCY_LABELS[currency]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1057,43 +1062,39 @@ export default function ToolsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm text-muted-foreground">Converted Amount</p>
-                    <p className="mt-1 text-3xl font-semibold">
-                      {formattedResult} {toCurrency}
+                  <div className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/8 to-primary/3 p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Converted Amount</p>
+                    <p className="mt-2 text-4xl font-black tabular-nums tracking-tight text-foreground">
+                      {formattedResult} <span className="text-primary">{toCurrency}</span>
                     </p>
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    <p className="mt-3 text-xs text-muted-foreground/70">
                       {ratesStatus === "live"
-                        ? `Rate basis: live Binance ticker data${lastUpdatedAt ? ` (updated ${lastUpdatedAt.toLocaleTimeString("en-US")})` : ""}.`
+                        ? `Live Binance rates${lastUpdatedAt ? ` · updated ${lastUpdatedAt.toLocaleTimeString("en-US")}` : ""}`
                         : ratesStatus === "loading"
-                          ? "Rate basis: loading Binance data..."
-                          : "Rate basis: Binance unavailable, using fallback rates."}
+                          ? "Loading Binance rates…"
+                          : "Binance unavailable — using fallback rates"}
                     </p>
                   </div>
                 </div>
               </div>
 
               <div
-                ref={(node) => {
-                  sectionRefs.current["price-alerts"] = node
-                }}
-                className="scroll-mt-20 rounded-xl border"
+                ref={(node) => { sectionRefs.current["price-alerts"] = node }}
+                className="scroll-mt-20 overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/45"
               >
-                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
+                <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-[0_0_14px_-4px_hsl(var(--primary)/0.3)]">
+                    <AlarmClock className="size-4" />
+                  </div>
                   <div>
-                    <div className="flex items-center gap-2 text-xl font-semibold">
-                      <AlarmClock className="size-5 text-primary" />
-                      Price Alerts
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Create price alarms with inbox notifications when Binance hits your threshold. Use a preset move, then edit the exact target in the card.
-                    </p>
+                    <div className="font-black tracking-tight text-foreground">Price Alerts</div>
+                    <div className="text-xs text-muted-foreground/70">Get notified when Binance hits your target — set a preset move or type a price</div>
                   </div>
                 </div>
-                <div className="space-y-5 px-5 py-4">
-                  <div className="grid gap-4 md:grid-cols-[1.4fr_1fr_auto] md:items-end">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Asset</label>
+                <div className="space-y-5 px-5 py-5">
+                  <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_auto]">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Asset</label>
                       <Select
                         value={selectedAlertAssetId}
                         onValueChange={(value) => {
@@ -1103,25 +1104,25 @@ export default function ToolsPage() {
                         disabled={assetsLoading || alertAssets.length === 0}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder={assetsLoading ? "Loading assets..." : "Select asset"} />
+                          <SelectValue placeholder={assetsLoading ? "Loading assets…" : "Select asset"} />
                         </SelectTrigger>
                         <SelectContent>
                           {alertAssets.map((asset) => (
                             <SelectItem key={asset.id} value={asset.id}>
-                              {asset.symbol} - {asset.name}
+                              {asset.symbol} — {asset.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Preset move</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Preset move</label>
                       <Select value={alertMove} onValueChange={handleAlertMoveChange}>
                         <SelectTrigger className="w-full">
                           {alertTargetEdited ? (
-                            <span className="truncate text-left text-sm font-normal text-muted-foreground">
-                              Pick a % change to recalculate target, or keep your typed price
+                            <span className="truncate text-left text-xs text-muted-foreground">
+                              Typed price active
                             </span>
                           ) : (
                             <SelectValue placeholder="Select move" />
@@ -1137,38 +1138,35 @@ export default function ToolsPage() {
                       </Select>
                     </div>
 
-                    <Button
-                      type="button"
-                      onClick={handleCreatePriceAlert}
-                      disabled={
-                        alertSaving ||
-                        assetsLoading ||
-                        selectedAlertCurrentPrice == null ||
-                        selectedAlertCurrentPrice <= 0 ||
-                        selectedAlertTargetPrice == null
-                      }
-                    >
-                      {alertSaving ? "Creating..." : "Create alert"}
-                    </Button>
+                    <div className="flex flex-col justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleCreatePriceAlert}
+                        disabled={
+                          alertSaving ||
+                          assetsLoading ||
+                          selectedAlertCurrentPrice == null ||
+                          selectedAlertCurrentPrice <= 0 ||
+                          selectedAlertTargetPrice == null
+                        }
+                      >
+                        {alertSaving ? "Creating…" : "Create alert"}
+                      </Button>
+                    </div>
                   </div>
 
-                  <div
-                    className={cn(
-                      glassSurfaceVariants(),
-                      "grid gap-3 p-3 sm:grid-cols-2 sm:items-stretch",
-                    )}
-                  >
-                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
-                      <div className="shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground">
+                  <div className="grid gap-3 sm:grid-cols-2 sm:items-stretch">
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+                      <div className="shrink-0 text-[10px] font-black uppercase leading-tight tracking-widest text-muted-foreground/60">
                         Current price
                       </div>
-                      <div className="flex min-h-[1.75rem] flex-1 items-center text-lg font-semibold tabular-nums leading-none text-foreground">
+                      <div className="flex min-h-[1.75rem] flex-1 items-center text-xl font-black tabular-nums leading-none text-foreground">
                         {formatUsd(selectedAlertCurrentPrice)}
                       </div>
                     </div>
-                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg bg-muted/40 px-4 py-3">
+                    <div className="flex h-full min-h-0 flex-col gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
                       <label
-                        className="block shrink-0 cursor-text text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-muted-foreground"
+                        className="block shrink-0 cursor-text text-[10px] font-black uppercase leading-tight tracking-widest text-primary/60"
                         htmlFor="tools-alert-target"
                       >
                         Alert target
@@ -1194,8 +1192,8 @@ export default function ToolsPage() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    After you edit the target by hand, use Preset move again only if you want the price recalculated from a percentage.
+                  <p className="text-xs text-muted-foreground/70">
+                    After editing the target by hand, pick a preset move only to recalculate from a percentage.
                   </p>
 
                   {priceAlertsError ? (
@@ -1204,8 +1202,8 @@ export default function ToolsPage() {
                     </div>
                   ) : null}
 
-                  <div className="rounded-lg border">
-                    <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
+                  <div className="overflow-hidden rounded-xl border border-border/50">
+                    <div className="flex flex-wrap items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-3">
                       <div className="min-w-[7rem] shrink-0 text-sm font-medium">Your alerts</div>
                       <div className="flex flex-1 basis-[220px] items-center justify-center">
                         <div
@@ -1414,54 +1412,48 @@ export default function ToolsPage() {
               </div>
 
               <div
-                ref={(node) => {
-                  sectionRefs.current["market-sentiment"] = node
-                }}
-                className="scroll-mt-20 rounded-xl border"
+                ref={(node) => { sectionRefs.current["market-sentiment"] = node }}
+                className="scroll-mt-20 overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/45"
               >
-                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-xl font-semibold">
-                      <Gauge className="size-5 text-primary" />
-                      Market Sentiment Tool
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Analyze price momentum and curated news tone for a selected asset.
-                    </p>
+                <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-[0_0_14px_-4px_hsl(var(--primary)/0.3)]">
+                    <Gauge className="size-4" />
                   </div>
-                  {sentimentResult ? (
-                    <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black tracking-tight text-foreground">Market Sentiment</div>
+                    <div className="text-xs text-muted-foreground/70">Price momentum + curated news tone combined into a score</div>
+                  </div>
+                  {sentimentResult && (
+                    <span className="shrink-0 rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
                       {sentimentResult.range}
-                    </div>
-                  ) : null}
+                    </span>
+                  )}
                 </div>
 
-                <div className="space-y-4 px-5 py-4">
-                  <div className="grid gap-4 md:grid-cols-[1fr_180px_auto] md:items-end">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Asset</label>
+                <div className="space-y-4 px-5 py-5">
+                  <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Asset</label>
                       <Select
                         value={selectedSentimentAssetId}
                         onValueChange={setSelectedSentimentAssetId}
                         disabled={assetsLoading || sentimentLoading}
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={assetsLoading ? "Loading assets..." : "Select asset"}
-                          />
+                          <SelectValue placeholder={assetsLoading ? "Loading assets…" : "Select asset"} />
                         </SelectTrigger>
                         <SelectContent>
                           {assets.map((asset) => (
                             <SelectItem key={asset.id} value={asset.id}>
-                              {asset.symbol} - {asset.name}
+                              {asset.symbol} — {asset.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Range</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Range</label>
                       <Select
                         value={sentimentRange}
                         onValueChange={(value) => setSentimentRange(value as SentimentRange)}
@@ -1480,20 +1472,22 @@ export default function ToolsPage() {
                       </Select>
                     </div>
 
-                    <Button
-                      type="button"
-                      onClick={handleAnalyzeSentiment}
-                      disabled={assetsLoading || sentimentLoading || !selectedSentimentAssetId}
-                    >
-                      {sentimentLoading ? "Analyzing..." : "Analyze"}
-                    </Button>
+                    <div className="flex flex-col justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleAnalyzeSentiment}
+                        disabled={assetsLoading || sentimentLoading || !selectedSentimentAssetId}
+                      >
+                        {sentimentLoading ? "Analyzing…" : "Analyze"}
+                      </Button>
+                    </div>
                   </div>
 
                   {sentimentLoading ? (
                     <div className="grid gap-3 md:grid-cols-4">
                       {Array.from({ length: 4 }).map((_, index) => (
-                        <div key={index} className="rounded-lg border bg-muted/30 p-4">
-                          <Skeleton className="h-4 w-24" />
+                        <div key={index} className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <Skeleton className="h-3 w-24" />
                           <Skeleton className="mt-3 h-7 w-20" />
                           <Skeleton className="mt-2 h-3 w-32" />
                         </div>
@@ -1506,99 +1500,75 @@ export default function ToolsPage() {
                   ) : sentimentResult ? (
                     <>
                       <div className="grid gap-3 md:grid-cols-4">
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="text-sm text-muted-foreground">Overall sentiment</div>
-                          <div
-                            className={`mt-2 text-2xl font-semibold ${getSentimentColorClass(
-                              sentimentResult.label
-                            )}`}
-                          >
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Overall sentiment</div>
+                          <div className={cn("mt-2 text-2xl font-black tabular-nums tracking-tight", getSentimentColorClass(sentimentResult.label))}>
                             {sentimentResult.label}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Score {sentimentResult.score}/100
-                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground/70">Score {sentimentResult.score}/100</p>
                         </div>
 
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <TrendingUp className="size-4" />
-                            Price signal
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                            <TrendingUp className="size-3" />Price signal
                           </div>
-                          <div
-                            className={`mt-2 text-2xl font-semibold ${getSignedValueColorClass(
-                              sentimentResult.priceChangePct
-                            )}`}
-                          >
+                          <div className={cn("mt-2 text-2xl font-black tabular-nums tracking-tight", getSignedValueColorClass(sentimentResult.priceChangePct))}>
                             {formatPct(sentimentResult.priceChangePct)}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground/70">
                             {sentimentResult.priceDataSource === "market-data"
-                              ? `Close-to-close over ${sentimentResult.range}`
+                              ? `Close-to-close · ${sentimentResult.range}`
                               : sentimentResult.priceDataSource === "binance-live"
-                                ? "Live Binance 24h fallback"
-                                : "No price data available"}
+                                ? "Live Binance 24h"
+                                : "No price data"}
                           </p>
                         </div>
 
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Newspaper className="size-4" />
-                            News signal
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                            <Newspaper className="size-3" />News signal
                           </div>
-                          <div
-                            className={`mt-2 text-2xl font-semibold ${getNewsValueColorClass(
-                              sentimentResult.avgNewsSentiment
-                            )}`}
-                          >
-                            {sentimentResult.avgNewsSentiment == null
-                              ? "No news"
-                              : sentimentResult.avgNewsSentiment.toFixed(2)}
+                          <div className={cn("mt-2 text-2xl font-black tabular-nums tracking-tight", getNewsValueColorClass(sentimentResult.avgNewsSentiment))}>
+                            {sentimentResult.avgNewsSentiment == null ? "—" : sentimentResult.avgNewsSentiment.toFixed(2)}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {sentimentResult.newsCount} curated news items
-                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground/70">{sentimentResult.newsCount} curated items</p>
                         </div>
 
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Activity className="size-4" />
-                            Volume signal
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                            <Activity className="size-3" />Volume signal
                           </div>
-                          <div
-                            className={`mt-2 text-2xl font-semibold ${sentimentResult.volumeChangePct != null
-                                ? getSignedValueColorClass(sentimentResult.volumeChangePct)
-                                : "text-yellow-500"
-                              }`}
-                          >
+                          <div className={cn("mt-2 text-2xl font-black tabular-nums tracking-tight",
+                            sentimentResult.volumeChangePct != null
+                              ? getSignedValueColorClass(sentimentResult.volumeChangePct)
+                              : "text-yellow-500"
+                          )}>
                             {sentimentResult.volumeChangePct != null
                               ? formatPct(sentimentResult.volumeChangePct)
                               : formatCompactUsd(sentimentResult.volumeUsd)}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 text-xs text-muted-foreground/70">
                             {sentimentResult.volumeChangePct != null
-                              ? "Recent volume vs earlier window"
+                              ? "Recent vs earlier window"
                               : sentimentResult.volumeUsd != null
-                                ? "Live Binance 24h quote volume"
-                                : "No volume data available"}
+                                ? "Binance 24h volume"
+                                : "No volume data"}
                           </p>
                         </div>
                       </div>
 
-                      <div className="rounded-lg bg-muted/50 p-4">
-                        <div className="text-sm font-medium">
-                          {sentimentResult.asset.symbol} sentiment summary
+                      <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                        <div className="text-sm font-black tracking-tight text-foreground">
+                          {sentimentResult.asset.symbol} — Summary
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {sentimentResult.explanation}
-                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">{sentimentResult.explanation}</p>
                       </div>
                     </>
                   ) : (
-                    <div className="rounded-lg border bg-muted/40 p-5">
-                      <div className="font-medium">Select an asset and run analysis</div>
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-5">
+                      <div className="font-black tracking-tight">Select an asset and run analysis</div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        The tool combines market data and curated news into a simple sentiment score.
+                        Combines price momentum and curated news tone into a simple 0–100 score.
                       </p>
                     </div>
                   )}
@@ -1606,51 +1576,47 @@ export default function ToolsPage() {
               </div>
 
               <div
-                ref={(node) => {
-                  sectionRefs.current["watchlist-insights"] = node
-                }}
-                className="scroll-mt-20 rounded-xl border"
+                ref={(node) => { sectionRefs.current["watchlist-insights"] = node }}
+                className="scroll-mt-20 overflow-hidden rounded-2xl border border-border/50 bg-card/60 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/45"
               >
-                <div className="flex items-center justify-between gap-4 border-b px-5 py-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-xl font-semibold">
-                      <WalletCards className="size-5 text-primary" />
-                      Watchlist Insights
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Live movement, volume, and curated news signals from your watchlist.
-                    </p>
+                <div className="flex items-center gap-3 border-b border-border/50 px-5 py-4">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-[0_0_14px_-4px_hsl(var(--primary)/0.3)]">
+                    <WalletCards className="size-4" />
                   </div>
-                  <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
-                    {watchlistLoading ? "Loading" : `${watchlist.length} assets`}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black tracking-tight text-foreground">Watchlist Insights</div>
+                    <div className="text-xs text-muted-foreground/70">Live movement, volume, and curated news from your watchlist</div>
                   </div>
+                  <span className="shrink-0 rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                    {watchlistLoading ? "Loading…" : `${watchlist.length} assets`}
+                  </span>
                 </div>
 
-                <div className="space-y-4 px-5 py-4">
+                <div className="space-y-4 px-5 py-5">
                   {watchlistLoading ? (
                     <>
                       <div className="grid gap-3 md:grid-cols-3">
                         {Array.from({ length: 3 }).map((_, index) => (
-                          <div key={index} className="rounded-lg border bg-muted/30 p-4">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="mt-3 h-7 w-28" />
+                          <div key={index} className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                            <Skeleton className="h-3 w-24" />
+                            <Skeleton className="mt-3 h-6 w-20" />
                             <Skeleton className="mt-2 h-3 w-36" />
                           </div>
                         ))}
                       </div>
                       <div className="space-y-3">
                         {Array.from({ length: 3 }).map((_, index) => (
-                          <Skeleton key={index} className="h-20 w-full rounded-lg" />
+                          <Skeleton key={index} className="h-20 w-full rounded-xl" />
                         ))}
                       </div>
                     </>
                   ) : watchlistError ? (
-                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/8 p-4 text-sm text-destructive">
                       {watchlistError}
                     </div>
                   ) : watchlist.length === 0 ? (
-                    <div className="rounded-lg border bg-muted/40 p-5">
-                      <div className="font-medium">Your watchlist is empty</div>
+                    <div className="rounded-xl border border-border/50 bg-muted/20 p-5">
+                      <div className="font-black tracking-tight">Your watchlist is empty</div>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Add assets to your watchlist to see live attention cards here.
                       </p>
@@ -1658,65 +1624,58 @@ export default function ToolsPage() {
                   ) : (
                     <>
                       <div className="grid gap-3 md:grid-cols-3">
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Bell className="size-4" />
-                            Needs attention
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                            <Bell className="size-3" />Needs attention
                           </div>
-                          <div className="mt-2 text-lg font-semibold">
+                          <div className="mt-2 text-xl font-black tracking-tight text-foreground">
                             {topMover ? topMover.asset.symbol : "—"}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {topMover ? getAttentionLabel(topMover) : "Waiting for live data."}
+                          <p className="mt-1 text-xs text-muted-foreground/70">
+                            {topMover ? getAttentionLabel(topMover) : "Waiting for live data…"}
                           </p>
                         </div>
 
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <TrendingUp className="size-4 text-emerald-500" />
-                            Strongest 24h
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/70">
+                            <TrendingUp className="size-3" />Strongest 24h
                           </div>
-                          <div className="mt-2 text-lg font-semibold">
+                          <div className="mt-2 text-xl font-black tracking-tight text-foreground">
                             {strongest ? strongest.asset.symbol : "—"}
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {strongest
-                              ? `${formatPct(strongest.changePct)} at ${formatUsd(strongest.price)}`
-                              : "No live change yet."}
+                          <p className="mt-1 text-xs text-muted-foreground/70">
+                            {strongest ? `${formatPct(strongest.changePct)} at ${formatUsd(strongest.price)}` : "No live change yet."}
                           </p>
                         </div>
 
-                        <div className="rounded-lg border bg-muted/30 p-4">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Newspaper className="size-4" />
-                            Curated news
+                        <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                            <Newspaper className="size-3" />Curated news
                           </div>
-                          <div className="mt-2 text-lg font-semibold">{newsCount}</div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Latest summaries matched to watchlist assets.
-                          </p>
+                          <div className="mt-2 text-xl font-black tracking-tight text-foreground">{newsCount}</div>
+                          <p className="mt-1 text-xs text-muted-foreground/70">Summaries matched to your watchlist.</p>
                         </div>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="overflow-hidden rounded-xl border border-border/50 divide-y divide-border/50">
                         {sortedInsightRows.slice(0, 6).map((row) => {
                           const sentiment = getSentimentLabel(row.news?.sentiment_score)
                           const isPositive = (row.changePct ?? 0) >= 0
                           return (
                             <div
                               key={row.asset.id}
-                              className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto] md:items-center"
+                              className="grid gap-3 px-4 py-3.5 transition-colors hover:bg-muted/30 md:grid-cols-[1fr_auto] md:items-center"
                             >
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-semibold">{row.asset.symbol}</span>
-                                  <span className="text-sm text-muted-foreground">{row.asset.name}</span>
-                                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                  <span className="font-black tracking-tight text-foreground">{row.asset.symbol}</span>
+                                  <span className="text-xs text-muted-foreground/70">{row.asset.name}</span>
+                                  <span className="rounded-full border border-border/50 bg-muted/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                                     {sentiment}
                                   </span>
                                 </div>
-                                <div className="mt-2 max-h-12 overflow-hidden">
-                                  <MarkdownContent textClassName="text-xs leading-snug text-muted-foreground">
+                                <div className="mt-1.5 max-h-10 overflow-hidden">
+                                  <MarkdownContent textClassName="text-xs leading-snug text-muted-foreground/70">
                                     {(row.news?.summary ?? getAttentionLabel(row)).trim()}
                                   </MarkdownContent>
                                 </div>
@@ -1724,20 +1683,14 @@ export default function ToolsPage() {
 
                               <div className="flex items-center justify-between gap-6 md:justify-end">
                                 <div className="text-right">
-                                  <div className="text-sm font-medium">{formatUsd(row.price)}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Vol {formatCompactUsd(row.quoteVolume)}
-                                  </div>
+                                  <div className="text-sm font-black tabular-nums text-foreground">{formatUsd(row.price)}</div>
+                                  <div className="text-[10px] text-muted-foreground/60">Vol {formatCompactUsd(row.quoteVolume)}</div>
                                 </div>
-                                <div
-                                  className={`flex min-w-20 items-center justify-end gap-1 text-sm font-semibold ${isPositive ? "text-emerald-500" : "text-red-500"
-                                    }`}
-                                >
-                                  {isPositive ? (
-                                    <TrendingUp className="size-4" />
-                                  ) : (
-                                    <TrendingDown className="size-4" />
-                                  )}
+                                <div className={cn(
+                                  "flex min-w-[4.5rem] items-center justify-end gap-1 text-sm font-black tabular-nums",
+                                  isPositive ? "text-emerald-500" : "text-red-500"
+                                )}>
+                                  {isPositive ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
                                   {formatPct(row.changePct)}
                                 </div>
                               </div>
@@ -1746,15 +1699,15 @@ export default function ToolsPage() {
                         })}
                       </div>
 
-                      <p className="text-xs text-muted-foreground">
-                        Live price data comes from Binance ticker streams. Curated news is pulled from
-                        Tauron&apos;s backend when available.
+                      <p className="text-xs text-muted-foreground/60">
+                        Live prices from Binance ticker streams · curated news from Tauron backend when available.
                       </p>
                     </>
                   )}
                 </div>
               </div>
             </section>
+                  </div>
                 </div>
               </div>
             </AssistantDockSplitMain>

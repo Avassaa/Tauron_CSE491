@@ -18,12 +18,6 @@ import AnimatedBeamMultipleOutputDemo from "~/routes/home/components/animated-be
 import AnimatedListDemo from "~/routes/home/components/animated-list-demo";
 import CalendarPlaceholder from "~/routes/home/components/calendar-placeholder";
 import { LineShadowText } from "~/routes/home/components/line-shadow-text";
-import {
-  PricingSection,
-  DEFAULT_PRICING_PLANS,
-  type Plan,
-} from "~/components/landing/pricing-section";
-import type { PlanSlug } from "~/lib/subscription";
 
 const files = [
   {
@@ -153,19 +147,6 @@ export default function Home() {
     className: "min-h-screen"
   };
 
-  const handleSelectPlan = (plan: Plan) => {
-    const PLAN_SLUG_MAP: Record<string, PlanSlug> = {
-      Starter: "free",
-      Pro: "pro",
-      Enterprise: "enterprise",
-    }
-    const slug = PLAN_SLUG_MAP[plan.name]
-    if (!slug) return
-    
-    // Not logged in → send to register (with plan hint)
-    void navigate(slug === "free" ? "/register" : `/register?plan=${slug}`)
-  };
-
   return (
     <BeamsBackground intensity="strong">
       <HeroLanding {...heroProps} embedInBackground />
@@ -279,15 +260,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Pricing Section */}
-          <section className="space-y-12">
-            <PricingSection
-              plans={DEFAULT_PRICING_PLANS}
-              heading="Simple, Transparent Pricing"
-              description="Choose the plan that fits your needs. Always free to start."
-              onSelectPlan={handleSelectPlan}
-            />
-          </section>
         </div>
       </div>
     </BeamsBackground>

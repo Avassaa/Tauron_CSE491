@@ -29,6 +29,8 @@ export type UserProfile = {
   full_name?: string | null
   email: string
   plan?: string
+  created_at?: string | null
+  preferences?: Record<string, unknown> | null
 }
 
 export type UpdateProfilePayload = {

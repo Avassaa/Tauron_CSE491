@@ -3,7 +3,7 @@
 import * as React from "react"
 import { format, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { Activity, BrainCircuit, RefreshCw, TrendingDown, TrendingUp, FileDown, ChevronDown, ArrowLeft, Search, Sparkles, ArrowRight, Clock, ChevronRight, HelpCircle } from "lucide-react"
+import { Activity, BrainCircuit, RefreshCw, TrendingDown, TrendingUp, ChevronDown, ArrowLeft, Search, ArrowRight, Clock, ChevronRight, HelpCircle } from "lucide-react"
 import { toast } from "sonner"
 import { useSearchParams, useNavigate } from "react-router"
 import { motion, AnimatePresence } from "framer-motion"
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import { Button } from "~/components/ui/button"
 import { Badge } from "~/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle, glassPanelSurface } from "~/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import { Separator } from "~/components/ui/separator"
 import {
@@ -348,11 +348,11 @@ function AssetSelector({ assets, onSelect, loading }: {
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">AI Confidence</span>
                                 <TooltipProvider>
-                                  <Tooltip>
+                                  <Tooltip delayDuration={100}>
                                     <TooltipTrigger asChild>
                                       <HelpCircle className="size-2.5 text-muted-foreground/30 cursor-help hover:text-muted-foreground/60 transition-colors" />
                                     </TooltipTrigger>
-                                    <TooltipContent className="bg-popover/90 backdrop-blur-xl border-border/50 text-[10px] max-w-[180px]">
+                                    <TooltipContent side="top" className="bg-foreground text-background border-none text-[10px] max-w-[200px] p-2 shadow-xl z-[100] font-medium">
                                       Probabilistic score indicating the model's certainty level for the predicted trajectory.
                                     </TooltipContent>
                                   </Tooltip>
@@ -372,11 +372,11 @@ function AssetSelector({ assets, onSelect, loading }: {
                             <div className="space-y-1 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 <TooltipProvider>
-                                  <Tooltip>
+                                  <Tooltip delayDuration={100}>
                                     <TooltipTrigger asChild>
                                       <HelpCircle className="size-2.5 text-muted-foreground/30 cursor-help hover:text-muted-foreground/60 transition-colors" />
                                     </TooltipTrigger>
-                                    <TooltipContent className="bg-popover/90 backdrop-blur-xl border-border/50 text-[10px] max-w-[180px]">
+                                    <TooltipContent side="top" className="bg-foreground text-background border-none text-[10px] max-w-[200px] p-2 shadow-xl z-[100] font-medium">
                                       Aggregated directional sentiment derived from multi-model ensemble analysis.
                                     </TooltipContent>
                                   </Tooltip>
@@ -394,11 +394,11 @@ function AssetSelector({ assets, onSelect, loading }: {
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Volatility</span>
                                 <TooltipProvider>
-                                  <Tooltip>
+                                  <Tooltip delayDuration={100}>
                                     <TooltipTrigger asChild>
                                       <HelpCircle className="size-2.5 text-muted-foreground/30 cursor-help hover:text-muted-foreground/60 transition-colors" />
                                     </TooltipTrigger>
-                                    <TooltipContent className="bg-popover/90 backdrop-blur-xl border-border/50 text-[10px] max-w-[180px]">
+                                    <TooltipContent side="top" className="bg-foreground text-background border-none text-[10px] max-w-[200px] p-2 shadow-xl z-[100] font-medium">
                                       Estimated market variance based on historical price deviation and current price action.
                                     </TooltipContent>
                                   </Tooltip>

@@ -1010,7 +1010,7 @@ export default function BacktestsRoute() {
                     />
                   </div>
 
-                  <div className={cn(glassPanelSurface, "rounded-xl border p-0")}>
+                  <div className={cn(glassPanelSurface, "rounded-xl border-none p-0 overflow-hidden shadow-none")}>
                     <EvaluationOverlapChart
                       points={visibleEvaluationPointsExclusive}
                       totalPointCountExclusive={evaluationBundleExclusive.points.length}
