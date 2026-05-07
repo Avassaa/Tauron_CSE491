@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { Link } from "react-router"
 import {
   BarChart2,
@@ -28,6 +29,17 @@ export function meta() {
         "Explore every tool Tauron offers — from real-time dashboards and AI news synthesis to ML price predictions and strategy backtesting.",
     },
   ]
+}
+
+function useIsLoggedIn() {
+  const [loggedIn, setLoggedIn] = React.useState(false)
+  React.useEffect(() => {
+    setLoggedIn(!!localStorage.getItem("access_token"))
+    const handler = () => setLoggedIn(!!localStorage.getItem("access_token"))
+    window.addEventListener("tauron:auth-changed", handler)
+    return () => window.removeEventListener("tauron:auth-changed", handler)
+  }, [])
+  return loggedIn
 }
 
 // ─── Feature data ──────────────────────────────────────────────────────────────
@@ -142,6 +154,8 @@ function FeatureCard({
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function FeaturesPage() {
+  const loggedIn = useIsLoggedIn()
+
   return (
     <BeamsBackground intensity="medium">
       <div className="relative min-h-screen w-full overflow-x-hidden pb-24 pt-28">
@@ -164,10 +178,10 @@ export default function FeaturesPage() {
 
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
               <Link
-                to="/register"
+                to={loggedIn ? "/dashboard" : "/register"}
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98] dark:bg-white dark:text-black dark:hover:bg-neutral-200"
               >
-                Get started free
+                {loggedIn ? "Go to Dashboard" : "Get started free"}
                 <ArrowRight className="size-4" />
               </Link>
               <Link
@@ -233,7 +247,7 @@ export default function FeaturesPage() {
                 ))}
               </ul>
               <Link
-                to="/chat"
+                to={loggedIn ? "/chat" : "/login"}
                 className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-2.5 text-sm font-bold text-foreground/70 transition-all hover:border-border/80 hover:text-foreground dark:border-white/10 dark:text-white/50 dark:hover:text-white"
               >
                 Open AI Chat <ArrowRight className="size-4" />
@@ -356,7 +370,7 @@ export default function FeaturesPage() {
                 ))}
               </ul>
               <Link
-                to="/backtests"
+                to={loggedIn ? "/backtests" : "/login"}
                 className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-2.5 text-sm font-bold text-foreground/70 transition-all hover:border-border/80 hover:text-foreground dark:border-white/10 dark:text-white/50 dark:hover:text-white"
               >
                 Open Backtesting <ArrowRight className="size-4" />
@@ -407,10 +421,10 @@ export default function FeaturesPage() {
               </p>
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <Link
-                  to="/register"
+                  to={loggedIn ? "/dashboard" : "/register"}
                   className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98] dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                 >
-                  Start for free <ArrowRight className="size-4" />
+                  {loggedIn ? "Go to Dashboard" : "Start for free"} <ArrowRight className="size-4" />
                 </Link>
                 <Link
                   to="/pricing"

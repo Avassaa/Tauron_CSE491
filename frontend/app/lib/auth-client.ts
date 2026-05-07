@@ -133,6 +133,9 @@ export function getLocalPlan(): string {
 
 export function setLocalPlan(plan: "free" | "pro" | "ultra"): void {
   localStorage.setItem("plan", plan)
+  // Also persist per-user so the plan survives logout → login cycles
+  const userId = localStorage.getItem("user_id")
+  if (userId) localStorage.setItem(`plan_${userId}`, plan)
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }
@@ -149,8 +152,9 @@ export function persistSession(
   if (extra?.username) localStorage.setItem("username", extra.username)
   if (extra?.email) localStorage.setItem("email", extra.email)
   if (extra?.refresh_token) localStorage.setItem("refresh_token", extra.refresh_token)
-  // Set default plan only if not already set (preserves upgrades across re-logins)
-  if (!localStorage.getItem("plan")) localStorage.setItem("plan", "free")
+  // Restore per-user plan if previously saved, otherwise default to "free"
+  const savedPlan = localStorage.getItem(`plan_${userId}`) ?? "free"
+  localStorage.setItem("plan", savedPlan)
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }
@@ -160,10 +164,11 @@ export function clearSession(): void {
   localStorage.removeItem("access_token")
   localStorage.removeItem("refresh_token")
   localStorage.removeItem("token_type")
-  localStorage.removeItem("user_id")
   localStorage.removeItem("username")
   localStorage.removeItem("email")
   localStorage.removeItem("plan")
+  // Note: plan_<userId> is intentionally kept so the plan is restored on next login
+  localStorage.removeItem("user_id")
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }
