@@ -19,6 +19,7 @@ export default [
     route("watchlists", "routes/watchlists.tsx"),
     route("news", "routes/news.tsx"),
     route("predictions", "routes/predictions.tsx"),
+    route("backtests", "routes/backtests.tsx"),
     route("heatmap", "routes/heatmap.tsx"),
     route("news/:newsId", "routes/news-article.tsx"),
     route("chat", "routes/chat.tsx"),

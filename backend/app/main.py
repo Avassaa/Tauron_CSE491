@@ -31,6 +31,7 @@ from app.api.v1.routes import (
     knowledge_base_router,
     market_data_router,
     ml_models_router,
+    ml_training_router,
     news_scrape_router,
     notifications_admin_router,
     notifications_router,
@@ -96,6 +97,7 @@ app.include_router(watchlists_router, prefix="/api/v1", tags=["Watchlists"])
 app.include_router(watchlist_lists_router, prefix="/api/v1", tags=["Watchlist Lists"])
 app.include_router(assets_router, prefix="/api/v1", tags=["Assets"])
 app.include_router(ml_models_router, prefix="/api/v1", tags=["ML models"])
+app.include_router(ml_training_router, prefix="/api/v1", tags=["ML training"])
 app.include_router(news_scrape_router, prefix="/api/v1", tags=["News"])
 app.include_router(predictions_router, prefix="/api/v1", tags=["Predictions"])
 app.include_router(market_data_router, prefix="/api/v1", tags=["Market data"])

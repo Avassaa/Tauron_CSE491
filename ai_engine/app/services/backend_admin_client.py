@@ -20,6 +20,7 @@ def persist_ml_registry_row(
     training_metric_document: dict[str, Any],
     artifact_relative_path_on_disk: str,
     activate_model: bool,
+    display_name: str | None = None,
 ) -> UUID:
     """
     POST a new ML model registry entry and return the issued primary identifier.
@@ -38,6 +39,9 @@ def persist_ml_registry_row(
         "file_path": artifact_relative_path_on_disk,
         "is_active": activate_model,
     }
+    trimmed_label = display_name.strip() if display_name and display_name.strip() else ""
+    if trimmed_label:
+        payload["display_name"] = trimmed_label[:120]
     with httpx.Client(timeout=120.0) as client:
         response = client.post(url, json=payload, headers=headers)
         response.raise_for_status()

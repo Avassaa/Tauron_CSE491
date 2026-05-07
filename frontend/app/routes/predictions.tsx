@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { addDays, format, subDays } from "date-fns"
+import { format, subDays } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import { Activity, BrainCircuit, RefreshCw, TrendingDown, TrendingUp, FileDown, ChevronDown, ArrowLeft, Search, Sparkles, ArrowRight, Clock, ChevronRight, HelpCircle } from "lucide-react"
 import { toast } from "sonner"
 import { useSearchParams, useNavigate } from "react-router"
@@ -34,6 +35,7 @@ import {
   CollapsibleTrigger,
 } from "~/components/ui/collapsible"
 import { AssetPagination } from "~/components/assets"
+import { DatePickerWithRange } from "~/components/dashboard/date-picker-with-range"
 import {
   apiGet,
   type AssetResponse,
@@ -42,6 +44,7 @@ import {
   type PredictionResponse,
   type MarketDataResponse,
   type AssetPredictionSummaryResponse,
+  type PredictionChartWindowResponse,
 } from "~/lib/api-client"
 import { formatCurrency, formatCompactCurrency } from "~/lib/currency"
 import { cn } from "~/lib/utils"
@@ -69,16 +72,50 @@ import { List, Grid as GridIcon } from "lucide-react"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type TimeRangeKey = "7D" | "30D" | "90D" | "180D"
+function utcCalendarDate(): Date {
+  const n = new Date()
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()))
+}
 
-const TIME_RANGES: { key: TimeRangeKey; label: string; days: number }[] = [
-  { key: "7D", label: "7D", days: 7 },
-  { key: "30D", label: "30D", days: 30 },
-  { key: "90D", label: "90D", days: 90 },
-  { key: "180D", label: "180D", days: 180 },
-]
+function startOfUtcDayFromLocalCalendarDate(d: Date): Date {
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0))
+}
+
+function endOfUtcDayFromLocalCalendarDate(d: Date): Date {
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999))
+}
+
+function utcBoundsFromDateRange(
+  range: DateRange | undefined,
+): { timeFromIso: string; timeToIso: string; spanDays: number } | null {
+  if (!range?.from || !range.to) return null
+  const fromUtc = startOfUtcDayFromLocalCalendarDate(range.from)
+  const toUtc = endOfUtcDayFromLocalCalendarDate(range.to)
+  if (fromUtc.getTime() > toUtc.getTime()) return null
+  const inclusiveMs = toUtc.getTime() - fromUtc.getTime()
+  const spanDays = Math.max(1, Math.ceil((inclusiveMs + 1) / 86400000))
+  return { timeFromIso: fromUtc.toISOString(), timeToIso: toUtc.toISOString(), spanDays }
+}
 
 const PAGE_SIZE = 20
+
+function assetSelectionLooksResolvedToUuid(candidate: string): boolean {
+  const trimmed = candidate.trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)
+}
+
+function coerceFiniteNumber(candidate: unknown): number | undefined {
+  if (typeof candidate === "number" && Number.isFinite(candidate)) {
+    return candidate
+  }
+  if (typeof candidate === "string" && candidate.trim() !== "") {
+    const parsedNumber = Number(candidate.trim())
+    if (Number.isFinite(parsedNumber)) {
+      return parsedNumber
+    }
+  }
+  return undefined
+}
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
@@ -492,12 +529,17 @@ export default function PredictionsPage() {
 
   const [assets, setAssets] = React.useState<AssetPredictionSummaryResponse[]>([])
   const [assetsLoading, setAssetsLoading] = React.useState(true)
-  const [selectedAssetId, setSelectedAssetId] = React.useState<string>(assetParam || "")
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string>(
+    assetParam && assetSelectionLooksResolvedToUuid(assetParam) ? assetParam : "",
+  )
   const [displayMode, setDisplayMode] = React.useState<"forecast" | "market">("forecast")
   const [models, setModels] = React.useState<MlModelResponse[]>([])
   const [modelsLoading, setModelsLoading] = React.useState(false)
   const [selectedModelId, setSelectedModelId] = React.useState<string>("__all__")
-  const [timeRange, setTimeRange] = React.useState<TimeRangeKey>("30D")
+  const [chartDateRange, setChartDateRange] = React.useState<DateRange | undefined>(() => {
+    const to = utcCalendarDate()
+    return { from: subDays(to, 179), to }
+  })
   const [predictions, setPredictions] = React.useState<PredictionResponse[]>([])
   const [marketData, setMarketData] = React.useState<MarketDataResponse[]>([])
   const [page, setPage] = React.useState(1)
@@ -535,9 +577,15 @@ export default function PredictionsPage() {
   }, [searchParams, assets])
 
   React.useEffect(() => {
-    setModelsLoading(true)
     setSelectedModelId("__all__")
     setModels([])
+
+    if (!selectedAssetId || !assetSelectionLooksResolvedToUuid(selectedAssetId)) {
+      setModelsLoading(false)
+      return
+    }
+
+    setModelsLoading(true)
 
     apiGet<PaginatedResponse<MlModelResponse>>("/predictions/models", {
       asset_id: selectedAssetId || undefined,
@@ -558,33 +606,29 @@ export default function PredictionsPage() {
 
 
   const fetchPredictions = React.useCallback(
-    async (targetPage: number) => {
-      if (!selectedAssetId) return
+    async () => {
+      if (!selectedAssetId || !assetSelectionLooksResolvedToUuid(selectedAssetId)) return
+      const bounds = utcBoundsFromDateRange(chartDateRange)
+      if (bounds == null) {
+        return
+      }
       setLoading(true)
       setError(null)
 
       try {
-        const rangeCfg = TIME_RANGES.find((r) => r.key === timeRange) ?? TIME_RANGES[1]
-        
-        // Parallel fetch for market data and predictions from the predictions service
-        const [realMarketData, predictionsPage] = await Promise.all([
-          apiGet<MarketDataResponse[]>("/predictions/market-data", {
-            asset_id: selectedAssetId,
-            limit: rangeCfg.days * 24,
-            resolution: "1h"
-          }),
-          apiGet<PaginatedResponse<PredictionResponse>>("/predictions", {
-            asset_id: selectedAssetId,
-            model_id: selectedModelId === "__all__" ? undefined : selectedModelId,
-            page: targetPage,
-            page_size: 100
-          })
-        ])
+        const resolutionExclusive = bounds.spanDays <= 62 ? "1h" : "1d"
+        const bundle = await apiGet<PredictionChartWindowResponse>("/predictions/chart-window", {
+          asset_id: selectedAssetId,
+          time_from: bounds.timeFromIso,
+          time_to: bounds.timeToIso,
+          model_id: selectedModelId === "__all__" ? undefined : selectedModelId,
+          resolution: resolutionExclusive,
+        })
 
-        setPredictions(predictionsPage.items)
-        setMarketData(realMarketData)
+        setPredictions(bundle.predictions)
+        setMarketData(bundle.market_data)
 
-        if (predictionsPage.items.length === 0) {
+        if (bundle.predictions.length === 0) {
           setError("No prediction data found for this asset and timeframe.")
         }
       } catch (err) {
@@ -596,7 +640,7 @@ export default function PredictionsPage() {
         setLoading(false)
       }
     },
-    [selectedAssetId, selectedModelId, timeRange],
+    [chartDateRange, selectedAssetId, selectedModelId],
   )
 
 
@@ -614,31 +658,70 @@ export default function PredictionsPage() {
 
   React.useEffect(() => {
     setPage(1)
-    void fetchPredictions(1)
+    void fetchPredictions()
   }, [fetchPredictions])
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const selectedAsset = assets.find((a) => a.asset_id === selectedAssetId)
   const selectedModel = models.find((m) => m.id === selectedModelId)
 
+  const chartRangeSummaryLabel = React.useMemo(() => {
+    if (!chartDateRange?.from || !chartDateRange.to) return "—"
+    return `${format(chartDateRange.from, "MMM d, y")} → ${format(chartDateRange.to, "MMM d, y")}`
+  }, [chartDateRange])
+
   const chartHistorical = React.useMemo(() => {
-    return marketData.map(d => ({
-      time: Math.floor(new Date(d.time).getTime() / 1000),
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-      volume: d.volume
-    })).sort((a, b) => a.time - b.time)
+    return marketData
+      .map((d) => {
+        const timeSeconds = Math.floor(new Date(d.time).getTime() / 1000)
+        return {
+          time: timeSeconds,
+          open: coerceFiniteNumber(d.open),
+          high: coerceFiniteNumber(d.high),
+          low: coerceFiniteNumber(d.low),
+          close: coerceFiniteNumber(d.close),
+          volume: coerceFiniteNumber(d.volume),
+        }
+      })
+      .filter((row): row is {
+        time: number
+        open: number
+        high: number
+        low: number
+        close: number
+        volume: number | undefined
+      } =>
+        Number.isFinite(row.time) &&
+        row.open !== undefined &&
+        row.high !== undefined &&
+        row.low !== undefined &&
+        row.close !== undefined &&
+        Number.isFinite(row.open) &&
+        Number.isFinite(row.high) &&
+        Number.isFinite(row.low) &&
+        Number.isFinite(row.close))
+      .map((row) => ({
+        ...row,
+        volume: row.volume ?? 0,
+      }))
+      .sort((a, b) => a.time - b.time)
   }, [marketData])
 
   const chartPredictions = React.useMemo(() => {
-    return predictions.map(p => ({
-      time: Math.floor(new Date(p.time).getTime() / 1000),
-      value: p.predicted_value,
-      ciHigh: p.confidence_interval_high ?? undefined,
-      ciLow: p.confidence_interval_low ?? undefined
-    })).sort((a, b) => a.time - b.time)
+    return predictions
+      .map((p) => ({
+        time: Math.floor(new Date(p.time).getTime() / 1000),
+        value: coerceFiniteNumber(p.predicted_value),
+        ciHigh: coerceFiniteNumber(p.confidence_interval_high ?? undefined),
+        ciLow: coerceFiniteNumber(p.confidence_interval_low ?? undefined),
+      }))
+      .filter((row): row is {
+        time: number
+        value: number
+        ciHigh: number | undefined
+        ciLow: number | undefined
+      } => Number.isFinite(row.time) && row.value !== undefined && Number.isFinite(row.value))
+      .sort((a, b) => a.time - b.time)
   }, [predictions])
 
   const tableRows = React.useMemo(() => {
@@ -723,7 +806,7 @@ export default function PredictionsPage() {
             Switch Asset
           </Button>
           <Separator orientation="vertical" className="h-4 mx-1" />
-          <Button variant="outline" size="icon" className="size-9 rounded-xl border-border/50 bg-card/50 hover:bg-white/10" onClick={() => fetchPredictions(page)} disabled={loading}>
+          <Button variant="outline" size="icon" className="size-9 rounded-xl border-border/50 bg-card/50 hover:bg-white/10" onClick={() => void fetchPredictions()} disabled={loading}>
             <RefreshCw className={cn("size-4", loading && "animate-spin")} />
           </Button>
         </div>
@@ -760,13 +843,13 @@ export default function PredictionsPage() {
           </Breadcrumb>
 
           {/* ── Controls ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 py-1">
-            <div className="xl:col-span-3 flex flex-wrap items-end gap-x-6 gap-y-3">
-              <div className="flex flex-col gap-2 w-full sm:w-auto">
+          <div className="flex flex-col gap-4 py-1">
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
+              <div className="flex min-w-[200px] flex-1 flex-col gap-2 sm:flex-none sm:max-w-xs">
                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Target Asset</label>
-                {assetsLoading ? <Skeleton className="h-9 w-full sm:w-44 bg-muted/50" /> : (
+                {assetsLoading ? <Skeleton className="h-9 w-full bg-muted/50 sm:max-w-[11rem]" /> : (
                   <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
-                    <SelectTrigger className="h-9 w-full sm:w-44 border-border/50 bg-card/60 backdrop-blur-sm text-foreground/90 rounded-xl focus:ring-blue-500/20">
+                    <SelectTrigger className="h-9 w-full border-border/50 bg-card/60 backdrop-blur-sm text-foreground/90 rounded-xl focus:ring-blue-500/20 sm:max-w-[11rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
@@ -780,54 +863,45 @@ export default function PredictionsPage() {
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 w-full sm:w-auto">
+              <div className="flex min-w-[200px] flex-1 flex-col gap-2 sm:flex-none sm:max-w-sm">
                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Analysis Model</label>
-                {modelsLoading ? <Skeleton className="h-9 w-full sm:w-52 bg-muted/50" /> : (
+                {modelsLoading ? <Skeleton className="h-9 w-full bg-muted/50 sm:max-w-[13rem]" /> : (
                   <Select value={selectedModelId} onValueChange={setSelectedModelId} disabled={models.length === 0}>
-                    <SelectTrigger className="h-9 w-full sm:w-52 border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl text-foreground/90 rounded-xl focus:ring-blue-500/20 shadow-sm dark:shadow-inner">
+                    <SelectTrigger className="h-9 w-full border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl text-foreground/90 rounded-xl focus:ring-blue-500/20 shadow-sm dark:shadow-inner sm:max-w-[13rem]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-popover/90 border-border backdrop-blur-xl">
                       <SelectItem value="__all__" className="focus:bg-accent">Consensus Ensemble</SelectItem>
                       {models.map((m) => (
-                        <SelectItem key={m.id} value={m.id} className="focus:bg-accent">{m.model_type || "Model"} <span className="text-[9px] text-muted-foreground ml-2">{m.version_tag}</span></SelectItem>
+                        <SelectItem key={m.id} value={m.id} className="focus:bg-accent">
+                          {m.display_name?.trim()
+                            ? `${m.display_name.trim()} · ${m.model_type || "model"}`
+                            : `${m.model_type || "Model"}`}{" "}
+                          <span className="text-[9px] text-muted-foreground ml-2">{m.version_tag}</span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 w-full sm:w-auto">
-                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">Prediction Horizon</label>
-                <div className="flex h-9 items-center gap-1 rounded-xl border border-black/5 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-xl p-1 relative overflow-hidden shadow-sm dark:shadow-inner">
-                  {TIME_RANGES.map((r) => {
-                    const isActive = timeRange === r.key
-                    return (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => setTimeRange(r.key)}
-                        className={cn(
-                          "relative flex-1 h-full px-4 flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 z-10",
-                          isActive ? "text-white" : "text-foreground/40 hover:text-foreground/70"
-                        )}
-                      >
-                        {isActive && (
-                          <motion.div
-                            layoutId="horizonPill"
-                            className="absolute inset-0 rounded-lg bg-blue-600 shadow-lg shadow-blue-500/20"
-                            transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
-                          />
-                        )}
-                        <span className="relative z-10">{r.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
+              <div className="flex min-w-[220px] flex-1 flex-col gap-2 sm:max-w-[17rem]">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">
+                  Chart range
+                </label>
+                <DatePickerWithRange
+                  hideLabel
+                  className="w-full max-w-none"
+                  date={chartDateRange}
+                  onSelect={setChartDateRange}
+                  disabled={loading}
+                />
               </div>
 
-              <div className="flex flex-col gap-2 w-full sm:w-auto ml-auto">
-                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30 invisible sm:visible text-right">View Mode</label>
+              <div className="ml-0 flex w-full flex-col gap-2 sm:ml-auto sm:w-auto">
+                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground/30 dark:text-white/30">
+                  View mode
+                </label>
                 <div className="relative flex h-9 w-full sm:w-fit items-center gap-1 rounded-xl border border-border/40 bg-black/20 dark:bg-black/40 p-1 shadow-sm backdrop-blur-md">
                   {[
                     { id: "forecast", label: "Candlestick" },
@@ -835,11 +909,12 @@ export default function PredictionsPage() {
                   ].map((mode) => (
                     <button
                       key={mode.id}
-                      onClick={() => setDisplayMode(mode.id as any)}
+                      type="button"
+                      onClick={() => setDisplayMode(mode.id as "forecast" | "market")}
                       className={cn(
-                        "relative z-10 flex-1 sm:flex-initial px-4 sm:px-3 h-full rounded-lg text-[10px] font-black uppercase tracking-[0.1em] transition-colors duration-300",
-                        displayMode === mode.id 
-                          ? "text-white" 
+                        "relative z-10 h-full flex-1 rounded-lg px-4 text-[10px] font-black uppercase tracking-[0.1em] transition-colors duration-300 sm:flex-initial sm:px-3",
+                        displayMode === mode.id
+                          ? "text-white"
                           : "text-foreground/40 dark:text-white/30 hover:text-foreground dark:hover:text-white"
                       )}
                     >
@@ -856,7 +931,6 @@ export default function PredictionsPage() {
                 </div>
               </div>
             </div>
-            <div className="hidden xl:block" /> {/* Match sidebar col */}
           </div>
 
           {/* ── Chart Section ────────────────────────────────────────── */}
@@ -892,11 +966,14 @@ export default function PredictionsPage() {
 
               <CardContent className="relative p-0 overflow-hidden">
                 <div className="h-[260px] sm:h-[360px] md:h-[450px] w-full border-b border-border/10">
-                  {loading && predictions.length === 0 ? (
+                  {loading &&
+                  predictions.length === 0 &&
+                  chartHistorical.length === 0 ? (
                     <div className="flex h-full items-center justify-center">
                       <RefreshCw className="size-8 animate-spin text-blue-500/10" />
                     </div>
-                  ) : predictions.length === 0 ? (
+                  ) : predictions.length === 0 &&
+                    chartHistorical.length === 0 ? (
                     <div className="flex h-full items-center justify-center">
                       <p className="text-xs font-bold text-muted-foreground/40">No telemetry data.</p>
                     </div>
@@ -1109,7 +1186,7 @@ export default function PredictionsPage() {
                               </div>
                               <div>
                                 <p className="text-xs font-black text-foreground/90 dark:text-white/80">Temporal Resolution</p>
-                                <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed mt-1 font-medium">Predictions are generated at fixed time intervals based on the selected horizon.</p>
+                                <p className="text-[10px] text-foreground/80 dark:text-white/70 leading-relaxed mt-1 font-medium">Use the chart range control to slice both real OHLC and stored model points to the calendar window you need.</p>
                               </div>
                             </div>
                             <div className="flex items-start gap-3">
@@ -1198,8 +1275,10 @@ export default function PredictionsPage() {
                           <span className="text-[11px] font-black text-foreground/90 dark:text-white/80 truncate max-w-[110px]">{selectedModel?.model_type || "Consensus"}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.05] dark:bg-white/[0.08] border border-border/40 px-3 py-2.5 transition-colors duration-500 hover:bg-white/[0.1]">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60">Horizon</span>
-                          <span className="text-[11px] font-black text-blue-500/90 dark:text-blue-400">{timeRange}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-foreground/70 dark:text-white/60">Range</span>
+                          <span className="text-[11px] font-black text-blue-500/90 dark:text-blue-400 truncate max-w-[min(260px,45vw)]" title={chartRangeSummaryLabel}>
+                            {chartRangeSummaryLabel}
+                          </span>
                         </div>
                       </div>
                     </div>

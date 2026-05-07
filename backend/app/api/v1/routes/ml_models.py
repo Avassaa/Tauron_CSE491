@@ -10,7 +10,7 @@ from app.api.v1.dependencies import PaginationParams, get_pagination
 from app.core.security import get_current_user_id, require_admin_api_key
 from app.db.repositories.ml_model_repository import MlModelRepository
 from app.db.session import get_db_session
-from app.models.request.table_requests import CreateMlModelRequest, UpdateMlModelRequest
+from app.models.request.table_requests import CreateMlModelRequest, PatchMlModelDisplayNameRequest, UpdateMlModelRequest
 from app.models.response.table_responses import MlModelResponse, PaginatedResponse
 
 router = APIRouter(prefix="/ml-models")
@@ -67,6 +67,7 @@ async def create_ml_model(
         row = await repository.create(
             version_tag=body.version_tag,
             asset_id=body.asset_id,
+            display_name=body.display_name,
             model_type=body.model_type,
             hyperparameters=body.hyperparameters,
             training_metrics=body.training_metrics,
@@ -98,6 +99,23 @@ async def update_ml_model(
             status_code=status.HTTP_409_CONFLICT,
             detail="Update conflicts with existing data",
         ) from exc
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
+    return MlModelResponse.model_validate(row)
+
+
+@router.patch("/{model_id}/display-name", response_model=MlModelResponse)
+async def patch_registered_model_display_label(
+    model_id: uuid.UUID,
+    body: PatchMlModelDisplayNameRequest,
+    session: AsyncSession = Depends(get_db_session),
+    _user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Set or clear the human-readable model label (any authenticated researcher)."""
+
+    repository = MlModelRepository(session)
+    normalized_label = body.display_name.strip() if body.display_name and body.display_name.strip() else None
+    row = await repository.update(model_id, {"display_name": normalized_label})
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
     return MlModelResponse.model_validate(row)

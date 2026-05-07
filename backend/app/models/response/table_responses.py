@@ -120,6 +120,7 @@ class MlModelResponse(BaseModel):
     id: uuid.UUID
     asset_id: Optional[uuid.UUID]
     version_tag: str
+    display_name: Optional[str]
     model_type: Optional[str]
     hyperparameters: Optional[dict[str, Any]]
     training_metrics: Optional[dict[str, Any]]
@@ -162,6 +163,37 @@ class MarketDataResponse(BaseModel):
     close: float
     volume: float
     resolution: str
+
+
+class ModelEvaluationPointResponse(BaseModel):
+    """One overlapping prediction horizon versus the realised ``PriceUSD`` anchor."""
+
+    time: datetime
+    predicted_value: float
+    actual_close: float
+    absolute_error: float
+    signed_error: float
+
+
+class ModelEvaluationSummaryResponse(BaseModel):
+    """Aggregate error statistics for predictions that overlap same-day ``PriceUSD`` rows."""
+
+    asset_id: uuid.UUID
+    model_id: uuid.UUID
+    resolution: str
+    overlap_count: int
+    mean_absolute_error: Optional[float]
+    root_mean_square_error: Optional[float]
+    mean_absolute_percentage_error: Optional[float]
+    directional_accuracy: Optional[float]
+    points: list[ModelEvaluationPointResponse]
+
+
+class PredictionChartWindowResponse(BaseModel):
+    """Synthetic OHLC payloads (from ``PriceUSD``) plus model forecasts for ``time_from`` / ``time_to``."""
+
+    market_data: list[MarketDataResponse]
+    predictions: list[PredictionResponse]
 
 
 class TechnicalIndicatorResponse(BaseModel):

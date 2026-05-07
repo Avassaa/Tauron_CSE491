@@ -250,6 +250,15 @@ class Settings(BaseSettings):
         description="Binance quote asset used for pairing, e.g. BASE + USDT = BTCUSDT.",
     )
 
+    AI_ENGINE_BASE_URL: str = Field(
+        default="",
+        description="AI engine origin without trailing slash (e.g. http://ai_engine:8001). Enables /ml-training proxy.",
+    )
+    AI_ENGINE_ML_SERVICE_KEY: str = Field(
+        default="",
+        description="Forwarded as X-ML-Service-Key when the backend calls the AI engine.",
+    )
+
     @property
     def CORS_ORIGINS_LIST(self) -> list[str]:
         """Parse ``CORS_ORIGINS`` as a comma-separated list."""

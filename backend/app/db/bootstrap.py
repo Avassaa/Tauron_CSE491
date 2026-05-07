@@ -409,6 +409,12 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
                 )
             )
 
+    ml_models_rel = f'"{schema}".ml_models' if schema else "ml_models"
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(f"ALTER TABLE {ml_models_rel} ADD COLUMN IF NOT EXISTS display_name VARCHAR(120)"),
+        )
+
     hypertable_names = (
         "market_data",
         "technical_indicators",

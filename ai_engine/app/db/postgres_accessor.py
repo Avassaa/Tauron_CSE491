@@ -91,42 +91,6 @@ def fetch_ml_model_registration(
             return dict(zip(column_names, row))
 
 
-def load_market_daily_close_frame(
-    *,
-    connection: psycopg.Connection,
-    schema_name: str,
-    asset_id: UUID,
-) -> pd.Series:
-    """
-    Produce a timezone-aware UTC daily series of OHLC closes from ``market_data``.
-
-    The last observation per UTC calendar day wins, preferring ``1d`` then ``1h`` rows.
-    """
-    table_qual = _qualified_table(schema_name, "market_data")
-    query_sql = """
-        SELECT time AT TIME ZONE 'UTC' AS time_utc,
-               close::double precision AS close_px,
-               resolution
-        FROM {table_qual}
-        WHERE asset_id = %(asset_id)s
-          AND resolution = ANY (%(preferred)s)
-        ORDER BY time ASC
-        """.format(
-        table_qual=table_qual,
-    )
-    frame = pd.read_sql_query(
-        query_sql,
-        connection,
-        params={"asset_id": str(asset_id), "preferred": ["1d", "1h"]},
-    )
-    if frame.empty:
-        return pd.Series(dtype="float64", name="close")
-    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
-    frame["day"] = frame["time_utc"].dt.floor("D")
-    daily_last = frame.sort_values("time_utc").groupby("day", as_index=True).last()
-    return daily_last["close_px"].astype(float).sort_index()
-
-
 def load_on_chain_long_frame(
     *,
     connection: psycopg.Connection,

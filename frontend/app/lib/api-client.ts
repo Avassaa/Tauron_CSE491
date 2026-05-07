@@ -133,14 +133,17 @@ function authHeadersWithoutJsonContentType(): Record<string, string> {
   return h
 }
 
-async function fetchWithAuth(url: string, options: RequestInit): Promise<Response> {
+async function fetchWithAuth(
+  url: string,
+  options: RequestInit,
+  timeoutMillisecondsExclusive: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   options.headers = authHeaders()
-  options.signal = timeoutSignal()
+  options.signal = AbortSignal.timeout(timeoutMillisecondsExclusive)
 
   let res = await fetch(url, options)
 
   if (res.status === 401) {
-    // Attempt to refresh token
     if (!isRefreshing) {
       isRefreshing = true
       refreshPromise = refreshAccessToken().finally(() => {
@@ -151,9 +154,8 @@ async function fetchWithAuth(url: string, options: RequestInit): Promise<Respons
 
     const newToken = await refreshPromise
     if (newToken) {
-      // Retry request with new token
       options.headers = authHeaders()
-      options.signal = timeoutSignal() // new signal for retry
+      options.signal = AbortSignal.timeout(timeoutMillisecondsExclusive)
       res = await fetch(url, options)
     }
   }
@@ -203,6 +205,23 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     method: "POST",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+  return handleResponse<T>(res)
+}
+
+/** POST with an extended deadline (training jobs routinely exceed the default client timeout). */
+export async function apiPostLong<T>(
+  path: string,
+  body?: unknown,
+  timeoutMillisecondsExclusive = 420_000,
+): Promise<T> {
+  const res = await fetchWithAuth(
+    `${getPublicApiBaseUrl()}${path}`,
+    {
+      method: "POST",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    },
+    timeoutMillisecondsExclusive,
+  )
   return handleResponse<T>(res)
 }
 
@@ -364,12 +383,33 @@ export interface MlModelResponse {
   id: string
   asset_id: string | null
   version_tag: string
+  display_name: string | null
   model_type: string | null
   hyperparameters: Record<string, unknown> | null
   training_metrics: Record<string, unknown> | null
   file_path: string | null
   is_active: boolean
   created_at: string
+}
+
+export interface ModelEvaluationPointResponse {
+  time: string
+  predicted_value: number
+  actual_close: number
+  absolute_error: number
+  signed_error: number
+}
+
+export interface ModelEvaluationSummaryResponse {
+  asset_id: string
+  model_id: string
+  resolution: string
+  overlap_count: number
+  mean_absolute_error: number | null
+  root_mean_square_error: number | null
+  mean_absolute_percentage_error: number | null
+  directional_accuracy: number | null
+  points: ModelEvaluationPointResponse[]
 }
 
 export interface MarketDataResponse {
@@ -416,6 +456,11 @@ export interface PredictionResponse {
   predicted_value: number
   confidence_interval_high: number | null
   confidence_interval_low: number | null
+}
+
+export interface PredictionChartWindowResponse {
+  market_data: MarketDataResponse[]
+  predictions: PredictionResponse[]
 }
 
 export interface AssetPredictionSummaryResponse {

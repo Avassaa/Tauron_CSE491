@@ -3,13 +3,27 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ai_engine /app-src
 WORKDIR /app-src
 
-RUN pip install --no-cache-dir . \
+COPY ai_engine/requirements-base.txt ./requirements-base.txt
+
+ENV PIP_CACHE_DIR=/root/.cache/pip \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN --mount=type=cache,id=tauron-ai-engine-pip,target=/root/.cache/pip,sharing=shared \
+    pip install -r requirements-base.txt
+
+COPY ai_engine/requirements-torch-cpu.txt ./requirements-torch-cpu.txt
+
+RUN --mount=type=cache,id=tauron-ai-engine-pip,target=/root/.cache/pip,sharing=shared \
+    pip install -r requirements-torch-cpu.txt
+
+COPY ai_engine/ .
+
+RUN pip install --no-cache-dir --no-deps . \
     && mkdir -p /models \
     && useradd --create-home --uid 1000 mluser \
     && chown -R mluser:mluser /app-src /models
