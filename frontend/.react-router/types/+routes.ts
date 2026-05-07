@@ -65,6 +65,9 @@ type Pages = {
   "/predictions": {
     params: {};
   };
+  "/backtests": {
+    params: {};
+  };
   "/heatmap": {
     params: {};
   };
@@ -90,7 +93,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/predictions" | "/heatmap" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
+    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/predictions" | "/backtests" | "/heatmap" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -164,6 +167,10 @@ type RouteFiles = {
     id: "routes/predictions";
     page: "/predictions";
   };
+  "routes/backtests.tsx": {
+    id: "routes/backtests";
+    page: "/backtests";
+  };
   "routes/heatmap.tsx": {
     id: "routes/heatmap";
     page: "/heatmap";
@@ -210,6 +217,7 @@ type RouteModules = {
   "routes/watchlists": typeof import("./app/routes/watchlists.tsx");
   "routes/news": typeof import("./app/routes/news.tsx");
   "routes/predictions": typeof import("./app/routes/predictions.tsx");
+  "routes/backtests": typeof import("./app/routes/backtests.tsx");
   "routes/heatmap": typeof import("./app/routes/heatmap.tsx");
   "routes/news-article": typeof import("./app/routes/news-article.tsx");
   "routes/chat": typeof import("./app/routes/chat.tsx");

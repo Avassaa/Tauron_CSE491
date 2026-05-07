@@ -7,6 +7,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -16,9 +17,9 @@ import type { ModelEvaluationPointResponse } from "~/lib/api-client"
 import { formatCurrency } from "~/lib/currency"
 import { cn } from "~/lib/utils"
 
-const PIXELS_PER_DAY_EXCLUSIVE = 5
+const PIXELS_PER_DAY_EXCLUSIVE = 12
 const CHART_HEIGHT_PX_EXCLUSIVE = 420
-const MIN_CHART_WIDTH_PX_EXCLUSIVE = 720
+const MIN_CHART_WIDTH_PX_EXCLUSIVE = 800
 
 export type EvaluationOverlapChartProps = {
   points: ModelEvaluationPointResponse[]
@@ -133,7 +134,7 @@ export function EvaluationOverlapChart({
   }
 
   return (
-    <div className={cn("flex w-full flex-col gap-2", className)}>
+    <div className={cn("flex w-full flex-col gap-2 overflow-hidden border-none outline-none", className)}>
       <div className="border-b border-border/40 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
         Overlap series (showing {shownCountExclusive} of {totalPointCountExclusive}
         {totalPointCountExclusive > visibleCapExclusive ? ` — capped at ${visibleCapExclusive}` : ""})
@@ -142,14 +143,13 @@ export function EvaluationOverlapChart({
         </span>
       </div>
       <div
-        className="max-h-[min(480px,70vh)] w-full overflow-x-auto overflow-y-hidden rounded-b-xl [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]"
+        className="h-[420px] w-full rounded-b-xl bg-background/5 border-none outline-none ring-0 focus:outline-none focus:ring-0"
       >
-        <div style={{ width: chartWidthExclusive, minWidth: "100%" }}>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            width={chartWidthExclusive}
-            height={CHART_HEIGHT_PX_EXCLUSIVE}
             data={chartDataExclusive}
-            margin={{ top: 12, right: 18, left: 4, bottom: 56 }}
+            margin={{ top: 20, right: 40, left: 20, bottom: 60 }}
+            style={{ outline: "none", border: "none" }}
           >
             <CartesianGrid strokeDasharray="3 6" stroke="rgba(148, 163, 184, 0.22)" />
             <XAxis
@@ -196,7 +196,7 @@ export function EvaluationOverlapChart({
               isAnimationActive={shownCountExclusive < 300}
             />
           </LineChart>
-        </div>
+        </ResponsiveContainer>
       </div>
     </div>
   )
