@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
 from uuid import UUID, uuid4
 
 from app.core.config import Settings
@@ -19,7 +19,14 @@ def _assemble_plan_dictionary(
     activate_model: bool,
     override_version_tag_prefix: str | None,
     override_horizon: int | None,
+    override_model_type: str | None,
     admin_api_secret_literal_override: str | None,
+    holdout_eval_start_date_override: str | None = None,
+    holdout_eval_months_override: int | None = None,
+    maximum_training_feature_calendar_day_utc_override: str | None = None,
+    registry_display_name_override: str | None = None,
+    trainer_hyperparameters_override_exclusive: Mapping[str, Any] | None = None,
+    persist_retrospective_holdout_predictions_override_exclusive: bool | None = None,
 ) -> dict[str, Any]:
     """Pack serializable knobs for worker subprocess consumption."""
     prefix_source = resolved_settings.TRAIN_VERSION_TAG_PREFIX.strip() or "onchain-hgb"
@@ -34,11 +41,29 @@ def _assemble_plan_dictionary(
     if override_horizon is not None:
         horizon_value = override_horizon
 
+    effective_model_type = resolved_settings.TRAIN_DEFAULT_MODEL_TYPE.strip() or "hgb_ocm"
+    if override_model_type is not None and override_model_type.strip():
+        effective_model_type = override_model_type.strip()
+
     effective_admin_material = resolved_settings.ADMIN_API_KEY.strip()
     if admin_api_secret_literal_override is not None and admin_api_secret_literal_override.strip():
         effective_admin_material = admin_api_secret_literal_override.strip()
 
-    return {
+    holdout_start_literal_exclusive = resolved_settings.TRAIN_HOLDOUT_EVAL_START_DATE.strip()
+    if holdout_eval_start_date_override is not None:
+        holdout_start_literal_exclusive = holdout_eval_start_date_override.strip()
+
+    holdout_month_span_exclusive = int(resolved_settings.TRAIN_HOLDOUT_EVAL_MONTHS)
+    if holdout_eval_months_override is not None:
+        holdout_month_span_exclusive = int(holdout_eval_months_override)
+
+    optional_registry_label_exclusive = (
+        registry_display_name_override.strip()
+        if registry_display_name_override and registry_display_name_override.strip()
+        else None
+    )
+
+    serialized_plan_dictionary_exclusive: dict[str, Any] = {
         "asset_id": str(asset_identifier),
         "sync_database_url": resolved_settings.sync_database_url,
         "schema_name": resolved_settings.validated_schema_name,
@@ -49,9 +74,36 @@ def _assemble_plan_dictionary(
         "min_sample_rows": resolved_settings.TRAIN_MIN_SAMPLE_ROWS,
         "max_metric_columns": resolved_settings.TRAIN_MAX_ONCHAIN_METRIC_COLUMNS,
         "forecast_horizon_days": horizon_value,
+        "forecast_log_sigma_floor": float(resolved_settings.TRAIN_FORECAST_LOG_SIGMA_FLOOR),
+        "forecast_ci_z_score": float(resolved_settings.TRAIN_FORECAST_CI_Z_SCORE),
+        "forecast_band_log_half_width_cap": float(resolved_settings.TRAIN_FORECAST_BAND_LOG_HALF_WIDTH_CAP),
+        "model_type_slug": effective_model_type,
+        "holdout_eval_start_date": holdout_start_literal_exclusive,
+        "holdout_eval_months": holdout_month_span_exclusive,
         "version_tag": version_tag_composed,
         "activate_model": activate_model,
     }
+    if optional_registry_label_exclusive:
+        capped_registry_label_exclusive = optional_registry_label_exclusive[:120]
+        serialized_plan_dictionary_exclusive["registry_display_name"] = capped_registry_label_exclusive
+    if trainer_hyperparameters_override_exclusive is not None:
+        serialized_plan_dictionary_exclusive["trainer_hyperparameters"] = dict(
+            trainer_hyperparameters_override_exclusive,
+        )
+    if persist_retrospective_holdout_predictions_override_exclusive is not None:
+        serialized_plan_dictionary_exclusive["persist_retrospective_holdout_predictions"] = bool(
+            persist_retrospective_holdout_predictions_override_exclusive,
+        )
+
+    cutoff_literal_strip_exclusive = (
+        maximum_training_feature_calendar_day_utc_override.strip()
+        if isinstance(maximum_training_feature_calendar_day_utc_override, str)
+        else ""
+    )
+    if cutoff_literal_strip_exclusive:
+        serialized_plan_dictionary_exclusive["maximum_training_feature_calendar_day_utc"] = cutoff_literal_strip_exclusive
+
+    return serialized_plan_dictionary_exclusive
 
 
 def run_parallel_asset_training_blocking(
@@ -61,7 +113,14 @@ def run_parallel_asset_training_blocking(
     activate_model: bool,
     override_version_prefix: str | None,
     override_horizon_days: int | None,
+    override_model_type: str | None = None,
     admin_api_secret_literal_override: str | None = None,
+    holdout_eval_start_date_override: str | None = None,
+    holdout_eval_months_override: int | None = None,
+    registry_display_name_override: str | None = None,
+    trainer_hyperparameters_exclusive: Mapping[str, Any] | None = None,
+    persist_retrospective_holdout_predictions_exclusive: bool | None = None,
+    maximum_training_feature_calendar_day_utc_override: str | None = None,
 ) -> dict[str, Any]:
     """
     Blocking entry used from ``asyncio.to_thread`` wrappers.
@@ -89,7 +148,14 @@ def run_parallel_asset_training_blocking(
             activate_model=activate_model,
             override_version_tag_prefix=override_version_prefix,
             override_horizon=override_horizon_days,
+            override_model_type=override_model_type,
             admin_api_secret_literal_override=admin_api_secret_literal_override,
+            holdout_eval_start_date_override=holdout_eval_start_date_override,
+            holdout_eval_months_override=holdout_eval_months_override,
+            registry_display_name_override=registry_display_name_override,
+            trainer_hyperparameters_override_exclusive=trainer_hyperparameters_exclusive,
+            persist_retrospective_holdout_predictions_override_exclusive=persist_retrospective_holdout_predictions_exclusive,
+            maximum_training_feature_calendar_day_utc_override=maximum_training_feature_calendar_day_utc_override,
         )
         for asset_candidate in limited_assets
     ]

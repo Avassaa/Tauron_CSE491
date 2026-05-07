@@ -11,6 +11,8 @@ import {
 } from "lightweight-charts"
 import { format } from "date-fns"
 import { useAppTheme } from "~/theme-context"
+import { finalizeHistogramDataset, sanitizeAreaSeriesData, type LightweightHistogramDatum } from "~/lib/lightweight-chart-histogram"
+import { clampForecastConfidenceIntervalPairForVisualizationExclusive } from "~/lib/prediction-display-bands"
 
 interface AreaChartProps {
   historicalData: {
@@ -40,6 +42,15 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
 
   React.useEffect(() => {
     if (!chartContainerRef.current) return
+
+    const safeHistorical = historicalData.filter(
+      (row): row is NonNullable<typeof row> =>
+        row != null && Number.isFinite(row.time) && Number.isFinite(row.close),
+    )
+    const safePredictions = predictions.filter(
+      (row): row is NonNullable<typeof row> =>
+        row != null && Number.isFinite(row.time) && Number.isFinite(row.value),
+    )
 
     const handleResize = () => {
       chartRef.current?.applyOptions({ width: chartContainerRef.current?.clientWidth })
@@ -101,11 +112,14 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
       crosshairMarkerBackgroundColor: isDark ? "#000000" : "#ffffff",
     })
 
-    const historicalAreaData: AreaData<Time>[] = historicalData.map((d) => ({
-      time: d.time as Time,
-      value: d.close,
-    }))
-    historicalAreaSeries.setData(historicalAreaData)
+    const historicalAreaData = sanitizeAreaSeriesData(
+      safeHistorical.map((d) => ({ time: d.time, value: d.close })),
+    )
+    if (historicalAreaData.length > 0) {
+      historicalAreaSeries.setData(historicalAreaData as AreaData<Time>[])
+    } else {
+      historicalAreaSeries.setData([])
+    }
 
     // ── 2. Volume Histogram ─────────────────────────────────────────────────
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -116,24 +130,37 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
       scaleMargins: { top: 0.85, bottom: 0 },
       visible: false,
     })
-    const volumeData = historicalData.map((d) => ({
+    const volumeData: LightweightHistogramDatum[] = safeHistorical.map((d) => ({
       time: d.time as Time,
       value: d.volume,
       color:
-        d.close >= d.open
+        Number.isFinite(d.open) && d.close >= d.open
           ? isDark ? "rgba(0,255,204,0.15)" : "rgba(13,148,136,0.15)"
           : isDark ? "rgba(255,77,109,0.15)" : "rgba(225,29,72,0.15)",
     }))
-    const forecastVolume = predictions.map((p) => ({
+    const forecastVolume: LightweightHistogramDatum[] = safePredictions.map((p) => ({
       time: p.time as Time,
-      value: 1000,
+      value: 320,
       color: isDark ? "rgba(96,165,250,0.08)" : "rgba(37,99,235,0.08)",
     }))
-    volumeSeries.setData([...volumeData, ...forecastVolume])
+    volumeSeries.setData(finalizeHistogramDataset([...volumeData, ...forecastVolume]))
 
     // ── 3. Forecast Area Series ─────────────────────────────────────────────
-    if (predictions.length > 0) {
-      const lastHistorical = historicalData[historicalData.length - 1]
+    if (safePredictions.length > 0) {
+      const lastHistoricalBar =
+        safeHistorical.length > 0 ? safeHistorical[safeHistorical.length - 1] : null
+      const firstForecastTime = safePredictions[0].time as number
+      const bridgeTime = (
+        lastHistoricalBar != null ? lastHistoricalBar.time : firstForecastTime - 86400
+      ) as Time
+      const resolvedLastPredicted =
+        typeof lastPredictedValue === "number" && Number.isFinite(lastPredictedValue)
+          ? lastPredictedValue
+          : undefined
+      const bridgeRawValue =
+        lastHistoricalBar != null
+          ? lastHistoricalBar.close
+          : (resolvedLastPredicted ?? safePredictions[0].value)
 
       const forecastAreaSeries = chart.addSeries(AreaSeries, {
         lineColor: isDark ? "rgba(96,165,250,0.9)" : "rgba(37,99,235,0.9)",
@@ -149,15 +176,18 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
         crosshairMarkerBackgroundColor: isDark ? "#000000" : "#ffffff",
       })
 
-      // Bridge point: connect historical close to first forecast
-      const forecastData: AreaData<Time>[] = [
-        { time: lastHistorical.time as Time, value: lastHistorical.close },
-        ...predictions.map((p) => ({ time: p.time as Time, value: p.value })),
-      ]
-      forecastAreaSeries.setData(forecastData)
+      const forecastData = sanitizeAreaSeriesData([
+        { time: bridgeTime, value: bridgeRawValue },
+        ...safePredictions.map((p) => ({ time: p.time, value: p.value })),
+      ])
+      if (forecastData.length > 0) {
+        forecastAreaSeries.setData(forecastData as AreaData<Time>[])
+      }
 
-      // CI Band (top line only, subtle)
-      const hasCi = predictions.some((p) => p.ciHigh != null)
+      const hasCi = safePredictions.some((p) => {
+        const hi = p.ciHigh
+        return typeof hi === "number" && Number.isFinite(hi)
+      })
       if (hasCi) {
         const ciBandSeries = chart.addSeries(AreaSeries, {
           lineColor: isDark ? "rgba(96,165,250,0.15)" : "rgba(37,99,235,0.1)",
@@ -169,13 +199,28 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
           lastValueVisible: false,
           crosshairMarkerVisible: false,
         })
-        const ciData: AreaData<Time>[] = [
-          { time: lastHistorical.time as Time, value: lastHistorical.close },
-          ...predictions
-            .filter((p) => p.ciHigh != null)
-            .map((p) => ({ time: p.time as Time, value: p.ciHigh! })),
-        ]
-        ciBandSeries.setData(ciData)
+        const ciData = sanitizeAreaSeriesData([
+          { time: bridgeTime, value: bridgeRawValue },
+          ...safePredictions
+            .filter((p) => typeof p.ciHigh === "number" && Number.isFinite(p.ciHigh))
+            .map((p) => {
+              const cappedBundleExclusiveOuter =
+                clampForecastConfidenceIntervalPairForVisualizationExclusive({
+                  midpointExclusive: p.value,
+                  intervalHighExclusive: p.ciHigh,
+                  intervalLowExclusive:
+                    typeof p.ciLow === "number" && Number.isFinite(p.ciLow) ? p.ciLow : undefined,
+                })
+              const displayedHighFenceExclusiveOuter =
+                typeof cappedBundleExclusiveOuter.intervalHighExclusive === "number"
+                  ? cappedBundleExclusiveOuter.intervalHighExclusive
+                  : p.ciHigh!
+              return { time: p.time, value: displayedHighFenceExclusiveOuter }
+            }),
+        ])
+        if (ciData.length > 0) {
+          ciBandSeries.setData(ciData as AreaData<Time>[])
+        }
       }
     }
 
@@ -201,35 +246,34 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
       const time = param.time as number
       const formattedDate = format(new Date(time * 1000), "MMM d, yyyy HH:mm")
 
-      // Try to get data from both series
-      const isForecast = predictions.some((p) => p.time === time)
-      const price = isForecast
-        ? predictions.find((p) => p.time === time)?.value
-        : historicalData.find((d) => d.time === time)?.close
+      const actualClose = safeHistorical.find((d) => d.time === time)?.close
+      const modelAtTime = safePredictions.find((p) => p.time === time)?.value
+      const actualOk = typeof actualClose === "number" && Number.isFinite(actualClose)
+      const modelOk = typeof modelAtTime === "number" && Number.isFinite(modelAtTime)
 
-      if (price == null) {
+      if (!actualOk && !modelOk) {
         tooltip.style.display = "none"
         return
       }
+
+      const fmt = (n: number) =>
+        n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
 
       tooltip.style.display = "block"
       tooltip.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px">
           <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"};padding-bottom:8px;margin-bottom:2px">
             <span style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:${isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)"}">${formattedDate}</span>
-            <div style="display:flex;align-items:center;gap:6px;margin-left:12px">
-              <div style="width:6px;height:6px;border-radius:50%;background:${isForecast ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#00ffcc" : "#0d9488")}"></div>
-              <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:${isForecast ? (isDark ? "#60a5fa" : "#2563eb") : (isDark ? "#00ffcc" : "#0d9488")}">${isForecast ? "Forecast" : "Historical"}</span>
-            </div>
           </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:24px">
-            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:${isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)"}">Price</span>
-            <span style="font-size:13px;font-weight:900;font-variant-numeric:tabular-nums;color:${isDark ? "#ffffff" : "#000000"}">${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
-          </div>
-          ${isForecast ? `
-          <div style="margin-top:4px;padding-top:8px;border-top:1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"};display:flex;align-items:center;justify-content:space-between;gap:16px">
-            <span style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:${isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)"}">AI Confidence</span>
-            <span style="font-size:10px;font-weight:900;color:${isDark ? "#60a5fa" : "#2563eb"}">High</span>
+          ${actualOk ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:${isDark ? "#00ffcc" : "#0d9488"}">Actual close</span>
+            <span style="font-size:13px;font-weight:900;font-variant-numeric:tabular-nums;color:${isDark ? "#ffffff" : "#000000"}">${fmt(actualClose)}</span>
+          </div>` : ""}
+          ${modelOk ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+            <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;color:${isDark ? "#60a5fa" : "#2563eb"}">Model forecast</span>
+            <span style="font-size:13px;font-weight:900;font-variant-numeric:tabular-nums;color:${isDark ? "#ffffff" : "#000000"}">${fmt(modelAtTime)}</span>
           </div>` : ""}
         </div>
       `
@@ -247,10 +291,23 @@ export function PredictiveAreaChart({ historicalData, predictions, lastPredicted
       window.removeEventListener("resize", handleResize)
       chart.remove()
     }
-  }, [historicalData, predictions, isDark])
+  }, [historicalData, predictions, isDark, lastPredictedValue])
 
   return (
     <div className="relative h-full w-full overflow-hidden [&_a]:hidden [&_.tv-lightweight-charts-logo]:hidden">
+      <div
+        className="pointer-events-none absolute left-3 top-3 z-20 flex flex-wrap items-center gap-3 rounded-lg border border-border/40 bg-background/70 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-black/50"
+        aria-hidden
+      >
+        <span className="flex items-center gap-1.5 text-teal-600 dark:text-teal-400">
+          <span className="size-1.5 shrink-0 rounded-full bg-teal-400" />
+          Actual (close)
+        </span>
+        <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+          <span className="size-1.5 shrink-0 rounded-full bg-blue-400" />
+          Model forecast
+        </span>
+      </div>
       <div ref={chartContainerRef} className="h-full w-full" />
       <div
         ref={tooltipRef}

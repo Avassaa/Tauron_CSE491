@@ -55,6 +55,7 @@ class MlModelRepository:
         self,
         version_tag: str,
         asset_id: Optional[uuid.UUID] = None,
+        display_name: Optional[str] = None,
         model_type: Optional[str] = None,
         hyperparameters: Optional[dict[str, Any]] = None,
         training_metrics: Optional[dict[str, Any]] = None,
@@ -62,9 +63,11 @@ class MlModelRepository:
         is_active: bool = False,
     ) -> MlModel:
         """Insert a new model row."""
+        cleaned_display = display_name.strip() if display_name and display_name.strip() else None
         row = MlModel(
             asset_id=asset_id,
             version_tag=version_tag.strip(),
+            display_name=cleaned_display,
             model_type=model_type,
             hyperparameters=hyperparameters,
             training_metrics=training_metrics,
@@ -88,6 +91,7 @@ class MlModelRepository:
         allowed = {
             "asset_id",
             "version_tag",
+            "display_name",
             "model_type",
             "hyperparameters",
             "training_metrics",
@@ -96,6 +100,12 @@ class MlModelRepository:
         }
         for key, value in fields.items():
             if key not in allowed:
+                continue
+            if key == "display_name":
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    setattr(row, key, None)
+                else:
+                    setattr(row, key, str(value).strip()[:120])
                 continue
             if key == "is_active" or value is not None:
                 setattr(row, key, value)

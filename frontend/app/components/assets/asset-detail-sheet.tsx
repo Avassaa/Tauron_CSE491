@@ -460,7 +460,7 @@ export function AssetDetailSheet({
 
       try {
         // Parallel fetch for market data and predictions
-        const [marketData, predictionsPage] = await Promise.all([
+        const [marketDataHourly, predictionsPage] = await Promise.all([
           apiGet<MarketDataResponse[]>("/predictions/market-data", {
             asset_id: selectedAsset.id,
             limit: 7 * 24,
@@ -474,7 +474,16 @@ export function AssetDetailSheet({
           })
         ])
 
-        setPreviewMarketData(marketData)
+        let marketDataResolved = marketDataHourly
+        if (marketDataResolved.length === 0) {
+          marketDataResolved = await apiGet<MarketDataResponse[]>("/predictions/market-data", {
+            asset_id: selectedAsset.id,
+            limit: 7 * 24,
+            resolution: "1d"
+          })
+        }
+
+        setPreviewMarketData(marketDataResolved)
         setPreviewPredictions(predictionsPage.items)
         
         if (predictionsPage.items.length === 0) {

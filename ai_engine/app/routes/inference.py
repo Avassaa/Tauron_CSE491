@@ -22,12 +22,12 @@ class InferenceRequestBody(BaseModel):
 
 
 class InferenceResponseBody(BaseModel):
-    """Next-day close forecast built from on-chain features plus latest daily close."""
+    """Next-day USD reference level forecast built from on-chain features plus same-day PriceUSD."""
 
     model_id: str
     asset_id: str
     latest_feature_calendar_day_label: str
-    reference_market_close_on_feature_day: float
+    reference_price_usd_on_feature_day: float
     predicted_log_forward_return_one_day: float
     predicted_next_close_mid: float
     predicted_next_close_high_ci: float
@@ -42,7 +42,7 @@ class InferenceResponseBody(BaseModel):
     dependencies=[Depends(dependency_ml_service_secret_optional_header)],
 )
 async def predict_with_registered_bundle(request_body: InferenceRequestBody) -> InferenceResponseBody:
-    """Forecast the next daily ``market_data`` close using on-chain metric panels."""
+    """Forecast the next calendar step in ``PriceUSD`` space using on-chain metric panels."""
 
     def blocking_predictor() -> dict:
         return predict_for_registered_model_blocking(

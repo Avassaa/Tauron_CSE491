@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router"
 import {
   ArrowLeft,
   BookOpen,
+  ChevronDown,
   Glasses,
   MoreVertical,
   Newspaper,
@@ -395,6 +396,7 @@ function NewsArticleBody({
   const [deleteSubmitting, setDeleteSubmitting] = React.useState(false)
   const [composerKey, setComposerKey] = React.useState(0)
   const composerDockRef = React.useRef<HTMLDivElement>(null)
+  const [articleExpanded, setArticleExpanded] = React.useState(false)
   const [meId, setMeId] = React.useState<string | null>(() =>
     typeof window !== "undefined" ? localStorage.getItem("user_id") : null,
   )
@@ -471,6 +473,10 @@ function NewsArticleBody({
     return () => {
       cancelled = true
     }
+  }, [newsId])
+
+  React.useEffect(() => {
+    setArticleExpanded(false)
   }, [newsId])
 
   React.useEffect(() => {
@@ -594,6 +600,8 @@ function NewsArticleBody({
   const metaText = readMode ? preset.metaText : "text-xs text-muted-foreground"
   const titleClass = readMode ? preset.titleClass : "text-2xl font-semibold tracking-tight"
 
+  const articleShowFullBody = readMode || articleExpanded
+
   return (
     <>
     <div className="relative flex-1 overflow-y-auto">
@@ -712,10 +720,33 @@ function NewsArticleBody({
                 <CardContent
                   className={readMode ? articleCardContentClassRead : articleCardContentClass}
                 >
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    Full article
-                  </h2>
-                  <p className={cn("whitespace-pre-wrap", bodyText)}>{item.article_content}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                      Full article
+                    </h2>
+                    {!readMode ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-xs font-semibold shrink-0"
+                        onClick={() => setArticleExpanded((previous) => !previous)}
+                        aria-expanded={articleExpanded}
+                      >
+                        <ChevronDown
+                          className={cn(
+                            "size-4 shrink-0 transition-transform duration-200",
+                            articleExpanded && "rotate-180",
+                          )}
+                          aria-hidden
+                        />
+                        {articleExpanded ? "Collapse" : "Expand"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  {articleShowFullBody ? (
+                    <p className={cn("whitespace-pre-wrap", bodyText)}>{item.article_content}</p>
+                  ) : null}
                 </CardContent>
               </Card>
             ) : (

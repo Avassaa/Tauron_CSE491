@@ -49,6 +49,8 @@ services:
       AUTO_POPULATE_ONCHAIN_ON_EMPTY_DB: "true"
       API_HOST: 0.0.0.0
       API_PORT: "8000"
+      AI_ENGINE_BASE_URL: http://ai_engine:8001
+      AI_ENGINE_ML_SERVICE_KEY: docker-compose-ai-engine-internal-key-change-me
     expose:
       - "8000"
     depends_on:
@@ -81,6 +83,9 @@ services:
       MODEL_PATH: /models
       ML_SERVICE_KEY: docker-compose-ai-engine-internal-key-change-me
       TRAIN_MAX_ASSETS: "25"
+      TRAIN_FORECAST_HORIZON_DAYS: "14"
+      TRAIN_HOLDOUT_EVAL_START_DATE: "2026-01-01"
+      TRAIN_HOLDOUT_EVAL_MONTHS: "5"
     expose:
       - "8001"
     volumes:

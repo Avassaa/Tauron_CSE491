@@ -22,6 +22,7 @@ type DatePickerWithRangeProps = {
   date: DateRange | undefined
   onSelect: (range: DateRange | undefined) => void
   disabled?: boolean
+  hideLabel?: boolean
 }
 
 export function DatePickerWithRange({
@@ -30,10 +31,11 @@ export function DatePickerWithRange({
   date,
   onSelect,
   disabled = false,
+  hideLabel = false,
 }: DatePickerWithRangeProps) {
   return (
     <Field className={cn("w-full min-w-0 max-w-sm shrink-0", className)}>
-      <FieldLabel htmlFor={id}>Date range</FieldLabel>
+      {!hideLabel ? <FieldLabel htmlFor={id}>Date range</FieldLabel> : null}
       <Popover>
         <PopoverTrigger asChild>
           <Button

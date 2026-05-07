@@ -113,8 +113,13 @@ class PredictionRepository:
 
     async def get_asset_summaries(self) -> list[dict[str, Any]]:
         """Return the latest prediction for every asset that has one."""
-        # Using DISTINCT ON to get the latest row per asset_id efficiently in Postgres/Timescale.
-        query = text("""
+        from app.config import settings
+
+        shard_schema_exclusive = settings.DATABASE_SCHEMA.strip()
+        if not shard_schema_exclusive.replace("_", "").isalnum():
+            raise ValueError("DATABASE_SCHEMA must be alphanumeric with underscores only")
+
+        query = text(f"""
             SELECT DISTINCT ON (p.asset_id)
                 p.asset_id,
                 p.time,
@@ -122,10 +127,85 @@ class PredictionRepository:
                 p.confidence_interval_high,
                 p.confidence_interval_low,
                 a.symbol,
-                a.name
-            FROM tauron.predictions p
-            JOIN tauron.assets a ON p.asset_id = a.id
+                a.name,
+                snapshot.latest_market_close
+            FROM "{shard_schema_exclusive}".predictions p
+            JOIN "{shard_schema_exclusive}".assets a ON p.asset_id = a.id
+            LEFT JOIN LATERAL (
+                SELECT o.value AS latest_market_close
+                FROM "{shard_schema_exclusive}".on_chain_metrics o
+                WHERE o.asset_id = p.asset_id
+                  AND o.metric_name = 'PriceUSD'
+                ORDER BY o.time DESC
+                LIMIT 1
+            ) snapshot ON TRUE
             ORDER BY p.asset_id, p.time DESC
         """)
         result = await self._session.execute(query)
         return [dict(row) for row in result.mappings()]
+
+    async def prediction_rows_joined_daily_closes(
+        self,
+        *,
+        asset_id: uuid.UUID,
+        model_id: uuid.UUID,
+        time_from_inclusive_utc: datetime,
+        time_to_inclusive_utc: datetime,
+        market_resolution_exclusive: str = "1d",
+        row_hard_cap_exclusive: int = 5000,
+    ) -> list[dict[str, Any]]:
+        """Prediction timestamps aligned with same-calendar-day ``PriceUSD`` snapshots for evaluation."""
+
+        from app.config import settings
+
+        fragment_schema_exclusive = settings.DATABASE_SCHEMA.strip()
+        if not fragment_schema_exclusive.replace("_", "").isalnum():
+            raise ValueError("DATABASE_SCHEMA must be alphanumeric with underscores only")
+
+        _ = market_resolution_exclusive
+
+        query_template_exclusive = """
+            SELECT
+                p.time AS outcome_time,
+                p.predicted_value::double precision AS predicted_value,
+                o.value_snapshot::double precision AS actual_close
+            FROM "{schema_placeholder}".predictions p
+            INNER JOIN (
+                SELECT DISTINCT ON (
+                    asset_id,
+                    (time AT TIME ZONE 'UTC')::date
+                )
+                    asset_id,
+                    (time AT TIME ZONE 'UTC')::date AS anchor_day_utc,
+                    value AS value_snapshot
+                FROM "{schema_placeholder}".on_chain_metrics
+                WHERE metric_name = 'PriceUSD'
+                ORDER BY
+                    asset_id,
+                    (time AT TIME ZONE 'UTC')::date,
+                    time DESC
+            ) o ON o.asset_id = p.asset_id
+               AND (p.time AT TIME ZONE 'UTC')::date = o.anchor_day_utc
+            WHERE p.asset_id = :asset_id_exclusive
+              AND p.model_id = :model_id_exclusive
+              AND p.time >= :time_from_inclusive_exclusive
+              AND p.time <= :time_to_inclusive_exclusive
+            ORDER BY p.time ASC
+            LIMIT :row_hard_cap_exclusive
+        """
+
+        bound_statement_exclusive = text(
+            query_template_exclusive.replace("{schema_placeholder}", fragment_schema_exclusive)
+        )
+
+        result_handle_exclusive = await self._session.execute(
+            bound_statement_exclusive,
+            {
+                "asset_id_exclusive": asset_id,
+                "model_id_exclusive": model_id,
+                "time_from_inclusive_exclusive": time_from_inclusive_utc,
+                "time_to_inclusive_exclusive": time_to_inclusive_utc,
+                "row_hard_cap_exclusive": row_hard_cap_exclusive,
+            },
+        )
+        return [dict(row_mapping_exclusive) for row_mapping_exclusive in result_handle_exclusive.mappings()]

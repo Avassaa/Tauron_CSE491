@@ -76,6 +76,7 @@ class CreateMlModelRequest(BaseModel):
 
     version_tag: str = Field(max_length=50)
     asset_id: Optional[uuid.UUID] = None
+    display_name: Optional[str] = Field(default=None, max_length=120)
     model_type: Optional[str] = Field(default=None, max_length=20)
     hyperparameters: Optional[dict[str, Any]] = None
     training_metrics: Optional[dict[str, Any]] = None
@@ -88,11 +89,18 @@ class UpdateMlModelRequest(BaseModel):
 
     asset_id: Optional[uuid.UUID] = None
     version_tag: Optional[str] = Field(default=None, max_length=50)
+    display_name: Optional[str] = Field(default=None, max_length=120)
     model_type: Optional[str] = Field(default=None, max_length=20)
     hyperparameters: Optional[dict[str, Any]] = None
     training_metrics: Optional[dict[str, Any]] = None
     file_path: Optional[str] = None
     is_active: Optional[bool] = None
+
+
+class PatchMlModelDisplayNameRequest(BaseModel):
+    """Set or clear a human-readable label visible in dashboards."""
+
+    display_name: Optional[str] = Field(default=None, max_length=120)
 
 
 class PredictionRowRequest(BaseModel):

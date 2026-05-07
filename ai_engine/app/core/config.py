@@ -51,7 +51,66 @@ class Settings(BaseSettings):
         le=500,
         description="Cap wide columns after pivot to control memory and fit time.",
     )
-    TRAIN_FORECAST_HORIZON_DAYS: int = Field(default=1, ge=1, le=30, description="Horizon for batch prediction rows.")
+    TRAIN_FORECAST_HORIZON_DAYS: int = Field(
+        default=14,
+        ge=1,
+        le=366,
+        description=(
+            "Daily forward steps persisted after training; each step compounds the one-step log-return from the "
+            "anchor close while confidence bands widen with sqrt(step)."
+        ),
+    )
+    TRAIN_FORECAST_LOG_SIGMA_FLOOR: float = Field(
+        default=0.015,
+        ge=1e-6,
+        le=0.5,
+        description=(
+            "Floors the validation log-return residual scale when persisting multi-day paths so near-zero "
+            "errors do not collapse predicted levels and confidence bands across the horizon."
+        ),
+    )
+    TRAIN_FORECAST_CI_Z_SCORE: float = Field(
+        default=1.96,
+        ge=0.5,
+        le=3.5,
+        description=(
+            "Gaussian multiplier for symmetric log-return confidence bands (one-step retrospectives, live "
+            "inference, and per-step widening on compounded multi-day paths)."
+        ),
+    )
+    TRAIN_FORECAST_BAND_LOG_HALF_WIDTH_CAP: float = Field(
+        default=0.14,
+        ge=-1.0,
+        le=1.5,
+        description=(
+            "Upper bound on cumulative multi-step log half-width after sqrt(step) scaling; values below zero "
+            "disable capping so bands follow the unconstrained random-walk style widening."
+        ),
+    )
+    TRAIN_DEFAULT_MODEL_TYPE: str = Field(
+        default="hgb_ocm",
+        description=(
+            "Default model_type_slug used when no override is supplied at request time. "
+            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm."
+        ),
+    )
+    TRAIN_HOLDOUT_EVAL_START_DATE: str = Field(
+        default="2026-01-01",
+        description=(
+            "UTC calendar date marking the beginning of simulated out-of-sample evaluation. Rows whose "
+            "next-day prediction target settles on this date or later never enter estimator ``fit``. "
+            "Set to empty to disable this split and revert to fitting on full history."
+        ),
+    )
+    TRAIN_HOLDOUT_EVAL_MONTHS: int = Field(
+        default=5,
+        ge=1,
+        le=120,
+        description=(
+            "Calendar-month span of retrospective one-step evaluations beginning at HOLDOUT_EVAL_START_DATE "
+            "(outcome timestamps strictly inside [start, start + months)."
+        ),
+    )
     TRAIN_VERSION_TAG_PREFIX: str = Field(default="onchain-hgb", description="Prefix for version_tag on new models.")
     TRAIN_MAX_ASSETS: int = Field(
         default=0,

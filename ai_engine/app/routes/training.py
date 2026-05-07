@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.dependencies.ml_service_guard import dependency_ml_service_secret_optional_header
 from app.services.parallel_training_runner import run_parallel_asset_training_blocking
+from app.services.trainer_hyperparameter_schema import build_trainer_hyperparameter_schema_envelope_exclusive
 
 router = APIRouter()
 
@@ -32,8 +33,55 @@ class ParallelTrainRequestBody(BaseModel):
     forecast_horizon_days_override: int | None = Field(
         default=None,
         ge=1,
-        le=30,
-        description="Overrides TRAIN_FORECAST_HORIZON_DAYS when set.",
+        le=366,
+        description="Overrides TRAIN_FORECAST_HORIZON_DAYS when set (daily steps after the anchored bar).",
+    )
+    model_type: str | None = Field(
+        default=None,
+        description=(
+            "Model architecture slug. Overrides TRAIN_DEFAULT_MODEL_TYPE when set. "
+            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm."
+        ),
+    )
+    holdout_eval_start_date_override: str | None = Field(
+        default=None,
+        description="Overrides TRAIN_HOLDOUT_EVAL_START_DATE when set (empty string disables retrospective holdout).",
+    )
+    holdout_eval_months_override: int | None = Field(
+        default=None,
+        ge=1,
+        le=120,
+        description="Overrides TRAIN_HOLDOUT_EVAL_MONTHS when set.",
+    )
+    maximum_training_feature_calendar_day_utc: str | None = Field(
+        default=None,
+        max_length=10,
+        description=(
+            "When set as yyyy-mm-dd (UTC calendar), rows after that inclusive training day are dropped "
+            "before fitting; compounded forecasts anchor on the last retained row even if later data "
+            "exists in the warehouse."
+        ),
+    ),
+    registry_display_name: str | None = Field(
+        default=None,
+        max_length=120,
+        description="Optional human-readable label stored on ml_models.display_name.",
+    )
+    trainer_hyperparameters: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Optional tuning payload. sklearn slugs accept estimator "
+            "`set_params` keys plus `time_series_cv_folds` (2–12). `lstm_ocm` "
+            "accepts lookback_window, hidden_size, num_layers, dropout, learning_rate, "
+            "max_epochs, patience."
+        ),
+    )
+    persist_retrospective_holdout_predictions: bool | None = Field(
+        default=None,
+        description=(
+            "When false, one-step holdout evaluation rows are not written; only the forward "
+            "multi-day horizon is persisted. When omitted, workers default to true (full merge)."
+        ),
     )
 
 
@@ -58,6 +106,16 @@ def _merge_optional_admin_material_from_headers(
         return trimmed_secondary_piece
 
     return None
+
+
+@router.get(
+    "/trainer-hyperparameter-schema",
+    dependencies=[Depends(dependency_ml_service_secret_optional_header)],
+)
+async def read_trainer_hyperparameter_schema_catalog_envelope() -> dict[str, Any]:
+    """Return labelled fields, bounds, and defaults for browser training forms."""
+
+    return build_trainer_hyperparameter_schema_envelope_exclusive(settings)
 
 
 @router.post(
@@ -85,7 +143,14 @@ async def enqueue_parallel_asset_training_jobs(
             activate_model=request_body.activate_models,
             override_version_prefix=request_body.version_tag_prefix_override,
             override_horizon_days=request_body.forecast_horizon_days_override,
+            override_model_type=request_body.model_type,
             admin_api_secret_literal_override=admin_secret_resolution,
+            holdout_eval_start_date_override=request_body.holdout_eval_start_date_override,
+            holdout_eval_months_override=request_body.holdout_eval_months_override,
+            maximum_training_feature_calendar_day_utc_override=request_body.maximum_training_feature_calendar_day_utc,
+            registry_display_name_override=request_body.registry_display_name,
+            trainer_hyperparameters_exclusive=request_body.trainer_hyperparameters,
+            persist_retrospective_holdout_predictions_exclusive=request_body.persist_retrospective_holdout_predictions,
         )
 
     return await asyncio.to_thread(blocking_wrapper)
@@ -116,7 +181,14 @@ async def legacy_train_parallel_alias(
             activate_model=request_body.activate_models,
             override_version_prefix=request_body.version_tag_prefix_override,
             override_horizon_days=request_body.forecast_horizon_days_override,
+            override_model_type=request_body.model_type,
             admin_api_secret_literal_override=admin_secret_resolution,
+            holdout_eval_start_date_override=request_body.holdout_eval_start_date_override,
+            holdout_eval_months_override=request_body.holdout_eval_months_override,
+            maximum_training_feature_calendar_day_utc_override=request_body.maximum_training_feature_calendar_day_utc,
+            registry_display_name_override=request_body.registry_display_name,
+            trainer_hyperparameters_exclusive=request_body.trainer_hyperparameters,
+            persist_retrospective_holdout_predictions_exclusive=request_body.persist_retrospective_holdout_predictions,
         )
 
     return await asyncio.to_thread(blocking_runner)

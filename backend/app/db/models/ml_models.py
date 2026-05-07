@@ -27,6 +27,7 @@ class MlModel(Base):
         nullable=True,
     )
     version_tag: Mapped[str] = mapped_column(String(50), nullable=False)
+    display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     model_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     hyperparameters: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     training_metrics: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
