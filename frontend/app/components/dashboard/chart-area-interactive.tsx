@@ -25,30 +25,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import type { KlinePoint } from "~/hooks/use-dashboard-data"
-import {
-  FALLBACK_BTC_KLINES,
-  FALLBACK_ETH_KLINES,
-  FALLBACK_SOL_KLINES,
-} from "~/lib/dashboard-placeholder-data"
+import { type DashboardCoin, type KlinePoint, fetchBinanceKlines } from "~/hooks/use-dashboard-data"
 
-export const description = "BTC vs ETH vs SOL — normalized performance"
+const PALETTE = ["#f7931a", "#8b5cf6", "#10b981"]
 
-// Crypto-brand colors
-const BTC_COLOR = "#f7931a"
-const ETH_COLOR = "#8b5cf6"
-const SOL_COLOR = "#10b981"
-
-const chartConfig = {
-  btc: { label: "BTC", color: BTC_COLOR },
-  eth: { label: "ETH", color: ETH_COLOR },
-  sol: { label: "SOL", color: SOL_COLOR },
-} satisfies ChartConfig
-
-interface ChartAreaInteractiveProps {
-  btcKlines?: KlinePoint[]
-  ethKlines?: KlinePoint[]
-  solKlines?: KlinePoint[]
+function parseKlines(raw: unknown[]): KlinePoint[] {
+  return (raw as unknown[][])
+    .map((k) => ({
+      date: new Date(k[0] as number).toISOString().slice(0, 10),
+      price: Number.parseFloat(String(k[4] ?? "")),
+    }))
+    .filter((p) => Number.isFinite(p.price))
 }
 
 function indexTo100(klines: KlinePoint[]): number[] {
@@ -58,68 +45,111 @@ function indexTo100(klines: KlinePoint[]): number[] {
   return klines.map((k) => Math.round((k.price / base) * 10000) / 100)
 }
 
-export function ChartAreaInteractive({
-  btcKlines,
-  ethKlines,
-  solKlines,
-}: ChartAreaInteractiveProps) {
-  const [timeRange, setTimeRange] = React.useState("30d")
+interface ChartAreaInteractiveProps {
+  coins: DashboardCoin[]
+}
 
-  const btc = btcKlines && btcKlines.length > 0 ? btcKlines : FALLBACK_BTC_KLINES
-  const eth = ethKlines && ethKlines.length > 0 ? ethKlines : FALLBACK_ETH_KLINES
-  const sol = solKlines && solKlines.length > 0 ? solKlines : FALLBACK_SOL_KLINES
+export function ChartAreaInteractive({ coins }: ChartAreaInteractiveProps) {
+  const [timeRange, setTimeRange] = React.useState("30d")
+  const [klineMap, setKlineMap] = React.useState<Record<string, KlinePoint[]>>({})
+  const [fetchedFor, setFetchedFor] = React.useState<string>("")
+
+  const top3 = React.useMemo(
+    () =>
+      [...coins]
+        .filter((c) => c.price_change_24h != null)
+        .sort((a, b) => (b.price_change_24h ?? 0) - (a.price_change_24h ?? 0))
+        .slice(0, 3),
+    [coins],
+  )
+
+  const symbolKey = top3.map((c) => c.symbol).join(",")
+
+  React.useEffect(() => {
+    if (!symbolKey || symbolKey === fetchedFor || top3.length === 0) return
+    let cancelled = false
+    void (async () => {
+      const results = await Promise.allSettled(
+        top3.map((c) => fetchBinanceKlines(`${c.symbol}USDT`, "1d", 30)),
+      )
+      if (cancelled) return
+      const map: Record<string, KlinePoint[]> = {}
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") map[top3[i].symbol] = parseKlines(r.value)
+      })
+      setKlineMap(map)
+      setFetchedFor(symbolKey)
+    })()
+    return () => { cancelled = true }
+  }, [symbolKey, fetchedFor, top3])
 
   const sliceDays = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30
 
-  const sliceKlines = (k: KlinePoint[]) =>
-    k.length > sliceDays ? k.slice(k.length - sliceDays) : k
+  const chartConfig = React.useMemo(
+    () =>
+      Object.fromEntries(
+        top3.map((c, i) => [c.symbol.toLowerCase(), { label: c.symbol, color: PALETTE[i] }]),
+      ) as ChartConfig,
+    [top3],
+  )
 
-  const btcSliced = sliceKlines(btc)
-  const ethSliced = sliceKlines(eth)
-  const solSliced = sliceKlines(sol)
+  const chartData = React.useMemo(() => {
+    if (top3.length === 0) return []
+    const firstKlines = klineMap[top3[0].symbol] ?? []
+    const sliced0 = firstKlines.length > sliceDays ? firstKlines.slice(-sliceDays) : firstKlines
+    if (sliced0.length === 0) return []
 
-  const btcIdx = indexTo100(btcSliced)
-  const ethIdx = indexTo100(ethSliced)
-  const solIdx = indexTo100(solSliced)
+    return sliced0.map((point, i) =>
+      Object.fromEntries([
+        ["date", point.date],
+        ...top3.map((c) => {
+          const klines = klineMap[c.symbol] ?? []
+          const sliced = klines.length > sliceDays ? klines.slice(-sliceDays) : klines
+          const indexed = indexTo100(sliced)
+          return [c.symbol.toLowerCase(), indexed[i] ?? 100]
+        }),
+      ]),
+    )
+  }, [top3, klineMap, sliceDays])
 
-  const chartData = btcSliced.map((point, i) => ({
-    date: point.date,
-    btc: btcIdx[i] ?? 100,
-    eth: ethIdx[i] ?? 100,
-    sol: solIdx[i] ?? 100,
-  }))
-
-  const btcFinal = btcIdx[btcIdx.length - 1] ?? 100
-  const ethFinal = ethIdx[ethIdx.length - 1] ?? 100
-  const solFinal = solIdx[solIdx.length - 1] ?? 100
+  const finalValues = React.useMemo(
+    () =>
+      Object.fromEntries(
+        top3.map((c) => {
+          const klines = klineMap[c.symbol] ?? []
+          const sliced = klines.length > sliceDays ? klines.slice(-sliceDays) : klines
+          const indexed = indexTo100(sliced)
+          return [c.symbol, indexed[indexed.length - 1] ?? 100]
+        }),
+      ),
+    [top3, klineMap, sliceDays],
+  )
 
   const fmtChange = (v: number) => {
     const diff = v - 100
     return `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}%`
   }
 
-  const colorFor = (v: number) => (v >= 100 ? "#10b981" : "#f43f5e")
-
   return (
     <Card className="pt-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
         <div className="grid flex-1 gap-1">
-          <CardTitleWithTooltip tooltip="Normalized performance of BTC, ETH, and SOL indexed to 100 at the start of the period. Values above 100 mean the asset gained; below 100 means it lost.">
-            Performance Index
+          <CardTitleWithTooltip tooltip="Normalized performance of today's top 3 gainers indexed to 100 at the start of the period. Values above 100 mean the asset gained relative to period start.">
+            Top Gainers Performance
           </CardTitleWithTooltip>
           <CardDescription>
-            BTC · ETH · SOL — indexed to 100 at period start
-            <span className="ml-3 inline-flex gap-3 text-[10px] font-black">
-              <span style={{ color: btcFinal >= 100 ? "#10b981" : "#f43f5e" }}>
-                BTC {fmtChange(btcFinal)}
+            {top3.length > 0
+              ? top3.map((c) => c.symbol).join(" · ")
+              : "Loading…"} — indexed to 100 at period start
+            {top3.length > 0 && Object.keys(finalValues).length > 0 && (
+              <span className="ml-3 inline-flex gap-3 text-[10px] font-black">
+                {top3.map((c, i) => (
+                  <span key={c.symbol} style={{ color: (finalValues[c.symbol] ?? 100) >= 100 ? "#10b981" : "#f43f5e" }}>
+                    {c.symbol} {fmtChange(finalValues[c.symbol] ?? 100)}
+                  </span>
+                ))}
               </span>
-              <span style={{ color: ethFinal >= 100 ? "#10b981" : "#f43f5e" }}>
-                ETH {fmtChange(ethFinal)}
-              </span>
-              <span style={{ color: solFinal >= 100 ? "#10b981" : "#f43f5e" }}>
-                SOL {fmtChange(solFinal)}
-              </span>
-            </span>
+            )}
           </CardDescription>
         </div>
         <Select value={timeRange} onValueChange={setTimeRange}>
@@ -143,18 +173,12 @@ export function ChartAreaInteractive({
         >
           <AreaChart data={chartData}>
             <defs>
-              <linearGradient id="fillBtc" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={BTC_COLOR} stopOpacity={0.35} />
-                <stop offset="95%" stopColor={BTC_COLOR} stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="fillEth" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={ETH_COLOR} stopOpacity={0.30} />
-                <stop offset="95%" stopColor={ETH_COLOR} stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="fillSol" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={SOL_COLOR} stopOpacity={0.28} />
-                <stop offset="95%" stopColor={SOL_COLOR} stopOpacity={0.02} />
-              </linearGradient>
+              {top3.map((c, i) => (
+                <linearGradient key={c.symbol} id={`fill_${c.symbol}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={PALETTE[i]} stopOpacity={0.35} />
+                  <stop offset="95%" stopColor={PALETTE[i]} stopOpacity={0.02} />
+                </linearGradient>
+              ))}
             </defs>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis
@@ -198,30 +222,17 @@ export function ChartAreaInteractive({
                 />
               }
             />
-            <Area
-              dataKey="sol"
-              type="monotone"
-              fill="url(#fillSol)"
-              stroke={SOL_COLOR}
-              strokeWidth={2}
-              stackId="none"
-            />
-            <Area
-              dataKey="eth"
-              type="monotone"
-              fill="url(#fillEth)"
-              stroke={ETH_COLOR}
-              strokeWidth={2}
-              stackId="none"
-            />
-            <Area
-              dataKey="btc"
-              type="monotone"
-              fill="url(#fillBtc)"
-              stroke={BTC_COLOR}
-              strokeWidth={2.5}
-              stackId="none"
-            />
+            {top3.map((c, i) => (
+              <Area
+                key={c.symbol}
+                dataKey={c.symbol.toLowerCase()}
+                type="monotone"
+                fill={`url(#fill_${c.symbol})`}
+                stroke={PALETTE[i]}
+                strokeWidth={i === 0 ? 2.5 : 2}
+                stackId="none"
+              />
+            ))}
             <ChartLegend content={<ChartLegendContent />} />
           </AreaChart>
         </ChartContainer>

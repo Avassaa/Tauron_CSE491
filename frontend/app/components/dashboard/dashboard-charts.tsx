@@ -37,18 +37,9 @@ import {
   type ChartConfig,
 } from "~/components/ui/chart"
 import type { DashboardCoin, KlinePoint } from "~/hooks/use-dashboard-data"
-import {
-  COIN_CATEGORIES,
-  FALLBACK_BTC_KLINES,
-  FALLBACK_COINS,
-  FALLBACK_ETH_KLINES,
-  FALLBACK_SOL_KLINES,
-} from "~/lib/dashboard-placeholder-data"
+import { COIN_CATEGORIES } from "~/lib/dashboard-placeholder-data"
 
-export {
-  ChartAreaInteractive,
-  description as chartAreaInteractiveDescription,
-} from "./chart-area-interactive"
+export { ChartAreaInteractive } from "./chart-area-interactive"
 
 // Crypto-brand colors (consistent across all charts)
 const BTC_COLOR = "#f7931a"
@@ -68,8 +59,7 @@ interface ChartBarDefaultProps {
 }
 
 export function ChartBarDefault({ coins }: ChartBarDefaultProps) {
-  const source = coins && coins.length > 0 ? coins : FALLBACK_COINS
-  const top8 = [...source]
+  const top8 = [...(coins ?? [])]
     .filter((c) => c.volume != null && c.volume > 0)
     .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
     .slice(0, 8)
@@ -163,8 +153,7 @@ interface ChartLineDefaultProps {
 }
 
 export function ChartLineDefault({ btcKlines, coins }: ChartLineDefaultProps) {
-  const klines = btcKlines && btcKlines.length > 0 ? btcKlines : FALLBACK_BTC_KLINES
-  const data = klines.map((k) => ({ date: k.date, price: k.price }))
+  const data = (btcKlines ?? []).map((k) => ({ date: k.date, price: k.price }))
 
   const first = data[0]?.price ?? 0
   const last = data[data.length - 1]?.price ?? 0
@@ -285,11 +274,8 @@ interface ChartPieSimpleProps {
 
 export function ChartPieSimple({ coins }: ChartPieSimpleProps) {
   // Use live coins if they have volume data, otherwise fallback
-  const hasLiveVolume = coins && coins.length > 0 && coins.some((c) => (c.volume ?? 0) > 0)
-  const source = hasLiveVolume ? coins! : FALLBACK_COINS
-
   const catMap: Record<string, number> = {}
-  for (const coin of source.slice(0, 50)) {
+  for (const coin of (coins ?? []).slice(0, 50)) {
     const cat = COIN_CATEGORIES[coin.symbol] ?? "Other"
     const simpleCat =
       cat === "Oracle / DeFi" ? "DeFi" :
@@ -390,10 +376,9 @@ interface ChartRadarLinesOnlyProps {
 }
 
 export function ChartRadarLinesOnly({ coins }: ChartRadarLinesOnlyProps) {
-  const source = coins && coins.length > 0 ? coins : FALLBACK_COINS
-  const btc = source.find((c) => c.symbol === "BTC") ?? FALLBACK_COINS[0]
-  const eth = source.find((c) => c.symbol === "ETH") ?? FALLBACK_COINS[1]
-  const sol = source.find((c) => c.symbol === "SOL") ?? FALLBACK_COINS[3]
+  const btc = coins?.find((c) => c.symbol === "BTC")
+  const eth = coins?.find((c) => c.symbol === "ETH")
+  const sol = coins?.find((c) => c.symbol === "SOL")
 
   const offset = 10
   const cap = (v: number | null) =>
@@ -402,27 +387,27 @@ export function ChartRadarLinesOnly({ coins }: ChartRadarLinesOnlyProps) {
   const data = [
     {
       period: "1h",
-      btc: cap(btc.price_change_1h),
-      eth: cap(eth.price_change_1h),
-      sol: cap(sol.price_change_1h),
+      btc: cap(btc?.price_change_1h ?? null),
+      eth: cap(eth?.price_change_1h ?? null),
+      sol: cap(sol?.price_change_1h ?? null),
     },
     {
       period: "24h",
-      btc: cap(btc.price_change_24h),
-      eth: cap(eth.price_change_24h),
-      sol: cap(sol.price_change_24h),
+      btc: cap(btc?.price_change_24h ?? null),
+      eth: cap(eth?.price_change_24h ?? null),
+      sol: cap(sol?.price_change_24h ?? null),
     },
     {
       period: "7d",
-      btc: cap(btc.price_change_7d),
-      eth: cap(eth.price_change_7d),
-      sol: cap(sol.price_change_7d),
+      btc: cap(btc?.price_change_7d ?? null),
+      eth: cap(eth?.price_change_7d ?? null),
+      sol: cap(sol?.price_change_7d ?? null),
     },
     {
       period: "30d",
-      btc: cap(btc.price_change_30d),
-      eth: cap(eth.price_change_30d),
-      sol: cap(sol.price_change_30d),
+      btc: cap(btc?.price_change_30d ?? null),
+      eth: cap(eth?.price_change_30d ?? null),
+      sol: cap(sol?.price_change_30d ?? null),
     },
   ]
 
@@ -489,9 +474,9 @@ export function ChartRadarLinesOnly({ coins }: ChartRadarLinesOnlyProps) {
       </CardContent>
       <CardFooter className="flex-col gap-1 text-sm pt-2">
         <div className="flex gap-4 leading-none text-xs font-bold">
-          <span style={{ color: BTC_COLOR }}>BTC 24h {fmtChange(btc.price_change_24h)}</span>
-          <span style={{ color: ETH_COLOR }}>ETH 24h {fmtChange(eth.price_change_24h)}</span>
-          <span style={{ color: SOL_COLOR }}>SOL 24h {fmtChange(sol.price_change_24h)}</span>
+          <span style={{ color: BTC_COLOR }}>BTC 24h {fmtChange(btc?.price_change_24h ?? null)}</span>
+          <span style={{ color: ETH_COLOR }}>ETH 24h {fmtChange(eth?.price_change_24h ?? null)}</span>
+          <span style={{ color: SOL_COLOR }}>SOL 24h {fmtChange(sol?.price_change_24h ?? null)}</span>
         </div>
       </CardFooter>
     </Card>
@@ -520,9 +505,9 @@ function indexTo100(klines: { date: string; price: number }[]) {
 }
 
 export function ChartLineMultiple({ btcKlines, ethKlines, solKlines }: ChartLineMultipleProps) {
-  const btc = btcKlines && btcKlines.length > 0 ? btcKlines : FALLBACK_BTC_KLINES
-  const eth = ethKlines && ethKlines.length > 0 ? ethKlines : FALLBACK_ETH_KLINES
-  const sol = solKlines && solKlines.length > 0 ? solKlines : FALLBACK_SOL_KLINES
+  const btc = btcKlines ?? []
+  const eth = ethKlines ?? []
+  const sol = solKlines ?? []
 
   const btcIdx = indexTo100(btc)
   const ethIdx = indexTo100(eth)

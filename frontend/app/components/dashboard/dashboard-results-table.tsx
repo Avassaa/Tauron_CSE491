@@ -14,7 +14,6 @@ import {
 import { CardTitleWithTooltip } from "~/components/dashboard/card-title-with-tooltip"
 import { AssetIcon } from "~/components/asset-icon"
 import type { DashboardCoin } from "~/hooks/use-dashboard-data"
-import { FALLBACK_COINS } from "~/lib/dashboard-placeholder-data"
 
 interface DashboardResultsTableProps {
   coins?: DashboardCoin[]
@@ -130,8 +129,7 @@ function MoverTable({
 }
 
 export function DashboardResultsTable({ coins }: DashboardResultsTableProps) {
-  const source = coins && coins.length > 0 ? coins : FALLBACK_COINS
-  const withChange = source.filter((c) => c.price_change_24h != null)
+  const withChange = (coins ?? []).filter((c) => c.price_change_24h != null)
 
   const gainers = [...withChange]
     .sort((a, b) => (b.price_change_24h ?? 0) - (a.price_change_24h ?? 0))

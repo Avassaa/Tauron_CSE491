@@ -17,24 +17,24 @@ import { useNavigate, useSearchParams } from "react-router"
 
 import { DashboardLayout } from "~/components/dashboard/dashboard-layout"
 import {
-  ChartAreaInteractive,
   ChartBarDefault,
   ChartLineDefault,
-  ChartLineMultiple,
   ChartPieSimple,
   ChartRadarLinesOnly,
 } from "~/components/dashboard/dashboard-charts"
+import { ChartAreaInteractive } from "~/components/dashboard/chart-area-interactive"
 import { DashboardChartsSkeleton } from "~/components/dashboard/dashboard-charts-skeleton"
 import { DashboardTableSkeleton } from "~/components/dashboard/dashboard-table-skeleton"
 import { DashboardNewsStrip } from "~/components/dashboard/dashboard-news-strip"
 import { DashboardResultsTable } from "~/components/dashboard/dashboard-results-table"
+import { DashboardHeatmap } from "~/components/dashboard/dashboard-heatmap"
+import { DashboardAlerts } from "~/components/dashboard/dashboard-alerts"
 import { PageBlueBackdrop } from "~/components/dashboard/page-blue-backdrop"
 import { Card, CardContent, glassPanelSurface } from "~/components/ui/card"
 import { Separator } from "~/components/ui/separator"
 import { Skeleton } from "~/components/ui/skeleton"
 import { cn } from "~/lib/utils"
 import { useDashboardData } from "~/hooks/use-dashboard-data"
-import { FALLBACK_COINS } from "~/lib/dashboard-placeholder-data"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -108,15 +108,13 @@ function QuickLinkCard({
 function DashboardPageClient() {
   const [searchParams] = useSearchParams()
   const selectedAssetId = searchParams.get("asset")
-  const { coins, btcKlines, ethKlines, solKlines, loading } = useDashboardData()
+  const { coins, btcKlines, loading } = useDashboardData()
 
-  const source = coins.length > 0 ? coins : FALLBACK_COINS
+  const btcCoin = coins.find((c) => c.symbol === "BTC")
+  const ethCoin = coins.find((c) => c.symbol === "ETH")
 
-  const btcCoin = source.find((c) => c.symbol === "BTC")
-  const ethCoin = source.find((c) => c.symbol === "ETH")
-
-  const totalMcap = source.slice(0, 20).reduce((s, c) => s + (c.market_cap ?? 0), 0)
-  const totalVol = source.slice(0, 20).reduce((s, c) => s + (c.volume ?? 0), 0)
+  const totalMcap = coins.slice(0, 20).reduce((s, c) => s + (c.market_cap ?? 0), 0)
+  const totalVol = coins.slice(0, 20).reduce((s, c) => s + (c.volume ?? 0), 0)
 
   const fmtPrice = (price: number | null) => {
     if (price == null) return "—"
@@ -231,12 +229,11 @@ function DashboardPageClient() {
                   )}
                   aria-hidden={dataBusy}
                 >
-                  {/* Big performance area chart */}
-                  <ChartAreaInteractive
-                    btcKlines={btcKlines}
-                    ethKlines={ethKlines}
-                    solKlines={solKlines}
-                  />
+                  {/* Market heatmap */}
+                  <DashboardHeatmap coins={coins} />
+
+                  {/* Top 3 gainers normalized performance comparison */}
+                  <ChartAreaInteractive coins={coins} />
 
                   {/* 4-column grid */}
                   <div className="grid gap-4 xl:grid-cols-4">
@@ -246,12 +243,8 @@ function DashboardPageClient() {
                     <ChartRadarLinesOnly coins={coins} />
                   </div>
 
-                  {/* Full-width multi-line comparison */}
-                  <ChartLineMultiple
-                    btcKlines={btcKlines}
-                    ethKlines={ethKlines}
-                    solKlines={solKlines}
-                  />
+                  {/* Price alerts (replaces 30D multi-line comparison) */}
+                  <DashboardAlerts />
                 </div>
 
                 {dataBusy && (

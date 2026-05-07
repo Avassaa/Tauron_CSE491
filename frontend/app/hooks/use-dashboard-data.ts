@@ -21,7 +21,7 @@ async function fetchMarket(limit = 50): Promise<any[]> {
   return marketInFlight
 }
 
-async function fetchBinanceKlines(pair: string, interval: string, limit: number): Promise<any[]> {
+export async function fetchBinanceKlines(pair: string, interval: string, limit: number): Promise<any[]> {
   const urls = [
     `https://www.binance.com/api/v3/uiKlines?symbol=${pair}&interval=${interval}&limit=${limit}`,
     `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
