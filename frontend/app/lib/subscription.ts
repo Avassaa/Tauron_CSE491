@@ -1,4 +1,4 @@
-export type PlanSlug = "free" | "pro" | "enterprise"
+export type PlanSlug = "free" | "pro" | "ultra"
 
 export interface SubscriptionFeature {
   text: string
@@ -18,7 +18,7 @@ export interface SubscriptionPlan {
 export const PLANS: SubscriptionPlan[] = [
   {
     slug: "free",
-    name: "Starter",
+    name: "Free",
     description: "Core analytics for getting started.",
     price: { monthly: 0, yearly: 0 },
     features: [
@@ -31,25 +31,25 @@ export const PLANS: SubscriptionPlan[] = [
   {
     slug: "pro",
     name: "Pro",
-    description: "Advanced forecasting powered by AI.",
+    description: "AI-powered predictions for smarter trading.",
     price: { monthly: 20, yearly: 200 },
     highlighted: true,
     badge: "Most Popular",
     features: [
+      { text: "AI price predictions: Buy/Sell/Hold signals", tooltip: "Powered by hybrid LSTM-GRU models" },
       { text: "FinBERT sentiment analysis with 0.68 correlation", tooltip: "Sentiment scores from news & social media" },
-      { text: "Hybrid LSTM-GRU models — 14% lower forecast error", tooltip: "Captures short-term momentum shifts" },
       { text: "Live Buy/Sell/Hold alerts over WebSocket" },
       { text: "Advanced charting: overlay technical data & sentiment" },
     ],
   },
   {
-    slug: "enterprise",
-    name: "Enterprise",
-    description: "Full institutional-grade control.",
+    slug: "ultra",
+    name: "Ultra",
+    description: "Train your own model. Full institutional-grade control.",
     price: { monthly: 50, yearly: 500 },
     features: [
+      { text: "Custom model training on your selected assets", tooltip: "Configure training parameters and schedules" },
       { text: "On-chain metrics: NVT ratio & exchange net flow (Glassnode)", tooltip: "Network Value to Transactions + exchange inflow/outflow" },
-      { text: "Macroeconomic data: global liquidity & inflation via FRED" },
       { text: "Unlimited backtesting with Sharpe Ratio & Max Drawdown" },
       { text: "Priority model access: latest weights, hot-swap updates" },
     ],
@@ -67,11 +67,11 @@ export function getPlanLabel(slug: PlanSlug | string): string {
 export const PLAN_COLOR: Record<PlanSlug, string> = {
   free: "text-muted-foreground",
   pro: "text-violet-500 dark:text-violet-400",
-  enterprise: "text-amber-500 dark:text-amber-400",
+  ultra: "text-amber-500 dark:text-amber-400",
 }
 
 export const PLAN_BADGE: Record<PlanSlug, string> = {
   free: "border border-border/60 bg-muted/60 text-muted-foreground",
   pro: "border border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400",
-  enterprise: "border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  ultra: "border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
 }

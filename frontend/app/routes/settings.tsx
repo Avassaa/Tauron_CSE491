@@ -31,9 +31,9 @@ import { getLocalPlan } from "~/lib/auth-client"
 import type { PlanSlug } from "~/lib/subscription"
 
 const PLAN_SLUG_MAP: Record<string, PlanSlug> = {
-  Starter: "free",
+  Free: "free",
   Pro: "pro",
-  Enterprise: "enterprise",
+  Ultra: "ultra",
 }
 
 export default function SettingsPage() {

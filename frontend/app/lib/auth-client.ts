@@ -131,7 +131,7 @@ export function getLocalPlan(): string {
   return localStorage.getItem("plan") ?? "free"
 }
 
-export function setLocalPlan(plan: "free" | "pro" | "enterprise"): void {
+export function setLocalPlan(plan: "free" | "pro" | "ultra"): void {
   localStorage.setItem("plan", plan)
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))

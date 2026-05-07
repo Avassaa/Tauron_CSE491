@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckCircle2, Sparkles, Zap, Building2, X } from "lucide-react"
+import { CheckCircle2, Sparkles, Zap, Building2 } from "lucide-react"
 import { cn } from "~/lib/utils"
 import { setLocalPlan, getLocalPlan } from "~/lib/auth-client"
 import { getPlan, PLAN_BADGE, type PlanSlug, type SubscriptionFeature } from "~/lib/subscription"
@@ -17,7 +17,7 @@ import { Button } from "~/components/ui/button"
 const PLAN_ICON: Record<PlanSlug, React.ReactNode> = {
   free: <Zap className="size-5" />,
   pro: <Sparkles className="size-5" />,
-  enterprise: <Building2 className="size-5" />,
+  ultra: <Building2 className="size-5" />,
 }
 
 interface PlanUpgradeModalProps {
@@ -37,12 +37,11 @@ export function PlanUpgradeModal({
   const [done, setDone] = React.useState(false)
   const currentPlan = getLocalPlan() as PlanSlug
   const plan = getPlan(targetPlan)
-  const isDowngrade = targetPlan === "free" && currentPlan !== "free"
+  const isDowngrade = (targetPlan === "free") || (targetPlan === "pro" && currentPlan === "ultra")
   const isSame = currentPlan === targetPlan
 
   function handleConfirm() {
     setConfirming(true)
-    // Simulate a brief "processing" feel
     setTimeout(() => {
       setLocalPlan(targetPlan)
       setConfirming(false)
@@ -55,7 +54,6 @@ export function PlanUpgradeModal({
     }, 600)
   }
 
-  // Reset done state when modal opens
   React.useEffect(() => {
     if (open) setDone(false)
   }, [open])
@@ -68,14 +66,14 @@ export function PlanUpgradeModal({
           "relative flex flex-col items-center gap-3 px-6 py-8",
           targetPlan === "free" && "bg-gradient-to-br from-muted to-muted/60",
           targetPlan === "pro" && "bg-gradient-to-br from-violet-600/20 via-violet-500/10 to-transparent",
-          targetPlan === "enterprise" && "bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent",
+          targetPlan === "ultra" && "bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent",
         )}>
           {/* Plan icon */}
           <div className={cn(
             "flex size-14 items-center justify-center rounded-2xl border",
             targetPlan === "free" && "border-border bg-muted text-muted-foreground",
             targetPlan === "pro" && "border-violet-500/30 bg-violet-500/15 text-violet-500 dark:text-violet-400",
-            targetPlan === "enterprise" && "border-amber-500/30 bg-amber-500/15 text-amber-500 dark:text-amber-400",
+            targetPlan === "ultra" && "border-amber-500/30 bg-amber-500/15 text-amber-500 dark:text-amber-400",
           )}>
             {PLAN_ICON[targetPlan]}
           </div>
@@ -114,8 +112,8 @@ export function PlanUpgradeModal({
                   "mt-0.5 size-4 shrink-0",
                   isDowngrade ? "text-muted-foreground/40" : (
                     targetPlan === "pro" ? "text-violet-500 dark:text-violet-400" :
-                    targetPlan === "enterprise" ? "text-amber-500 dark:text-amber-400" :
-                    "text-muted-foreground"
+                    targetPlan === "ultra" ? "text-amber-500 dark:text-amber-400" :
+                    "text-muted-foreground/70"
                   ),
                 )} />
                 <span className="text-sm text-foreground/80 leading-snug">{f.text}</span>
@@ -144,8 +142,9 @@ export function PlanUpgradeModal({
                 className={cn(
                   "flex-1 font-black transition-all",
                   done && "bg-emerald-600 hover:bg-emerald-600 text-white",
+                  targetPlan === "free" && !done && "",
                   targetPlan === "pro" && !done && "bg-violet-600 hover:bg-violet-700 text-white",
-                  targetPlan === "enterprise" && !done && "bg-amber-600 hover:bg-amber-700 text-white",
+                  targetPlan === "ultra" && !done && "bg-amber-600 hover:bg-amber-700 text-white",
                 )}
                 onClick={handleConfirm}
                 disabled={confirming || done}

@@ -50,20 +50,20 @@ const FAQ_DATA: Record<string, { question: string; answer: string }[]> = {
   ],
   subscription: [
     {
-      question: "What is the difference between Free and Pro?",
-      answer: "The Free plan gives you access to the core dashboard, news feed, watchlist, and basic market data. Pro unlocks advanced AI-powered analysis, extended backtest results, priority data access, and enhanced alert capabilities."
+      question: "What is the difference between Free, Pro, and Ultra?",
+      answer: "The Free plan gives you core market data — live prices, basic indicators, and daily forecast summaries. Pro unlocks AI-powered price predictions: Buy/Sell/Hold signals from our hybrid LSTM-GRU models, FinBERT sentiment analysis, and live WebSocket alerts. Ultra goes further: you can train your own custom model on selected assets, access on-chain metrics, and run unlimited backtests."
     },
     {
       question: "How do I upgrade my plan?",
       answer: "You can upgrade directly from the Settings page under the Subscription tab. Select your desired plan and follow the on-screen steps to complete the upgrade."
     },
     {
-      question: "Can I switch back to the Free plan?",
-      answer: "Yes. You can change your plan at any time from the Subscription section in Settings. Downgrades take effect immediately."
+      question: "Can I switch back to a lower plan?",
+      answer: "Yes. You can change your plan at any time from the Subscription section in Settings. Downgrades take effect immediately and you will lose access to the features of your previous plan."
     },
     {
-      question: "Are there any usage limits on the Free plan?",
-      answer: "The Free plan includes access to the main platform features with standard data refresh rates. Pro removes these limits and enables advanced analytical features across all supported assets."
+      question: "What does 'train your own model' mean in Ultra?",
+      answer: "Ultra subscribers can configure and train a personal forecasting model on their selected cryptocurrency assets. You can adjust training parameters, set schedules, and download the resulting model weights for your own use."
     }
   ],
   account: [

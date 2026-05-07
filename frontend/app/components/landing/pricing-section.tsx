@@ -91,9 +91,9 @@ export function PricingSection({
             isCurrentPlan={
               currentPlan !== undefined &&
               (
-                (currentPlan === 'free' && plan.name === 'Starter') ||
+                (currentPlan === 'free' && plan.name === 'Free') ||
                 (currentPlan === 'pro' && plan.name === 'Pro') ||
-                (currentPlan === 'enterprise' && plan.name === 'Enterprise')
+                (currentPlan === 'ultra' && plan.name === 'Ultra')
               )
             }
             isLiquidGlass={isLiquidGlass}
@@ -214,7 +214,7 @@ export function PricingCard({
               Popular
             </p>
           )}
-          {frequency === 'yearly' && plan.name !== 'Starter' && (
+          {frequency === 'yearly' && plan.name !== 'Free' && (
             <p
               className={cn(
                 'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors duration-300',
@@ -244,15 +244,13 @@ export function PricingCard({
             ${plan.price[frequency]}
           </span>
           <span className="text-slate-600 dark:text-white/70">
-            {plan.name !== 'Starter'
-              ? '/' + (frequency === 'monthly' ? 'month' : 'year')
-              : ''}
+            {plan.name !== 'Free' ? '/' + (frequency === 'monthly' ? 'month' : 'year') : ''}
           </span>
         </h3>
       </div>
       <div
         className={cn(
-          'relative z-10 space-y-4 px-4 py-6 text-sm transition-colors duration-300',
+          'relative z-10 flex-1 space-y-4 px-4 py-6 text-sm transition-colors duration-300',
           'text-slate-900',
           isLiquidGlass
             ? 'bg-white/3 backdrop-blur-sm dark:bg-white/5 dark:text-white/95'
@@ -427,64 +425,46 @@ export function BorderTrail({
 
 export const DEFAULT_PRICING_PLANS: Plan[] = [
   {
-    name: 'Starter',
+    name: 'Free',
     info: 'Basic Analytics',
     price: { monthly: 0, yearly: 0 },
     features: [
-      {
-        text: 'Core technical indicators: RSI, MACD, and moving averages for BTC & ETH.',
-      },
-      {
-        text: 'Real-time price tracking: live OHLCV via the Binance API.',
-      },
-      {
-        text: 'Daily forecast summary: directional signals based on 4-hour candles.',
-      },
-      {
-        text: 'Standard dashboard: a basic portfolio view with a modern Angular 17 UI.',
-      },
+      { text: 'Core technical indicators: RSI, MACD, and moving averages for BTC & ETH.' },
+      { text: 'Real-time price tracking: live OHLCV via the Binance API.' },
+      { text: 'Daily forecast summary: directional signals based on 4-hour candles.' },
+      { text: 'Standard dashboard with live market view.' },
     ],
     btn: { text: 'Select package', href: '/signup' },
   },
   {
     name: 'Pro',
-    info: 'Advanced Forecasting',
+    info: 'AI-Powered Predictions',
     price: { monthly: 20, yearly: 200 },
     highlighted: true,
     features: [
       {
-        text: 'FinBERT sentiment analysis: sentiment scores from news & social media with 0.68 correlation.',
+        text: 'AI price predictions: Buy/Sell/Hold signals powered by hybrid LSTM-GRU models.',
+        tooltip: 'Models trained on historical market data and on-chain metrics.',
       },
-      {
-        text: 'Hybrid LSTM-GRU models: forecasts that capture short-term momentum shifts with 14% lower error.',
-      },
-      {
-        text: 'Live signal notifications: real-time Buy/Sell/Hold alerts over WebSocket.',
-      },
-      {
-        text: 'Advanced charting tools: overlay technical data and sentiment scores.',
-      },
+      { text: 'FinBERT sentiment analysis: sentiment scores from news & social media with 0.68 correlation.' },
+      { text: 'Live signal notifications: real-time Buy/Sell/Hold alerts over WebSocket.' },
+      { text: 'Advanced charting tools: overlay technical data and sentiment scores.' },
     ],
     btn: { text: 'Select package', href: '/signup?plan=pro' },
   },
   {
-    name: 'Enterprise',
-    info: 'Full Control',
+    name: 'Ultra',
+    info: 'Train Your Own Model',
     price: { monthly: 50, yearly: 500 },
     features: [
       {
-        text: 'On-chain network metrics: NVT ratio and exchange net inflow/outflow data (Glassnode integration).',
+        text: 'Custom model training: train your own model on selected assets with configurable parameters.',
+        tooltip: 'Set training schedules, choose feature sets, and download model weights.',
       },
-      {
-        text: 'Macroeconomic data: global liquidity and inflation indicators via FRED.',
-      },
-      {
-        text: 'Unlimited backtesting: test strategies with Sharpe Ratio and Max Drawdown metrics.',
-      },
-      {
-        text: 'Priority model access: latest weights with hot-swapped models and up-to-date datasets.',
-      },
+      { text: 'On-chain network metrics: NVT ratio and exchange net inflow/outflow data (Glassnode integration).' },
+      { text: 'Unlimited backtesting: test strategies with Sharpe Ratio and Max Drawdown metrics.' },
+      { text: 'Priority model access: latest weights with hot-swapped models and up-to-date datasets.' },
     ],
-    btn: { text: 'Select package', href: '/contact' },
+    btn: { text: 'Select package', href: '/signup?plan=ultra' },
   },
 ];

@@ -15,7 +15,7 @@ const FALLBACK_USER = {
 const PLAN_NAME_MAP: Record<string, string> = {
   free: "Free",
   pro: "Pro",
-  enterprise: "Enterprise",
+  ultra: "Ultra",
 }
 
 export function SidebarUserMenu() {
