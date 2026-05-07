@@ -41,7 +41,7 @@ export function Header() {
   } as const;
 
   const links = [
-    { label: 'Features', href: '/#features' },
+    { label: 'Features', href: '/features' },
     { label: 'Pricing', href: '/pricing' },
     { label: 'About', href: '/about' },
     { label: 'FAQ', href: '/faq' },

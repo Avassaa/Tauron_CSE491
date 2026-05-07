@@ -61,7 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { pathname } = useLocation();
-  const showHeader = ["/", "/pricing", "/about", "/faq"].includes(pathname);
+  const showHeader = ["/", "/pricing", "/about", "/faq", "/features"].includes(pathname);
 
   return (
     <div style={{ overflowX: "clip" }}>

@@ -20,6 +20,9 @@ type Pages = {
   "/faq": {
     params: {};
   };
+  "/features": {
+    params: {};
+  };
   "/about": {
     params: {};
   };
@@ -93,7 +96,7 @@ type Pages = {
 type RouteFiles = {
   "root.tsx": {
     id: "root";
-    page: "/" | "/pricing" | "/faq" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/predictions" | "/backtests" | "/heatmap" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
+    page: "/" | "/pricing" | "/faq" | "/features" | "/about" | "/login" | "/register" | "/forgot-password" | "/reset-password" | "/dashboard" | "/profile" | "/profile/edit" | "/settings" | "/tools" | "/notifications" | "/assets" | "/watchlists" | "/news" | "/predictions" | "/backtests" | "/heatmap" | "/news/:newsId" | "/chat" | "/api/chat" | "/api/assistant/confirm-tool" | "/api/insights";
   };
   "routes/home/page/home.tsx": {
     id: "routes/home/page/home";
@@ -106,6 +109,10 @@ type RouteFiles = {
   "routes/faq/page/faq.tsx": {
     id: "routes/faq/page/faq";
     page: "/faq";
+  };
+  "routes/features/page/features.tsx": {
+    id: "routes/features/page/features";
+    page: "/features";
   };
   "routes/about/page/about.tsx": {
     id: "routes/about/page/about";
@@ -202,6 +209,7 @@ type RouteModules = {
   "routes/home/page/home": typeof import("./app/routes/home/page/home.tsx");
   "routes/pricing/page/pricing": typeof import("./app/routes/pricing/page/pricing.tsx");
   "routes/faq/page/faq": typeof import("./app/routes/faq/page/faq.tsx");
+  "routes/features/page/features": typeof import("./app/routes/features/page/features.tsx");
   "routes/about/page/about": typeof import("./app/routes/about/page/about.tsx");
   "routes/login": typeof import("./app/routes/login.tsx");
   "routes/register": typeof import("./app/routes/register.tsx");
