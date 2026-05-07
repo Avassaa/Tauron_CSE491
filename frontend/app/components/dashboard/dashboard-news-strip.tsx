@@ -124,9 +124,10 @@ export function DashboardNewsStrip() {
 
   React.useEffect(() => {
     let cancelled = false
-    apiGet<{ items: CuratedNewsResponse[] } | CuratedNewsResponse[]>("/curated-news", { limit: 5 })
+    apiGet<{ items: CuratedNewsResponse[] } | CuratedNewsResponse[]>("/curated-news", { page_size: 5 })
       .then((data) => {
-        if (!cancelled) setItems(Array.isArray(data) ? data : (data as { items: CuratedNewsResponse[] }).items ?? [])
+        const all = Array.isArray(data) ? data : (data as { items: CuratedNewsResponse[] }).items ?? []
+        if (!cancelled) setItems(all.slice(0, 5))
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })

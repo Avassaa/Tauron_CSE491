@@ -4,7 +4,6 @@ import * as React from "react"
 import { AlarmClock, Bell, Check, CheckCheck, ChevronDown, Info, SlidersHorizontal } from "lucide-react"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
-import { CollapsiblePageNav } from "~/components/dashboard/collapsible-page-nav"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
 import { Button } from "~/components/ui/button"
@@ -157,12 +156,7 @@ export default function NotificationsPage() {
             <NotificationInbox />
           </header>
 
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row">
-            <CollapsiblePageNav
-              navLabel="Notifications"
-              items={[{ id: "inbox", label: "Inbox", icon: Bell }]}
-              onSelect={() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-            />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div ref={mainScrollRef} className="min-h-0 min-w-0 flex-1 overflow-auto p-4 scrollbar-none">
               <section className="space-y-5">
                 <div

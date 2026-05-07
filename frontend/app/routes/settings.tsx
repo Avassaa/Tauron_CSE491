@@ -73,6 +73,7 @@ export default function SettingsPage() {
           style={{
             paddingTop: "var(--market-banner-offset, 0px)",
           }}
+          className="flex flex-col overflow-hidden"
         >
           <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b px-4">
             <div className="flex items-center gap-2">
@@ -82,9 +83,27 @@ export default function SettingsPage() {
             </div>
             <NotificationInbox />
           </header>
-          <div className="flex min-h-[calc(100svh-3.5rem)] flex-1 overflow-auto p-4">
-            <div className="grid w-full gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-              <aside className="space-y-1">
+          <div className="flex flex-1 flex-col overflow-y-auto">
+            {/* Mobile tab bar */}
+            <div className="flex shrink-0 gap-1 overflow-x-auto border-b px-3 py-2 lg:hidden">
+              {(["display", "subscription"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setActiveTab(t)}
+                  className={`shrink-0 rounded-md px-3 py-1.5 text-sm capitalize transition-colors ${
+                    activeTab === t
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid w-full gap-4 p-3 sm:gap-6 sm:p-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+              <aside className="hidden space-y-1 lg:block">
                 <button
                   type="button"
                   onClick={() => setActiveTab("display")}
@@ -108,7 +127,7 @@ export default function SettingsPage() {
                   Subscription
                 </button>
               </aside>
-              <section className="space-y-5">
+              <section className="space-y-4 sm:space-y-5">
                 {activeTab === "display" && (
                   <>
                     <div className="rounded-xl border">
