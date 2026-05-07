@@ -99,7 +99,7 @@ class Settings(BaseSettings):
         default="hgb_ocm",
         description=(
             "Default model_type_slug used when no override is supplied at request time. "
-            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm."
+            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm, ensemble_ocm."
         ),
     )
     TRAIN_HOLDOUT_EVAL_START_DATE: str = Field(

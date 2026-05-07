@@ -58,7 +58,9 @@ const MODEL_ARCHITECTURE_SLUG_OPTIONS: Array<{ value: string; label: string }> =
   { value: "et_ocm", label: "Extra trees (et_ocm)" },
   { value: "lgbm_ocm", label: "LightGBM (lgbm_ocm)" },
   { value: "lstm_ocm", label: "LSTM (lstm_ocm)" },
+  { value: "ensemble_ocm", label: "Ridge + XGBoost ensemble (ensemble_ocm)" },
 ]
+const ENSEMBLE_MODEL_TYPE_SLUG = "ensemble_ocm"
 
 function startOfUtcDayFromLocalCalendarDate(d: Date): Date {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0))
@@ -73,6 +75,7 @@ const EVAL_POINTS_CHART_VISIBLE_CAP = 500
 interface TrainerHyperparameterRuntimeFlags {
   lightgbm_import_available: boolean
   torch_import_available: boolean
+  xgboost_import_available: boolean
 }
 
 interface TrainerHyperparameterFieldDescriptor {
@@ -117,6 +120,9 @@ function buildSeedHyperDraftMapExclusive(
   effectiveSlugExclusive: string,
 ): Record<string, string> {
   const draftSeedExclusive: Record<string, string> = {}
+  if (effectiveSlugExclusive === ENSEMBLE_MODEL_TYPE_SLUG) {
+    return draftSeedExclusive
+  }
   if (effectiveSlugExclusive === schemaExclusive.lstm_model_type_slug) {
     for (const fieldDescriptor of schemaExclusive.lstm_ocm_hyperparameter_fields) {
       draftSeedExclusive[fieldDescriptor.parameter_key] = defaultStringFromFieldDescriptor(fieldDescriptor)
@@ -138,6 +144,9 @@ function collectActiveHyperparameterFieldListExclusive(
   schemaExclusive: TrainerHyperparameterSchemaEnvelope,
   effectiveSlugExclusive: string,
 ): TrainerHyperparameterFieldDescriptor[] {
+  if (effectiveSlugExclusive === ENSEMBLE_MODEL_TYPE_SLUG) {
+    return []
+  }
   if (effectiveSlugExclusive === schemaExclusive.lstm_model_type_slug) {
     return schemaExclusive.lstm_ocm_hyperparameter_fields
   }
@@ -809,6 +818,13 @@ export default function BacktestsRoute() {
                             <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-50">
                               The AI engine reported that LightGBM is not installed. Pick another architecture or add
                               LightGBM to the worker container.
+                            </p>
+                          )}
+                        {effectiveTrainModelSlugExclusive === ENSEMBLE_MODEL_TYPE_SLUG &&
+                          !trainerHyperparameterSchemaExclusive.runtime_capability_flags.xgboost_import_available && (
+                            <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-50">
+                              The AI engine reported that XGBoost is not installed. Choose another architecture or add
+                              XGBoost to the worker container.
                             </p>
                           )}
                         {effectiveTrainModelSlugExclusive ===

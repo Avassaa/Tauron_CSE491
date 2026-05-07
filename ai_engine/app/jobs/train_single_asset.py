@@ -6,7 +6,8 @@ via the training plan dictionary).
 
 Model dispatch:
     model_type_slug == "lstm_ocm"  -> lstm_pipeline.train_lstm_for_asset + torch.save artifact
-    all other slugs                -> training_pipeline.train_estimator_bundle + joblib artifact
+    model_type_slug == "ensemble_ocm" -> dedicated transformed-feature multi-step voting ensemble
+    all other slugs                    -> training_pipeline.train_estimator_bundle + joblib artifact
 
 Inclusive training-data cutoff (``maximum_training_feature_calendar_day_utc`` plan key):
 
@@ -34,7 +35,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import joblib
 import numpy as np
@@ -46,6 +47,10 @@ from app.services.feature_matrix_builder import (
     TrainingFrameBuildResult,
     build_market_data_feature_block,
     build_training_frame_for_asset,
+)
+from app.services.ensemble_pipeline import (
+    build_ensemble_feature_matrix_for_asset_exclusive,
+    train_multi_step_ensemble_for_cutoff_exclusive,
 )
 from app.services.training_pipeline import (
     bundle_to_joblib_dict,
@@ -469,6 +474,9 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
     resolved_registry_display_label_exclusive = (
         str(plan_dictionary.get("registry_display_name") or "").strip() or None
     )
+    maximum_training_calendar_literal_exclusive = str(
+        plan_dictionary.get("maximum_training_feature_calendar_day_utc") or "",
+    ).strip()
 
     if not administrator_api_secret_plaintext.strip():
         return {
@@ -482,6 +490,24 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
         schema_name=schema_catalog_identifier_value,
         ssl_enabled=ssl_boolean_flag_enabled,
     )
+
+    if model_architecture_slug_identifier == "ensemble_ocm":
+        return _train_ensemble_path(
+            asset_text_exclusive=asset_text_value,
+            asset_uuid_exclusive=asset_uuid_value,
+            postgres_access_configuration_exclusive=postgres_access_exclusive_configuration_exclusive,
+            model_root_exclusive=model_filesystem_anchor_root_absolute,
+            backend_base_url_exclusive=backend_http_base_url_absolute,
+            admin_key_exclusive=administrator_api_secret_plaintext,
+            horizon_days_exclusive=forward_multi_step_horizon_exclusive,
+            forecast_log_sigma_floor_exclusive=forecast_volatility_residual_floor_exclusive,
+            forecast_ci_z_score_exclusive_float=forecast_confidence_interval_z_score_exclusive_float,
+            version_tag_exclusive=version_stamp_literal_exclusive,
+            activate_exclusive=registration_activate_boolean_flag_exclusive,
+            registry_display_name_exclusive=resolved_registry_display_label_exclusive,
+            inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive=maximum_training_calendar_literal_exclusive
+            or None,
+        )
 
     preloaded_market_feature_block_exclusive = pd.DataFrame()
     try:
@@ -513,10 +539,6 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
                 "through the configured horizon)."
             ),
         }
-
-    maximum_training_calendar_literal_exclusive = str(
-        plan_dictionary.get("maximum_training_feature_calendar_day_utc") or "",
-    ).strip()
 
     exclusive_training_cutoff_logged_iso_exclusive: str | None = None
 
@@ -963,6 +985,166 @@ def _train_sklearn_path(
         ] = retrospective_log_mae_exclusive_bucket_float_resolution
 
     return response_summary_dictionary_exclusive
+
+
+def _train_ensemble_path(
+    *,
+    asset_text_exclusive: str,
+    asset_uuid_exclusive: UUID,
+    postgres_access_configuration_exclusive: PostgresAccessConfig,
+    model_root_exclusive: Path,
+    backend_base_url_exclusive: str,
+    admin_key_exclusive: str,
+    horizon_days_exclusive: int,
+    forecast_log_sigma_floor_exclusive: float,
+    forecast_ci_z_score_exclusive_float: float,
+    version_tag_exclusive: str,
+    activate_exclusive: bool,
+    registry_display_name_exclusive: str | None,
+    inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive: str | None = None,
+) -> dict[str, Any]:
+    """Fit and persist the dedicated transformed-feature ensemble model family."""
+
+    with open_connection(postgres_access_configuration_exclusive) as connection_exclusive:
+        feature_frame_exclusive, close_series_exclusive = build_ensemble_feature_matrix_for_asset_exclusive(
+            connection=connection_exclusive,
+            schema_name=postgres_access_configuration_exclusive.schema_name,
+            asset_id=asset_uuid_exclusive,
+        )
+
+    if feature_frame_exclusive.empty:
+        return {
+            "asset_id": asset_text_exclusive,
+            "status": "skipped",
+            "detail": "No transformed feature rows available for ensemble_ocm.",
+        }
+
+    resolved_cutoff_exclusive: pd.Timestamp
+    if inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive:
+        try:
+            resolved_cutoff_exclusive = _exclusive_calendar_cutoff_timestamp_from_literal_or_raise_exclusive(
+                inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive,
+            )
+        except (ValueError, TypeError):
+            return {
+                "asset_id": asset_text_exclusive,
+                "status": "failed",
+                "detail": "maximum_training_feature_calendar_day_utc must be yyyy-mm-dd in UTC.",
+            }
+    else:
+        inferred_last_feature_day_exclusive = pd.Timestamp(feature_frame_exclusive.index.max())
+        if inferred_last_feature_day_exclusive.tzinfo is None:
+            resolved_cutoff_exclusive = inferred_last_feature_day_exclusive.tz_localize("UTC").normalize()
+        else:
+            resolved_cutoff_exclusive = inferred_last_feature_day_exclusive.tz_convert("UTC").normalize()
+
+    temporary_registry_placeholder_exclusive = uuid4()
+    trained_outcome_exclusive = train_multi_step_ensemble_for_cutoff_exclusive(
+        transformed_feature_frame_exclusive=feature_frame_exclusive,
+        close_series_exclusive=close_series_exclusive,
+        asset_id=asset_uuid_exclusive,
+        model_id=temporary_registry_placeholder_exclusive,
+        inclusive_cutoff_day_utc_exclusive=resolved_cutoff_exclusive,
+        horizon_days_exclusive=horizon_days_exclusive,
+        confidence_interval_z_score_exclusive=forecast_ci_z_score_exclusive_float,
+        residual_sigma_floor_return_exclusive=max(forecast_log_sigma_floor_exclusive, 1e-6),
+    )
+
+    model_root_exclusive.mkdir(parents=True, exist_ok=True)
+    asset_directory_exclusive = model_root_exclusive / str(asset_uuid_exclusive)
+    asset_directory_exclusive.mkdir(parents=True, exist_ok=True)
+    joblib_filename_exclusive = version_tag_exclusive.replace("/", "_") + ".joblib"
+    absolute_artifact_path_exclusive = asset_directory_exclusive / joblib_filename_exclusive
+    joblib.dump(trained_outcome_exclusive.artifact_payload, absolute_artifact_path_exclusive)
+
+    per_horizon_mae_exclusive = list(trained_outcome_exclusive.mae_by_horizon.values())
+    per_horizon_sigma_exclusive = list(trained_outcome_exclusive.residual_sigma_by_horizon.values())
+    mean_horizon_mae_exclusive = float(np.mean(per_horizon_mae_exclusive)) if per_horizon_mae_exclusive else None
+    mean_horizon_sigma_exclusive = (
+        float(np.mean(per_horizon_sigma_exclusive)) if per_horizon_sigma_exclusive else None
+    )
+
+    hyperparameter_document_exclusive: dict[str, Any] = {
+        "framework": "sklearn_voting_ridge_xgboost",
+        "model_type_slug": "ensemble_ocm",
+        "feature_source": "stationary_transformed_onchain_and_market_signals",
+        "target_definition": "cumulative_percentage_return_from_cutoff_to_horizon_step",
+        "model_target_space": "cumulative_return_ratio",
+        "training_policy": "fit_on_all_rows_where_feature_day_lte_cutoff_without_train_test_split",
+        "ensemble_components": {
+            "linear_anchor": "Ridge(alpha=8.0)",
+            "non_linear_engine": "XGBRegressor(max_depth=3)",
+            "combiner": "VotingRegressor(weights=[0.45,0.55])",
+        },
+        "confidence_interval_method": "historical_residuals_scaled_by_sqrt_horizon",
+        "forecast_horizon_days": horizon_days_exclusive,
+        "forecast_ci_z_score": forecast_ci_z_score_exclusive_float,
+        "residual_sigma_floor_return": max(forecast_log_sigma_floor_exclusive, 1e-6),
+        "transformed_features": [
+            "net_exchange_flow",
+            "net_exchange_flow_ma7",
+            "mvrv_ratio",
+            "nvt_ratio",
+            "active_addresses_growth_14d",
+            "average_transaction_fee",
+            "daily_volatility_14d",
+            "distance_from_30d_ma",
+            "momentum_7d",
+            "momentum_30d",
+        ],
+        "training_rows_by_horizon": trained_outcome_exclusive.training_rows_by_horizon,
+    }
+    if inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive:
+        hyperparameter_document_exclusive["training_data_calendar_cutoff_utc_day_inclusive"] = (
+            inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive
+        )
+
+    training_metric_document_exclusive: dict[str, Any] = {
+        "mean_mae_cumulative_return": mean_horizon_mae_exclusive,
+        "mean_residual_sigma_cumulative_return": mean_horizon_sigma_exclusive,
+        "mae_by_horizon": trained_outcome_exclusive.mae_by_horizon,
+        "residual_sigma_by_horizon": trained_outcome_exclusive.residual_sigma_by_horizon,
+        "forecast_anchor_day_iso8601_utc": trained_outcome_exclusive.forecast_anchor_day.isoformat(),
+        "forecast_anchor_close_usd": trained_outcome_exclusive.forecast_anchor_close,
+    }
+
+    persisted_model_uuid_exclusive = persist_ml_registry_row(
+        backend_base_url=backend_base_url_exclusive,
+        admin_api_key=admin_key_exclusive,
+        version_tag=version_tag_exclusive[:50],
+        asset_id=asset_uuid_exclusive,
+        model_type_slug="ensemble_ocm",
+        hyperparameter_document=hyperparameter_document_exclusive,
+        training_metric_document=training_metric_document_exclusive,
+        artifact_relative_path_on_disk=str(absolute_artifact_path_exclusive),
+        activate_model=activate_exclusive,
+        display_name=registry_display_name_exclusive,
+    )
+
+    finalized_prediction_rows_exclusive = []
+    for row_payload_exclusive in trained_outcome_exclusive.prediction_rows:
+        copied_payload_exclusive = dict(row_payload_exclusive)
+        copied_payload_exclusive["model_id"] = persisted_model_uuid_exclusive
+        finalized_prediction_rows_exclusive.append(copied_payload_exclusive)
+
+    persist_prediction_batch_rows(
+        backend_base_url=backend_base_url_exclusive,
+        admin_api_key=admin_key_exclusive,
+        prediction_rows=finalized_prediction_rows_exclusive,
+    )
+
+    return {
+        "asset_id": asset_text_exclusive,
+        "status": "trained",
+        "model_id": str(persisted_model_uuid_exclusive),
+        "model_type_slug": "ensemble_ocm",
+        "prediction_rows_written": len(finalized_prediction_rows_exclusive),
+        "forward_prediction_rows_written": len(finalized_prediction_rows_exclusive),
+        "retrospective_prediction_rows_written": 0,
+        "forecast_horizon_days": horizon_days_exclusive,
+        "artifact_path": str(absolute_artifact_path_exclusive),
+        "mean_mae_cumulative_return": mean_horizon_mae_exclusive,
+    }
 
 
 def _train_lstm_path(

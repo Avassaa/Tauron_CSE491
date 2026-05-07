@@ -40,7 +40,7 @@ class ParallelTrainRequestBody(BaseModel):
         default=None,
         description=(
             "Model architecture slug. Overrides TRAIN_DEFAULT_MODEL_TYPE when set. "
-            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm."
+            "Valid values: hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm, ensemble_ocm."
         ),
     )
     holdout_eval_start_date_override: str | None = Field(
@@ -73,7 +73,7 @@ class ParallelTrainRequestBody(BaseModel):
             "Optional tuning payload. sklearn slugs accept estimator "
             "`set_params` keys plus `time_series_cv_folds` (2–12). `lstm_ocm` "
             "accepts lookback_window, hidden_size, num_layers, dropout, learning_rate, "
-            "max_epochs, patience."
+            "max_epochs, patience. `ensemble_ocm` currently uses fixed architecture defaults."
         ),
     )
     persist_retrospective_holdout_predictions: bool | None = Field(

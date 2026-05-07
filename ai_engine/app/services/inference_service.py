@@ -21,6 +21,10 @@ from app.services.feature_matrix_builder import (
     build_market_data_feature_block,
     resolve_reference_close_on_anchor_day_for_inference,
 )
+from app.services.ensemble_pipeline import (
+    build_ensemble_feature_matrix_for_asset_exclusive,
+    predict_one_step_from_ensemble_artifact_exclusive,
+)
 from app.services.training_pipeline import revive_bundle_from_disk
 
 def _is_torch_artifact_path(filesystem_path: Path) -> bool:
@@ -118,6 +122,14 @@ def _predict_sklearn_path(
     """Run inference via a joblib-serialised sklearn Pipeline."""
 
     hydrated_blob = joblib.load(artifact_absolute_path)
+    if isinstance(hydrated_blob, dict) and hydrated_blob.get("artifact_kind") == "ensemble_multi_step":
+        return _predict_ensemble_path(
+            connection=connection,
+            schema_fragment=schema_fragment,
+            asset_uuid_literal=asset_uuid_literal,
+            model_identifier_text=model_identifier_text,
+            artifact_payload_exclusive=hydrated_blob,
+        )
     restored_bundle = revive_bundle_from_disk(hydrated_blob)
 
     inference_market_block_exclusive = _load_market_block_safe(
@@ -197,6 +209,57 @@ def _predict_sklearn_path(
         "predicted_next_close_low_ci": predicted_next_close_low_ci,
         "prediction_confidence_proxy": confidence_proxy,
         "reference_interval_log_forward_return_band": float(sigma_log_return_component),
+    }
+
+
+def _predict_ensemble_path(
+    *,
+    connection: Any,
+    schema_fragment: str,
+    asset_uuid_literal: UUID,
+    model_identifier_text: str,
+    artifact_payload_exclusive: dict[str, Any],
+) -> dict[str, Any]:
+    """Run one-step inference for the dedicated ensemble_ocm artifact shape."""
+
+    feature_frame_exclusive, close_series_exclusive = build_ensemble_feature_matrix_for_asset_exclusive(
+        connection=connection,
+        schema_name=schema_fragment,
+        asset_id=asset_uuid_literal,
+    )
+    if feature_frame_exclusive.empty:
+        raise ValueError("No transformed feature rows are available for ensemble_ocm inference.")
+
+    latest_feature_row_exclusive = feature_frame_exclusive.sort_index().iloc[-1]
+    latest_anchor_day_exclusive = latest_feature_row_exclusive.name
+    latest_close_series_exclusive = close_series_exclusive.reindex(feature_frame_exclusive.index).sort_index()
+    reference_close_exclusive = float(latest_close_series_exclusive.loc[latest_anchor_day_exclusive])
+
+    predicted_dictionary_exclusive = predict_one_step_from_ensemble_artifact_exclusive(
+        artifact_payload_exclusive=artifact_payload_exclusive,
+        latest_feature_row_exclusive=latest_feature_row_exclusive,
+        reference_close_usd_exclusive=reference_close_exclusive,
+    )
+
+    anchor_calendar_label_exclusive = (
+        latest_anchor_day_exclusive.strftime("%Y-%m-%d")
+        if hasattr(latest_anchor_day_exclusive, "strftime")
+        else str(latest_anchor_day_exclusive)
+    )
+
+    return {
+        "model_id": model_identifier_text,
+        "asset_id": str(asset_uuid_literal),
+        "latest_feature_calendar_day_label": anchor_calendar_label_exclusive,
+        "reference_price_usd_on_feature_day": reference_close_exclusive,
+        "predicted_log_forward_return_one_day": predicted_dictionary_exclusive["predicted_log_forward_return_one_day"],
+        "predicted_next_close_mid": predicted_dictionary_exclusive["predicted_next_close_mid"],
+        "predicted_next_close_high_ci": predicted_dictionary_exclusive["predicted_next_close_high_ci"],
+        "predicted_next_close_low_ci": predicted_dictionary_exclusive["predicted_next_close_low_ci"],
+        "prediction_confidence_proxy": predicted_dictionary_exclusive["prediction_confidence_proxy"],
+        "reference_interval_log_forward_return_band": predicted_dictionary_exclusive[
+            "reference_interval_log_forward_return_band"
+        ],
     }
 
 
