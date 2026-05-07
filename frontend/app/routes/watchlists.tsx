@@ -353,10 +353,7 @@ function WatchlistPageClient() {
     <DashboardLayout title={selectedWatchlistList?.name || "Watchlists"}>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-      <div
-        className="relative flex-1 overflow-y-auto"
-        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-      >
+      <div className="relative flex-1 overflow-y-auto">
         <PageBlueBackdrop />
         <div className="relative z-[1] flex flex-1 flex-col gap-4 px-4 pb-4 md:px-8 md:pb-8">
 

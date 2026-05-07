@@ -62,6 +62,17 @@ export function MarketMarqueeBanner() {
   const lastPriceBySymbolRef = React.useRef<Record<string, number>>({})
   const flashTimersRef = React.useRef<Record<string, number>>({})
 
+  const syncBannerOffsetRef = React.useCallback((node: HTMLDivElement | null) => {
+    bannerRef.current = node
+    const root = document.documentElement
+    if (!visible) {
+      root.style.setProperty("--market-banner-offset", "0px")
+      return
+    }
+    if (!node) return
+    root.style.setProperty("--market-banner-offset", `${node.offsetHeight}px`)
+  }, [visible])
+
   const queuePriceFlash = React.useCallback((symbol: string, direction: "up" | "down") => {
     setFlashBySymbol((prev) => ({ ...prev, [symbol]: direction }))
     const existing = flashTimersRef.current[symbol]
@@ -93,11 +104,8 @@ export function MarketMarqueeBanner() {
       }
     }
 
-    // Reserve space immediately to avoid page jump between route transitions.
-    root.style.setProperty("--market-banner-offset", `${MARKET_BANNER_FALLBACK_HEIGHT_PX}px`)
-
     const setOffsetFromHeight = () => {
-      const h = bannerRef.current?.offsetHeight ?? 0
+      const h = bannerRef.current?.offsetHeight ?? MARKET_BANNER_FALLBACK_HEIGHT_PX
       root.style.setProperty("--market-banner-offset", `${h}px`)
     }
 
@@ -105,9 +113,7 @@ export function MarketMarqueeBanner() {
 
     let observer: ResizeObserver | null = null
     if (typeof ResizeObserver !== "undefined" && bannerRef.current) {
-      observer = new ResizeObserver(() => {
-        setOffsetFromHeight()
-      })
+      observer = new ResizeObserver(setOffsetFromHeight)
       observer.observe(bannerRef.current)
     }
 
@@ -314,7 +320,7 @@ export function MarketMarqueeBanner() {
 
   return (
     <div
-      ref={bannerRef}
+      ref={syncBannerOffsetRef}
       data-market-marquee-banner
       className="fixed inset-x-0 top-0 z-[11] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
     >

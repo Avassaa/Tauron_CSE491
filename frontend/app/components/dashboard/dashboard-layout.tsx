@@ -3,7 +3,7 @@
 import * as React from "react"
 import { AppSidebar } from "./app-sidebar"
 import { MarketMarqueeBanner } from "~/components/market-marquee-banner"
-import { SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "~/components/ui/sidebar"
 import { Separator } from "~/components/ui/separator"
 import { DashboardClientOnly } from "./dashboard-client-only"
 import { AuthGuard } from "~/components/auth-guard"
@@ -37,8 +37,14 @@ export function DashboardLayout({
           <AppSidebar />
           <MarketMarqueeBanner />
           <DashboardMainScrollElementContext.Provider value={{ scrollEl: mainScrollEl, portalEl: mainPortalEl }}>
-            <div className="glass-page-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              <header className="app-subtle-header sticky top-[var(--market-banner-offset,0px)] z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background/50 px-4 backdrop-blur-md">
+            <SidebarInset
+              className="min-h-0 overflow-hidden"
+              style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
+            >
+              <header
+                data-app-shell-header
+                className="relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-background/50 px-4 backdrop-blur-md"
+              >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <SidebarTrigger className="-ml-1 shrink-0" />
                   <Separator orientation="vertical" className="mr-2 h-4 shrink-0" />
@@ -56,21 +62,19 @@ export function DashboardLayout({
                   <NotificationInbox />
                 </div>
               </header>
-              {/* overflow-visible on mobile ensures content doesn't get clipped before reaching the internal scroll area */}
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
+              <div className="relative z-0 flex min-h-0 min-w-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
                 <AssistantDockSplitMain outerClassName="min-h-0 min-w-0 flex-1">
-                  {/* Outer container is relative and non-scrolling, making it a perfect portal target for docked overlays */}
                   <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" ref={setMainPortalEl}>
                     <div
                       ref={setMainScrollEl}
-                      className="flex flex-col min-h-0 min-w-0 flex-1 overflow-auto pt-8"
+                      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto pt-0"
                     >
                       {children}
                     </div>
                   </div>
                 </AssistantDockSplitMain>
-              </main>
-            </div>
+              </div>
+            </SidebarInset>
           </DashboardMainScrollElementContext.Provider>
         </SidebarProvider>
       </AuthGuard>

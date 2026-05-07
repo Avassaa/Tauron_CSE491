@@ -150,7 +150,7 @@ export function AssistantDockSplitMain({
           "flex min-h-0 flex-col overflow-hidden border-transparent bg-muted/15 backdrop-blur-md transition-[min-width,max-width,border-color,opacity,width,height] duration-200 ease-out motion-reduce:transition-none dark:bg-black/20",
           open
             ? cn(
-                "relative z-10 h-full self-stretch border-border/70 border-l",
+                "relative z-30 h-full self-stretch border-border/70 border-l",
                 DESKTOP_ASSISTANT_WIDTH_CLASS,
               )
             : "pointer-events-none h-0 max-h-0 w-0 max-w-0 min-w-0 shrink-0 grow-0 border-0 opacity-0",

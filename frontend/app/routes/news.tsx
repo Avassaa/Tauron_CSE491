@@ -197,10 +197,7 @@ export default function NewsPage() {
         </div>
       }
     >
-      <div
-        className="relative flex-1 overflow-y-auto"
-        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-      >
+      <div className="relative flex-1 overflow-y-auto">
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
           <div className="absolute -left-[9%] top-[12%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-blue-500/12 blur-[115px] dark:bg-blue-400/10" />
           <div className="absolute -right-[9%] top-[20%] h-[min(260px,34vh)] w-[min(340px,40vw)] rounded-full bg-sky-400/12 blur-[115px] dark:bg-sky-500/10" />

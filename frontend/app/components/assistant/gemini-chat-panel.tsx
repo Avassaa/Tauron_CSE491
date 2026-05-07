@@ -517,7 +517,7 @@ export function GeminiChatPanel({
   ) : null
 
   const messageScrollInner = (
-    <div className="space-y-5 pb-2 pt-3 sm:pt-4">
+    <div className={cn("space-y-5 pb-2", isDock ? "pt-2 sm:pt-3" : "pt-3 sm:pt-4")}>
       {messages.length === 0 ? (
         <div className="flex w-full justify-center">
           <AssistantWelcomeHero onSelectPrompt={applyPrompt} activeId={activePrompt?.id ?? null} isDock={isDock} />

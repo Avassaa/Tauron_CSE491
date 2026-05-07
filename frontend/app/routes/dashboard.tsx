@@ -159,10 +159,7 @@ function DashboardPageClient() {
         </div>
       }
     >
-      <div
-        className="relative flex-1 overflow-y-auto"
-        style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-      >
+      <div className="relative flex-1 overflow-y-auto">
         <PageBlueBackdrop />
         <div className="relative z-[1] flex flex-1 flex-col gap-6 p-4 md:p-8">
 

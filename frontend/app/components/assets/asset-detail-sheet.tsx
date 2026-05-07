@@ -508,7 +508,12 @@ export function AssetDetailSheet({
 
 
   const detailBody = selectedAsset ? (
-    <div className="relative px-4 sm:px-8 pt-14 sm:pt-20 pb-10 sm:pb-12 flex flex-col">
+    <div
+      className={cn(
+        "relative flex flex-col px-4 pb-10 sm:pb-12 sm:px-8",
+        useDockedDetail ? "pt-16" : "pt-14 sm:pt-20",
+      )}
+    >
 
       <div className="flex flex-col gap-1.5 items-start text-left mb-8 p-0">
         <div className="flex items-center gap-5">
@@ -1361,7 +1366,7 @@ export function AssetDetailSheet({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute right-4 top-6 sm:top-10 z-20 size-9 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                className="absolute right-4 top-4 z-20 size-9 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 onClick={() => setSelectedAsset(null)}
                 aria-label="Close"
               >

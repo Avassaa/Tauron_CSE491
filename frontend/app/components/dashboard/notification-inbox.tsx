@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { AlarmClock, Bell, CheckCheck, Info, LayoutGrid } from "lucide-react"
+import { AlarmClock, ArrowUpRight, Bell, CheckCheck, Info } from "lucide-react"
 import { Link } from "react-router"
 
 import { Button } from "~/components/ui/button"
@@ -170,7 +170,7 @@ export function NotificationInbox() {
                 <span className="inline-flex rounded-md">
                   <Button variant="ghost" size="icon" className="size-8" asChild aria-label="Open notifications page">
                     <Link to="/notifications">
-                      <LayoutGrid className="size-4" />
+                      <ArrowUpRight className="size-4" aria-hidden />
                     </Link>
                   </Button>
                 </span>

@@ -596,10 +596,7 @@ function NewsArticleBody({
 
   return (
     <>
-    <div
-      className="relative flex-1 overflow-y-auto"
-      style={{ paddingTop: "var(--market-banner-offset, 0px)" }}
-    >
+    <div className="relative flex-1 overflow-y-auto">
       {readMode ? (
         <div className="pointer-events-none fixed inset-0 z-40 bg-black" aria-hidden />
       ) : null}
