@@ -25,59 +25,67 @@ const FAQ_DATA: Record<string, { question: string; answer: string }[]> = {
   general: [
     {
       question: "How does Tauron predict cryptocurrency prices?",
-      answer: "Tauron utilizes advanced machine learning models trained on historical market data, on-chain metrics, and technical indicators. Our engine analyzes patterns to provide predictive insights for various timeframes."
+      answer: "Tauron uses machine learning models trained on historical market data, on-chain metrics, and technical indicators. Our engine identifies patterns across multiple timeframes to generate predictive signals for supported assets."
     },
     {
       question: "Where does the data come from?",
-      answer: "We aggregate data from major exchanges like Binance and Kraken for price action, and utilize specialized providers for on-chain metrics and real-time news sentiment analysis."
+      answer: "We aggregate real-time price and volume data from major cryptocurrency exchanges, combined with on-chain metrics and news sentiment scraped continuously from 10+ global financial sources."
     },
     {
       question: "How often is the data updated?",
-      answer: "Market price data is tracked in real-time, while technical indicators and sentiment analysis are refreshed every minute to ensure the most up-to-date insights."
+      answer: "Market price data is streamed in real-time. News articles are scraped and processed continuously, with AI-generated summaries and sentiment scores updated as new content arrives."
     },
     {
       question: "Is Tauron's analysis financial advice?",
-      answer: "No. Tauron is an analytical tool designed for research and educational purposes. All data and predictions should be used as part of a broader research strategy. Always consult with a financial advisor before making investment decisions."
+      answer: "No. Tauron is an analytical research tool. All predictions, sentiment scores, and insights are for informational purposes only and should not be treated as investment advice. Always do your own research before making financial decisions."
     },
     {
       question: "Which cryptocurrencies are supported?",
-      answer: "We currently support major Layer 1 assets like Bitcoin (BTC), Ethereum (ETH), and Solana (SOL), with plans to expand our coverage to a wider range of DeFi and emerging tokens soon."
+      answer: "We currently support Bitcoin (BTC), Ethereum (ETH), and Solana (SOL) as primary Layer 1 assets, with coverage planned to expand to additional tokens over time."
+    },
+    {
+      question: "Does Tauron have an AI chat assistant?",
+      answer: "Yes. The AI Chat feature lets you ask questions about market conditions, asset performance, and news in natural language. The assistant draws on Tauron's live data and analysis pipeline to provide contextual answers."
     }
   ],
   subscription: [
     {
-      question: "What is included in the Pro plan?",
-      answer: "The Pro plan includes advanced LLM-powered market analysis, real-time institutional-grade alerts, unlimited historical data access, and API keys for custom integrations."
+      question: "What is the difference between Free and Pro?",
+      answer: "The Free plan gives you access to the core dashboard, news feed, watchlist, and basic market data. Pro unlocks advanced AI-powered analysis, extended backtest results, priority data access, and enhanced alert capabilities."
     },
     {
-      question: "Can I cancel my subscription anytime?",
-      answer: "Absolutely. You can manage and cancel your subscription at any time directly from your account settings. You will retain access until the end of your current billing period."
+      question: "How do I upgrade my plan?",
+      answer: "You can upgrade directly from the Settings page under the Subscription tab. Select your desired plan and follow the on-screen steps to complete the upgrade."
     },
     {
-      question: "Do you offer a free trial?",
-      answer: "Yes! We offer a 7-day free trial for new users to explore our complete suite of Pro features. No credit card is required to start your trial."
+      question: "Can I switch back to the Free plan?",
+      answer: "Yes. You can change your plan at any time from the Subscription section in Settings. Downgrades take effect immediately."
     },
     {
-      question: "What payment methods do you accept?",
-      answer: "We accept all major credit cards."
+      question: "Are there any usage limits on the Free plan?",
+      answer: "The Free plan includes access to the main platform features with standard data refresh rates. Pro removes these limits and enables advanced analytical features across all supported assets."
     }
   ],
   account: [
     {
       question: "How do I reset my password?",
-      answer: "Click the 'Forgot Password' link on the login page. We'll send a secure reset link to your registered email address. For security, these links expire after 30 minutes."
+      answer: "Click 'Forgot Password' on the login page and enter your registered email address. You will receive a secure reset link — these links expire after a short window for security."
     },
     {
       question: "Is my account data secure?",
-      answer: "Security is our top priority. We use industry-standard AES-256 encryption for data at rest and TLS 1.3 for all data in transit. We also offer robust multi-factor authentication (MFA)."
+      answer: "Yes. All data is transmitted over encrypted connections and passwords are stored as secure hashes — your plain-text password is never stored anywhere on our servers."
     },
     {
-      question: "Can I change my registered email?",
-      answer: "Yes, you can update your email address in the 'Security' section of your profile settings. You will need to verify both your old and new email addresses for security purposes."
+      question: "Can I change my username or full name?",
+      answer: "Yes. Go to your Profile page and click 'Edit profile'. You can update your username and full name directly from there without leaving the page."
     },
     {
-      question: "How do I enable 2FA?",
-      answer: "Navigate to Account Settings > Security and click 'Enable 2FA'. We currently support TOTP-based authentication apps like Google Authenticator or 1Password."
+      question: "Can I change my registered email address?",
+      answer: "Email addresses are currently fixed to the one used at registration. If you need to update your email, please reach out to us at hello@tauron.ai."
+    },
+    {
+      question: "How do I set up price alerts?",
+      answer: "Navigate to any asset page or the Watchlist section and configure an alert with your target price and condition (above or below). You will be notified automatically when the condition is triggered."
     }
   ]
 };
@@ -194,6 +202,17 @@ export default function FAQPage() {
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Footer hint */}
+        <p className="mt-12 text-center text-sm text-muted-foreground dark:text-white/30">
+          Can't find what you're looking for?{" "}
+          <a
+            href="mailto:hello@tauron.ai"
+            className="text-foreground underline-offset-4 hover:underline dark:text-white/60 dark:hover:text-white/80 transition-colors"
+          >
+            hello@tauron.ai
+          </a>
+        </p>
       </div>
     </BeamsBackground>
   );

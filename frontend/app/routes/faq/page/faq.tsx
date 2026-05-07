@@ -234,22 +234,16 @@ export default function FaqPage() {
             ))}
           </div>
 
-          {/* Bottom CTA */}
-          <div className="mt-16 rounded-2xl border border-border/60 bg-muted/40 px-8 py-10 text-center dark:border-white/10 dark:bg-white/5">
-            <h3 className="mb-2 text-xl font-semibold text-foreground dark:text-white">
-              Still have questions?
-            </h3>
-            <p className="mb-6 text-sm text-muted-foreground dark:text-white/60">
-              Chat directly with our AI assistant — it's trained on Tauron's
-              documentation and can answer questions about your account in real time.
-            </p>
+          {/* Footer hint */}
+          <p className="mt-14 text-center text-sm text-muted-foreground dark:text-white/30">
+            Can't find what you're looking for?{" "}
             <a
-              href="/chat"
-              className="inline-flex items-center rounded-full bg-foreground px-6 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-80 dark:bg-white dark:text-black"
+              href="mailto:hello@tauron.ai"
+              className="text-foreground underline-offset-4 hover:underline dark:text-white/60 dark:hover:text-white/80 transition-colors"
             >
-              Open AI Chat
+              hello@tauron.ai
             </a>
-          </div>
+          </p>
 
         </div>
       </div>
