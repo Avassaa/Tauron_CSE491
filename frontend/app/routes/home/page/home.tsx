@@ -98,20 +98,20 @@ export default function Home() {
         <div className="flex w-full max-w-5xl flex-col items-center text-center">
 
           {/* Badge */}
-          <div className="mb-8 inline-flex items-center gap-1 rounded-full border border-white/[0.14] bg-white/[0.04] px-4 py-1.5 text-sm">
-            <span className="text-white/40">New feature release!</span>
-            <Link to="/login" className="flex items-center gap-1 font-semibold text-white/90 hover:text-white transition-colors">
+          <div className="mb-8 inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-4 py-1.5 text-sm dark:border-white/[0.14] dark:bg-white/[0.04]">
+            <span className="text-muted-foreground dark:text-white/40">New feature release!</span>
+            <Link to="/login" className="flex items-center gap-1 font-semibold text-foreground hover:text-foreground/80 transition-colors dark:text-white/90 dark:hover:text-white">
               Check out our AI Assistant <ArrowRight className="size-3.5" />
             </Link>
           </div>
 
           {/* Heading */}
-          <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] font-extrabold leading-[1.06] tracking-tight text-white">
+          <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] font-extrabold leading-[1.06] tracking-tight text-foreground dark:text-white">
             Transform Your Business with AI-Powered Solutions
           </h1>
 
           {/* Subtext */}
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/50">
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground dark:text-white/50">
             Tauron turns raw market noise into actionable intelligence —
             AI news synthesis, ML forecasts, and strategy backtesting in one place.
           </p>
@@ -120,13 +120,13 @@ export default function Home() {
           <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
             <Link
               to="/register"
-              className="inline-flex items-center rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-black transition-all hover:bg-neutral-200 active:scale-[0.98]"
+              className="inline-flex items-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98] dark:bg-white dark:text-black dark:hover:bg-neutral-200"
             >
               Start for free
             </Link>
             <Link
               to="/features"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/55 transition-colors hover:text-white"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground/60 transition-colors hover:text-foreground dark:text-white/55 dark:hover:text-white"
             >
               Explore features <ArrowRight className="size-4" />
             </Link>
@@ -208,7 +208,7 @@ export default function Home() {
                       "max-w-[88%] rounded-2xl px-4 py-3 text-sm",
                       m.role === "user"
                         ? "ml-auto rounded-br-sm bg-meta-blue/20 text-foreground dark:text-white/90"
-                        : "rounded-bl-sm border border-border bg-background/60 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/80",
+                        : "rounded-bl-sm border border-border bg-muted/60 text-foreground/80 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/80",
                     )}
                   >
                     {m.role === "ai" && (
@@ -260,10 +260,10 @@ export default function Home() {
                         ? "border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 dark:shadow-[0_0_14px_-6px_rgba(239,68,68,0.45)]"
                         : "border border-border/60 bg-muted/60 text-muted-foreground"
                     const glowClass = isUp
-                      ? "dark:bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.12),transparent_65%)]"
+                      ? "bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.07),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.12),transparent_65%)]"
                       : isDown
-                        ? "dark:bg-[radial-gradient(ellipse_at_top_right,rgba(239,68,68,0.11),transparent_65%)]"
-                        : "dark:bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.08),transparent_65%)]"
+                        ? "bg-[radial-gradient(ellipse_at_top_right,rgba(239,68,68,0.06),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top_right,rgba(239,68,68,0.11),transparent_65%)]"
+                        : "bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.05),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.08),transparent_65%)]"
                     return (
                       <div
                         key={i}
@@ -297,7 +297,7 @@ export default function Home() {
 
           {/* ── Data pipeline ───────────────────────────────────── */}
           <section className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
-            <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-[#08080f]">
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card dark:border-white/[0.07] dark:bg-[#08080f]">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-meta-blue/40 to-transparent" />
               <AnimatedBeamMultipleOutputDemo className="h-[300px] w-full border-none rounded-none" />
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-500/25 to-transparent" />
@@ -326,7 +326,7 @@ export default function Home() {
           </section>
 
           {/* ── CTA ─────────────────────────────────────────────── */}
-          <section className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-white/[0.02] dark:bg-white/[0.02]">
+          <section className="relative overflow-hidden rounded-3xl border border-border bg-muted/20 dark:border-white/[0.06] dark:bg-white/[0.02]">
             {/* Top accent */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-meta-blue/30 to-transparent" />
 
@@ -346,7 +346,7 @@ export default function Home() {
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Link
                   to="/register"
-                  className="group inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98] dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                  className="group inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3 text-sm font-bold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.98]"
                 >
                   Get started free
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
