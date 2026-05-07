@@ -112,7 +112,13 @@ class PredictionRepository:
         return result.rowcount > 0
 
     async def get_asset_summaries(self) -> list[dict[str, Any]]:
-        """Return the latest prediction for every asset that has one."""
+        """
+        Return the latest prediction for every asset that has one.
+
+        Uses two CTEs instead of a per-asset lateral subquery so ``on_chain_metrics`` is scanned
+        only for assets that already appear in ``latest_prediction_per_asset``, which keeps the
+        plan stable when hypertables hold years of metric history.
+        """
         from app.config import settings
 
         shard_schema_exclusive = settings.DATABASE_SCHEMA.strip()
@@ -120,26 +126,39 @@ class PredictionRepository:
             raise ValueError("DATABASE_SCHEMA must be alphanumeric with underscores only")
 
         query = text(f"""
-            SELECT DISTINCT ON (p.asset_id)
-                p.asset_id,
-                p.time,
-                p.predicted_value,
-                p.confidence_interval_high,
-                p.confidence_interval_low,
+            WITH latest_prediction_per_asset AS (
+                SELECT DISTINCT ON (p.asset_id)
+                    p.asset_id,
+                    p.time,
+                    p.predicted_value,
+                    p.confidence_interval_high,
+                    p.confidence_interval_low,
+                    p.horizon_step
+                FROM "{shard_schema_exclusive}".predictions p
+                ORDER BY p.asset_id, p.time DESC
+            ),
+            latest_priceusd_per_asset AS (
+                SELECT DISTINCT ON (o.asset_id)
+                    o.asset_id,
+                    o.value AS latest_market_close
+                FROM "{shard_schema_exclusive}".on_chain_metrics o
+                INNER JOIN latest_prediction_per_asset lp ON lp.asset_id = o.asset_id
+                WHERE o.metric_name = 'PriceUSD'
+                ORDER BY o.asset_id, o.time DESC
+            )
+            SELECT
+                lp.asset_id,
+                lp.time,
+                lp.predicted_value,
+                lp.confidence_interval_high,
+                lp.confidence_interval_low,
+                lp.horizon_step,
                 a.symbol,
                 a.name,
-                snapshot.latest_market_close
-            FROM "{shard_schema_exclusive}".predictions p
-            JOIN "{shard_schema_exclusive}".assets a ON p.asset_id = a.id
-            LEFT JOIN LATERAL (
-                SELECT o.value AS latest_market_close
-                FROM "{shard_schema_exclusive}".on_chain_metrics o
-                WHERE o.asset_id = p.asset_id
-                  AND o.metric_name = 'PriceUSD'
-                ORDER BY o.time DESC
-                LIMIT 1
-            ) snapshot ON TRUE
-            ORDER BY p.asset_id, p.time DESC
+                px.latest_market_close
+            FROM latest_prediction_per_asset lp
+            INNER JOIN "{shard_schema_exclusive}".assets a ON a.id = lp.asset_id
+            LEFT JOIN latest_priceusd_per_asset px ON px.asset_id = lp.asset_id
         """)
         result = await self._session.execute(query)
         return [dict(row) for row in result.mappings()]

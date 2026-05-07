@@ -441,6 +441,27 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
             except Exception as exc:
                 logger.warning("%s hypertable: %s", hypertable_name, exc)
 
+    predictions_for_index = f'"{schema}".predictions' if schema else "predictions"
+    on_chain_for_index = f'"{schema}".on_chain_metrics' if schema else "on_chain_metrics"
+    async with engine.begin() as conn:
+        if schema:
+            await conn.execute(text(f'SET search_path TO "{schema}", public'))
+        try:
+            await conn.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS ix_predictions_asset_id_time_desc "
+                    f"ON {predictions_for_index} (asset_id, time DESC)"
+                )
+            )
+            await conn.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS ix_on_chain_metrics_asset_metric_time_desc "
+                    f"ON {on_chain_for_index} (asset_id, metric_name, time DESC)"
+                )
+            )
+        except Exception as exc:
+            logger.warning("prediction/on-chain summary indexes: %s", exc)
+
     async with engine.begin() as conn:
         if schema:
             await conn.execute(text(f'SET search_path TO "{schema}", public'))
