@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { CalendarIcon, FileTextIcon } from "@radix-ui/react-icons";
 import { BellIcon, Share2Icon } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import {
   AreaChart,
@@ -17,6 +18,12 @@ import AnimatedBeamMultipleOutputDemo from "~/routes/home/components/animated-be
 import AnimatedListDemo from "~/routes/home/components/animated-list-demo";
 import CalendarPlaceholder from "~/routes/home/components/calendar-placeholder";
 import { LineShadowText } from "~/routes/home/components/line-shadow-text";
+import {
+  PricingSection,
+  DEFAULT_PRICING_PLANS,
+  type Plan,
+} from "~/components/landing/pricing-section";
+import type { PlanSlug } from "~/lib/subscription";
 
 const files = [
   {
@@ -129,6 +136,7 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
+  const navigate = useNavigate()
   const heroProps: HeroLandingProps = {
     title: "Transform Your Business with AI-Powered Solutions",
     description: "Revolutionize your workflow with our cutting-edge artificial intelligence platform.",
@@ -143,6 +151,19 @@ export default function Home() {
     ],
     titleSize: "large",
     className: "min-h-screen"
+  };
+
+  const handleSelectPlan = (plan: Plan) => {
+    const PLAN_SLUG_MAP: Record<string, PlanSlug> = {
+      Starter: "free",
+      Pro: "pro",
+      Enterprise: "enterprise",
+    }
+    const slug = PLAN_SLUG_MAP[plan.name]
+    if (!slug) return
+    
+    // Not logged in → send to register (with plan hint)
+    void navigate(slug === "free" ? "/register" : `/register?plan=${slug}`)
   };
 
   return (
@@ -256,6 +277,16 @@ export default function Home() {
                 </AreaChart>
               </div>
             </div>
+          </section>
+
+          {/* Pricing Section */}
+          <section className="space-y-12">
+            <PricingSection
+              plans={DEFAULT_PRICING_PLANS}
+              heading="Simple, Transparent Pricing"
+              description="Choose the plan that fits your needs. Always free to start."
+              onSelectPlan={handleSelectPlan}
+            />
           </section>
         </div>
       </div>

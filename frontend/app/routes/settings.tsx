@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ChevronRight, SlidersHorizontal } from "lucide-react"
+import { useLocation } from "react-router"
 
 import { AppSidebar } from "~/components/dashboard/app-sidebar"
 import { NotificationInbox } from "~/components/dashboard/notification-inbox"
@@ -20,10 +21,34 @@ import {
   onMarketBannerVisibilityChange,
   setMarketBannerVisible,
 } from "~/lib/market-banner-preferences"
+import {
+  PricingSection,
+  DEFAULT_PRICING_PLANS,
+  type Plan,
+} from "~/components/landing/pricing-section"
+import { PlanUpgradeModal } from "~/components/subscription/plan-upgrade-modal"
+import { getLocalPlan } from "~/lib/auth-client"
+import type { PlanSlug } from "~/lib/subscription"
+
+const PLAN_SLUG_MAP: Record<string, PlanSlug> = {
+  Starter: "free",
+  Pro: "pro",
+  Enterprise: "enterprise",
+}
 
 export default function SettingsPage() {
+  const location = useLocation()
   const [showMarketBanner, setShowMarketBannerState] = React.useState(true)
   const [liquidGlass, setLiquidGlassState] = React.useState(true)
+  const [upgradePlan, setUpgradePlan] = React.useState<PlanSlug | null>(null)
+  const currentPlan = getLocalPlan() as PlanSlug
+
+  // Check URL query param for tab
+  const queryParams = new URLSearchParams(location.search)
+  const tabFromUrl = queryParams.get("tab") as "display" | "subscription" | null
+  const [activeTab, setActiveTab] = React.useState<"display" | "subscription">(
+    tabFromUrl === "subscription" ? "subscription" : "display"
+  )
 
   React.useEffect(() => {
     setShowMarketBannerState(isMarketBannerVisible())
@@ -62,81 +87,128 @@ export default function SettingsPage() {
               <aside className="space-y-1">
                 <button
                   type="button"
-                  className="w-full rounded-md bg-muted px-3 py-2 text-left text-sm text-foreground"
+                  onClick={() => setActiveTab("display")}
+                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    activeTab === "display"
+                      ? "bg-muted text-foreground"
+                      : "text-foreground/70 hover:bg-muted/50"
+                  }`}
                 >
                   Display
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("subscription")}
+                  className={`w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    activeTab === "subscription"
+                      ? "bg-muted text-foreground"
+                      : "text-foreground/70 hover:bg-muted/50"
+                  }`}
+                >
+                  Subscription
+                </button>
               </aside>
               <section className="space-y-5">
-                <div className="flex items-center justify-between rounded-xl border bg-muted/60 px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    <ChevronRight className="mt-0.5 size-4 text-muted-foreground" />
-                    <div>
-                      <div className="font-semibold">You&apos;re using free plan</div>
-                      <div className="text-sm text-muted-foreground">
-                        You can add components to your app by upgrading to the next plan.
+                {activeTab === "display" && (
+                  <>
+                    <div className="rounded-xl border">
+                      <div className="border-b px-5 py-4">
+                        <div className="text-xl font-semibold">Display</div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Control visibility of the live market marquee banner.
+                        </p>
+                      </div>
+                      <div className="flex w-full items-center justify-between gap-3 px-5 py-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="rounded-md border p-2 text-muted-foreground">
+                            <SlidersHorizontal className="size-4" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">Show market ticker banner</div>
+                            <div className="text-xs text-muted-foreground">
+                              Live ticker shown at the top of app pages.
+                            </div>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={showMarketBanner}
+                          onCheckedChange={(checked) => {
+                            setShowMarketBannerState(checked)
+                            setMarketBannerVisible(checked)
+                          }}
+                        />
+                      </div>
+                      <div className="flex w-full items-center justify-between gap-3 border-t px-5 py-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="rounded-md border p-2 text-muted-foreground">
+                            <SlidersHorizontal className="size-4" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">Liquid glass</div>
+                            <div className="text-xs text-muted-foreground">
+                              Frosted cards and backdrop blur. Turn off for solid, opaque panels.
+                            </div>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={liquidGlass}
+                          onCheckedChange={(checked) => {
+                            setLiquidGlassState(checked)
+                            setLiquidGlassEnabled(checked)
+                          }}
+                        />
                       </div>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background"
-                  >
-                    View plans
-                  </button>
-                </div>
+                  </>
+                )}
 
-                <div className="rounded-xl border">
-                  <div className="border-b px-5 py-4">
-                    <div className="text-xl font-semibold">Display</div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Control visibility of the live market marquee banner.
-                    </p>
-                  </div>
-                  <div className="flex w-full items-center justify-between gap-3 px-5 py-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="rounded-md border p-2 text-muted-foreground">
-                        <SlidersHorizontal className="size-4" />
+                {activeTab === "subscription" && (
+                  <>
+                    <div className="rounded-xl border">
+                      <div className="border-b px-5 py-4">
+                        <div className="text-xl font-semibold">Manage Subscription</div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Choose or upgrade your subscription plan to unlock more features.
+                        </p>
                       </div>
-                      <div>
-                        <div className="text-sm font-medium">Show market ticker banner</div>
-                        <div className="text-xs text-muted-foreground">
-                          Live ticker shown at the top of app pages.
-                        </div>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={showMarketBanner}
-                      onCheckedChange={(checked) => {
-                        setShowMarketBannerState(checked)
-                        setMarketBannerVisible(checked)
-                      }}
-                    />
-                  </div>
-                  <div className="flex w-full items-center justify-between gap-3 border-t px-5 py-4">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="rounded-md border p-2 text-muted-foreground">
-                        <SlidersHorizontal className="size-4" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium">Liquid glass</div>
-                        <div className="text-xs text-muted-foreground">
-                          Frosted cards and backdrop blur. Turn off for solid, opaque panels.
-                        </div>
+                      <div className="px-5 py-6">
+                        <PricingSection
+                          plans={DEFAULT_PRICING_PLANS}
+                          heading=""
+                          description=""
+                          onSelectPlan={(plan) => {
+                            const slug = PLAN_SLUG_MAP[plan.name]
+                            if (!slug) return
+                            if (slug !== currentPlan) {
+                              setUpgradePlan(slug)
+                            }
+                          }}
+                          currentPlan={currentPlan}
+                          isLiquidGlass={liquidGlass}
+                          className="!p-0 !space-y-4 !flex !flex-col !items-stretch"
+                        />
                       </div>
                     </div>
-                    <Switch
-                      checked={liquidGlass}
-                      onCheckedChange={(checked) => {
-                        setLiquidGlassState(checked)
-                        setLiquidGlassEnabled(checked)
-                      }}
-                    />
-                  </div>
-                </div>
+                  </>
+                )}
               </section>
             </div>
           </div>
+
+          {upgradePlan && (
+            <PlanUpgradeModal
+              targetPlan={upgradePlan}
+              open={upgradePlan !== null}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setUpgradePlan(null)
+                }
+              }}
+              onConfirm={() => {
+                setUpgradePlan(null)
+              }}
+            />
+          )}
         </SidebarInset>
       </SidebarProvider>
     </AuthGuard>

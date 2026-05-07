@@ -2,7 +2,9 @@
 
 import * as React from "react"
 import { ProfileDropdown } from "~/components/ui/profile-dropdown"
-import { clearSession, getMe } from "~/lib/auth-client"
+import { clearSession, getMe, getLocalPlan } from "~/lib/auth-client"
+import { PLAN_BADGE, type PlanSlug } from "~/lib/subscription"
+import { cn } from "~/lib/utils"
 
 const FALLBACK_USER = {
   name: "Test testoglu",
@@ -10,8 +12,15 @@ const FALLBACK_USER = {
   initials: "TT",
 }
 
+const PLAN_NAME_MAP: Record<string, string> = {
+  free: "Free",
+  pro: "Pro",
+  enterprise: "Enterprise",
+}
+
 export function SidebarUserMenu() {
   const [user, setUser] = React.useState(FALLBACK_USER)
+  const [plan, setPlan] = React.useState<PlanSlug>(getLocalPlan() as PlanSlug)
 
   React.useEffect(() => {
     const token = localStorage.getItem("access_token")
@@ -54,24 +63,47 @@ export function SidebarUserMenu() {
               .join("") || FALLBACK_USER.initials,
         })
       })
-      .catch(() => { })
+      .catch(() => {})
+  }, [])
+
+  // Listen for plan changes
+  React.useEffect(() => {
+    const handleAuthChanged = () => {
+      setPlan(getLocalPlan() as PlanSlug)
+    }
+
+    window.addEventListener("tauron:auth-changed", handleAuthChanged)
+    return () => {
+      window.removeEventListener("tauron:auth-changed", handleAuthChanged)
+    }
   }, [])
 
   return (
-    <ProfileDropdown
-      data={{
-        name: user.name,
-        email: user.email,
-        initials: user.initials,
-        subscription: "Free",
-      }}
-      className="w-full"
-      settingsTo="/settings"
-      profileTo="/profile"
-      logoutTo="/"
-      onLogout={() => {
-        clearSession()
-      }}
-    />
+    <div className="flex flex-col gap-1">
+      {/* Plan badge */}
+      <div className="flex items-center justify-between gap-2 px-2 py-1 group-data-[collapsible=icon]:hidden">
+        <span className={cn(
+          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider",
+          PLAN_BADGE[plan],
+        )}>
+          {PLAN_NAME_MAP[plan]}
+        </span>
+      </div>
+
+      <ProfileDropdown
+        data={{
+          name: user.name,
+          email: user.email,
+          initials: user.initials,
+        }}
+        className="w-full"
+        settingsTo="/settings"
+        profileTo="/profile"
+        logoutTo="/"
+        onLogout={() => {
+          clearSession()
+        }}
+      />
+    </div>
   )
 }

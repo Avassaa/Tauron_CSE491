@@ -40,6 +40,9 @@ export interface PricingSectionProps
   heading: string;
   description?: string;
   className?: string;
+  onSelectPlan?: (plan: Plan) => void;
+  currentPlan?: string;
+  isLiquidGlass?: boolean;
 }
 
 export function PricingSection({
@@ -47,6 +50,9 @@ export function PricingSection({
   heading,
   description,
   className,
+  onSelectPlan,
+  currentPlan,
+  isLiquidGlass = true,
   ...props
 }: PricingSectionProps) {
   const [frequency, setFrequency] = React.useState<FREQUENCY>('monthly');
@@ -59,23 +65,39 @@ export function PricingSection({
       )}
       {...props}
     >
-      <div className="mx-auto max-w-xl space-y-2">
-        <h2 className="text-center text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">
-          {heading}
-        </h2>
-        {description && (
-          <p className="text-center text-sm text-foreground/80 md:text-base">
-            {description}
-          </p>
-        )}
-      </div>
+      {(heading || description) && (
+        <div className="mx-auto max-w-xl space-y-2">
+          <h2 className="text-center text-2xl font-bold tracking-tight text-slate-900 md:text-3xl lg:text-4xl dark:text-white">
+            {heading}
+          </h2>
+          {description && (
+            <p className="text-center text-sm text-slate-600 md:text-base dark:text-white/70">
+              {description}
+            </p>
+          )}
+        </div>
+      )}
       <PricingFrequencyToggle
         frequency={frequency}
         setFrequency={setFrequency}
       />
-      <div className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="w-full grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (
-          <PricingCard plan={plan} key={plan.name} frequency={frequency} />
+          <PricingCard
+            plan={plan}
+            key={plan.name}
+            frequency={frequency}
+            onSelect={onSelectPlan ? () => onSelectPlan(plan) : undefined}
+            isCurrentPlan={
+              currentPlan !== undefined &&
+              (
+                (currentPlan === 'free' && plan.name === 'Starter') ||
+                (currentPlan === 'pro' && plan.name === 'Pro') ||
+                (currentPlan === 'enterprise' && plan.name === 'Enterprise')
+              )
+            }
+            isLiquidGlass={isLiquidGlass}
+          />
         ))}
       </div>
     </div>
@@ -100,15 +122,15 @@ export function PricingFrequencyToggle({
       role="tablist"
       aria-label="Billing period"
       className={cn(
-        'relative mx-auto flex w-52 rounded-full border p-1 backdrop-blur-md',
-        'border-neutral-200 bg-muted/90',
-        'dark:border-white/15 dark:bg-black/50',
+        'relative mx-auto flex w-52 rounded-full border p-1 backdrop-blur-md transition-colors duration-300',
+        'border-slate-400 bg-slate-100 shadow-sm',
+        'dark:border-white/20 dark:bg-white/10 dark:shadow-md',
         className,
       )}
       {...props}
     >
       <span
-        className="absolute left-1 top-1 h-[calc(100%-8px)] w-[calc(50%-6px)] rounded-full bg-background shadow-sm transition-transform duration-200 ease-out dark:bg-white"
+        className="absolute left-1 top-1 h-[calc(100%-8px)] w-[calc(50%-6px)] rounded-full bg-slate-900 shadow-sm transition-transform duration-200 ease-out dark:bg-white/30"
         style={{
           transform: isYearly ? 'translateX(calc(100% + 4px))' : 'translateX(0)',
         }}
@@ -120,10 +142,10 @@ export function PricingFrequencyToggle({
         aria-selected={!isYearly}
         onClick={() => setFrequency('monthly')}
         className={cn(
-          'relative z-10 flex-1 py-2 text-sm font-medium transition-colors',
+          'relative z-10 flex-1 py-2 text-sm font-medium transition-colors duration-200',
           !isYearly
-            ? 'text-foreground dark:text-neutral-950'
-            : 'text-foreground/70 hover:text-foreground dark:text-white/80 dark:hover:text-white',
+            ? 'text-white dark:text-white'
+            : 'text-slate-600 hover:text-slate-800 dark:text-white/60 dark:hover:text-white/80',
         )}
       >
         Monthly
@@ -134,10 +156,10 @@ export function PricingFrequencyToggle({
         aria-selected={isYearly}
         onClick={() => setFrequency('yearly')}
         className={cn(
-          'relative z-10 flex-1 py-2 text-sm font-medium transition-colors',
+          'relative z-10 flex-1 py-2 text-sm font-medium transition-colors duration-200',
           isYearly
-            ? 'text-foreground dark:text-neutral-950'
-            : 'text-foreground/70 hover:text-foreground dark:text-white/80 dark:hover:text-white',
+            ? 'text-white dark:text-white'
+            : 'text-slate-600 hover:text-slate-800 dark:text-white/60 dark:hover:text-white/80',
         )}
       >
         Yearly
@@ -149,46 +171,56 @@ export function PricingFrequencyToggle({
 type PricingCardProps = React.ComponentProps<'div'> & {
   plan: Plan;
   frequency?: FREQUENCY;
+  onSelect?: () => void;
+  isCurrentPlan?: boolean;
+  isLiquidGlass?: boolean;
 };
 
 const cardShell =
-  'relative flex w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-card shadow-sm text-card-foreground dark:border-white/15 dark:bg-zinc-900/80 dark:text-white';
+  'relative flex w-full flex-col overflow-hidden rounded-2xl border text-card-foreground transition-all duration-300 lg:hover:shadow-md';
 
 export function PricingCard({
   plan,
   className,
   frequency = frequencies[0],
+  onSelect,
+  isCurrentPlan,
+  isLiquidGlass = true,
   ...props
 }: PricingCardProps) {
   const cardContent = (
     <>
       <div
         className={cn(
-          'relative z-10 rounded-t-xl border-b p-4',
-          'border-neutral-200 bg-muted/50',
-          'dark:border-white/10 dark:bg-zinc-800/95',
-          plan.highlighted && 'dark:bg-zinc-800',
+          'relative z-10 rounded-t-2xl border-b p-4 transition-colors duration-300',
+          isLiquidGlass
+            ? 'border-slate-300 bg-white/8 backdrop-blur-md lg:bg-white/5 dark:border-white/20 dark:bg-white/10 dark:backdrop-blur-md'
+            : 'border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900',
+          plan.highlighted && isLiquidGlass && 'border-slate-400 dark:bg-white/15 dark:border-white/30',
+          plan.highlighted && !isLiquidGlass && 'border-slate-400 dark:bg-slate-800',
         )}
       >
         <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
           {plan.highlighted && (
             <p
               className={cn(
-                'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium shadow-sm',
-                'border-neutral-200 bg-muted text-foreground',
-                'dark:border-white/15 dark:bg-white/10 dark:text-white dark:shadow-[0_0_18px_rgba(255,255,255,0.08)]',
+                'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium shadow-sm transition-colors duration-300',
+                isLiquidGlass
+                  ? 'border-slate-500 bg-slate-100 text-slate-900 dark:border-white/40 dark:bg-white/20 dark:text-white'
+                  : 'border-slate-400 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white',
               )}
             >
-              <StarIcon className="h-3 w-3 fill-foreground text-foreground dark:fill-white dark:text-white" />
+              <StarIcon className="h-3 w-3 fill-current text-current" />
               Popular
             </p>
           )}
           {frequency === 'yearly' && plan.name !== 'Starter' && (
             <p
               className={cn(
-                'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs',
-                'border-neutral-200 bg-muted text-foreground',
-                'dark:border-white/15 dark:bg-white/10 dark:text-white',
+                'flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors duration-300',
+                isLiquidGlass
+                  ? 'border-slate-400 bg-slate-100 text-slate-900 dark:border-white/30 dark:bg-white/15 dark:text-white'
+                  : 'border-slate-400 bg-slate-100 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white',
               )}
             >
               {Math.round(
@@ -201,17 +233,17 @@ export function PricingCard({
           )}
         </div>
 
-        <div className="text-lg font-semibold text-foreground dark:text-white">
+        <div className="text-lg font-semibold text-slate-900 dark:text-white">
           {plan.name}
         </div>
-        <p className="text-sm font-normal text-foreground/90 dark:text-white/85">
+        <p className="text-sm font-normal text-slate-700 dark:text-white/90">
           {plan.info}
         </p>
         <h3 className="mt-2 flex items-end gap-1">
-          <span className="text-3xl font-bold text-foreground dark:text-white">
+          <span className="text-3xl font-bold text-slate-900 dark:text-white">
             ${plan.price[frequency]}
           </span>
-          <span className="text-foreground/80 dark:text-white/80">
+          <span className="text-slate-600 dark:text-white/70">
             {plan.name !== 'Starter'
               ? '/' + (frequency === 'monthly' ? 'month' : 'year')
               : ''}
@@ -220,22 +252,26 @@ export function PricingCard({
       </div>
       <div
         className={cn(
-          'relative z-10 space-y-4 px-4 py-6 text-sm',
-          'text-foreground',
-          'bg-background/80 dark:bg-zinc-900/60 dark:text-white/90',
-          plan.highlighted && 'dark:bg-zinc-900/80',
+          'relative z-10 space-y-4 px-4 py-6 text-sm transition-colors duration-300',
+          'text-slate-900',
+          isLiquidGlass
+            ? 'bg-white/3 backdrop-blur-sm dark:bg-white/5 dark:text-white/95'
+            : 'bg-white dark:bg-slate-850 dark:text-slate-100',
+          plan.highlighted && isLiquidGlass && 'dark:bg-white/8',
+          plan.highlighted && !isLiquidGlass && 'dark:bg-slate-800',
         )}
       >
         {plan.features.map((feature, index) => (
           <div key={index} className="flex items-center gap-2">
-            <CheckCircleIcon className="h-4 w-4 shrink-0 text-foreground/80 dark:text-white/80" />
+            <CheckCircleIcon className="h-4 w-4 shrink-0 text-slate-600 dark:text-white/70" />
             <TooltipProvider>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <p
                     className={cn(
+                      'text-slate-700 dark:text-white/95',
                       feature.tooltip &&
-                        'cursor-pointer border-b border-dashed border-neutral-300 dark:border-white/30',
+                        'cursor-pointer border-b border-dashed border-slate-400 dark:border-white/30',
                     )}
                   >
                     {feature.text}
@@ -253,32 +289,71 @@ export function PricingCard({
       </div>
       <div
         className={cn(
-          'relative z-10 mt-auto w-full rounded-b-xl border-t p-3',
-          'border-neutral-200 bg-muted/40',
-          'dark:border-white/10 dark:bg-zinc-900/60',
-          plan.highlighted && 'dark:bg-zinc-900/80',
+          'relative z-10 mt-auto w-full rounded-b-2xl border-t p-3 transition-colors duration-300',
+          isLiquidGlass
+            ? 'border-slate-300 bg-white/5 dark:border-white/20 dark:bg-white/8'
+            : 'border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900',
+          plan.highlighted && isLiquidGlass && 'dark:bg-white/15 dark:border-white/30',
+          plan.highlighted && !isLiquidGlass && 'dark:bg-slate-800',
         )}
       >
-        <Button
-          className={cn(
-            'w-full cursor-pointer transition-colors',
-            'border-neutral-200 bg-background text-foreground shadow-none',
-            'hover:bg-accent hover:text-accent-foreground',
-            'dark:border-white/15 dark:bg-transparent dark:text-white',
-            'dark:hover:bg-white/10 dark:hover:text-white',
-          )}
-          variant="outline"
-          asChild
-        >
-          <Link to={plan.btn.href}>Select package</Link>
-        </Button>
+        {onSelect ? (
+          <Button
+            className={cn(
+              'w-full cursor-pointer transition-all font-bold duration-300',
+              isCurrentPlan
+                ? isLiquidGlass
+                  ? 'border-slate-400 bg-slate-100 text-slate-900 pointer-events-none dark:border-white/40 dark:bg-white/15 dark:text-white'
+                  : 'border-slate-400 bg-slate-100 text-slate-900 pointer-events-none dark:border-slate-600 dark:bg-slate-700 dark:text-white'
+                : isLiquidGlass
+                ? [
+                    'border-slate-400 bg-white/30 text-slate-900 shadow-sm backdrop-blur-sm',
+                    'hover:bg-white/40 hover:border-slate-500 hover:shadow-md',
+                    'dark:border-white/30 dark:bg-white/15 dark:text-white',
+                    'dark:hover:bg-white/20 dark:hover:border-white/40',
+                  ]
+                : [
+                    'border-slate-400 bg-white text-slate-900 shadow-sm',
+                    'hover:bg-slate-50 hover:border-slate-500 hover:shadow-md',
+                    'dark:border-slate-600 dark:bg-slate-800 dark:text-white',
+                    'dark:hover:bg-slate-700 dark:hover:border-slate-500',
+                  ],
+            )}
+            variant="outline"
+            onClick={onSelect}
+            disabled={isCurrentPlan}
+          >
+            {isCurrentPlan ? 'Current plan' : 'Select package'}
+          </Button>
+        ) : (
+          <Button
+            className={cn(
+              'w-full cursor-pointer transition-all font-bold duration-300',
+              isLiquidGlass
+                ? 'border-slate-400 bg-white/30 text-slate-900 shadow-sm backdrop-blur-sm dark:border-white/30 dark:bg-white/15 dark:text-white dark:hover:bg-white/20'
+                : 'border-slate-400 bg-white text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 hover:bg-slate-50 hover:shadow-md hover:border-slate-500',
+            )}
+            variant="outline"
+            asChild
+          >
+            <Link to={plan.btn.href}>Select package</Link>
+          </Button>
+        )}
       </div>
     </>
   );
 
   if (plan.highlighted) {
+    const highlightedShell = cn(
+      cardShell,
+      isLiquidGlass
+        ? 'border-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.12)] lg:shadow-[0_8px_32px_rgba(15,23,42,0.15)] dark:border-white/40 dark:shadow-[0_8px_32px_rgba(255,255,255,0.15)]'
+        : 'border-slate-500 shadow-lg dark:border-slate-600 dark:shadow-lg',
+      className,
+    );
+    
     return (
-      <div className={cn(cardShell, className)} {...props}>
+      <div className={highlightedShell} {...props}>
         <BorderTrail
           size={80}
           className="rounded-[inherit] bg-primary shadow-[0_0_14px_rgba(0,0,0,0.15)] dark:bg-white dark:shadow-[0_0_14px_rgba(255,255,255,0.9)]"
@@ -291,8 +366,16 @@ export function PricingCard({
     );
   }
 
+  const normalShell = cn(
+    cardShell,
+    isLiquidGlass
+      ? 'border-slate-400 shadow-[0_8px_32px_rgba(15,23,42,0.08)] dark:border-white/25 dark:shadow-[0_8px_32px_rgba(255,255,255,0.08)]'
+      : 'border-slate-400 shadow-sm dark:border-slate-700 dark:shadow-md',
+    className,
+  );
+
   return (
-    <div key={plan.name} className={cn(cardShell, className)} {...props}>
+    <div className={normalShell} {...props}>
       {cardContent}
     </div>
   );

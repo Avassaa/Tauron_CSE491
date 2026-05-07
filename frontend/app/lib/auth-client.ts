@@ -28,6 +28,7 @@ export type UserProfile = {
   username: string
   full_name?: string | null
   email: string
+  plan?: string
 }
 
 export type UpdateProfilePayload = {
@@ -72,7 +73,6 @@ export async function register(payload: RegisterPayload): Promise<RegisterSucces
 export async function refreshToken(refreshToken: string): Promise<AuthSuccess> {
   return request<AuthSuccess>("/auth/refresh", { refresh_token: refreshToken })
 }
-
 
 export async function forgotPassword(email: string): Promise<{ message: string }> {
   return request<{ message: string }>("/auth/forgot-password", { email })
@@ -122,6 +122,20 @@ export async function patchMe(token: string, payload: UpdateProfilePayload): Pro
   return (await response.json()) as UserProfile
 }
 
+// ─── Local-only plan management (no backend, no payment) ─────────────────────
+
+export function getLocalPlan(): string {
+  if (typeof window === "undefined") return "free"
+  return localStorage.getItem("plan") ?? "free"
+}
+
+export function setLocalPlan(plan: "free" | "pro" | "enterprise"): void {
+  localStorage.setItem("plan", plan)
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
+  }
+}
+
 export function persistSession(
   token: string,
   userId: string,
@@ -130,15 +144,11 @@ export function persistSession(
   localStorage.setItem("access_token", token)
   localStorage.setItem("token_type", "bearer")
   localStorage.setItem("user_id", userId)
-  if (extra?.username) {
-    localStorage.setItem("username", extra.username)
-  }
-  if (extra?.email) {
-    localStorage.setItem("email", extra.email)
-  }
-  if (extra?.refresh_token) {
-    localStorage.setItem("refresh_token", extra.refresh_token)
-  }
+  if (extra?.username) localStorage.setItem("username", extra.username)
+  if (extra?.email) localStorage.setItem("email", extra.email)
+  if (extra?.refresh_token) localStorage.setItem("refresh_token", extra.refresh_token)
+  // Set default plan only if not already set (preserves upgrades across re-logins)
+  if (!localStorage.getItem("plan")) localStorage.setItem("plan", "free")
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }
@@ -151,6 +161,7 @@ export function clearSession(): void {
   localStorage.removeItem("user_id")
   localStorage.removeItem("username")
   localStorage.removeItem("email")
+  localStorage.removeItem("plan")
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tauron:auth-changed"))
   }

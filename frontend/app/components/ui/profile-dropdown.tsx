@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Settings, CreditCard, LogOut, User } from "lucide-react"
+import { Settings, LogOut, User } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { LogoutConfirmDialog } from "~/components/dashboard/logout-confirm-dialog"
 import { Avatar, AvatarFallback } from "~/components/ui/avatar"
@@ -19,7 +19,6 @@ interface Profile {
   email: string
   avatar?: string
   initials?: string
-  subscription?: string
 }
 
 interface MenuItem {
@@ -68,12 +67,6 @@ export function ProfileDropdown({
 
   const menuItems: MenuItem[] = [
     { label: "Profile", to: profileTo, icon: <User className="h-4 w-4" /> },
-    {
-      label: "Subscription",
-      value: data.subscription,
-      to: settingsTo,
-      icon: <CreditCard className="h-4 w-4" />,
-    },
     { label: "Settings", to: settingsTo, icon: <Settings className="h-4 w-4" /> },
   ]
 
