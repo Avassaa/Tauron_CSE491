@@ -131,7 +131,7 @@ class TrainAssetForBacktestRequestBody(BaseModel):
     model_type: str | None = Field(
         default=None,
         description=(
-            "Architecture slug (hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm); "
+            "Architecture slug (hgb_ocm, ridge_ocm, rf_ocm, et_ocm, lgbm_ocm, lstm_ocm, ensemble_ocm); "
             "falls back to AI engine defaults when omitted."
         ),
     )
@@ -169,7 +169,8 @@ class TrainAssetForBacktestRequestBody(BaseModel):
         description=(
             "Forwarded to the AI engine. sklearn models: estimator `set_params` keys plus "
             "optional `time_series_cv_folds` (2–12). lstm_ocm: lookback_window, hidden_size, "
-            "num_layers, dropout, learning_rate, max_epochs, patience."
+            "num_layers, dropout, learning_rate, max_epochs, patience. ensemble_ocm currently "
+            "uses fixed architecture defaults."
         ),
     )
     persist_retrospective_holdout_predictions: bool = Field(

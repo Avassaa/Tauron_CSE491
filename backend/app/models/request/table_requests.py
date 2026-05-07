@@ -112,6 +112,7 @@ class PredictionRowRequest(BaseModel):
     predicted_value: float
     confidence_interval_high: Optional[float] = None
     confidence_interval_low: Optional[float] = None
+    horizon_step: Optional[int] = None
 
 
 class PredictionBatchRequest(BaseModel):

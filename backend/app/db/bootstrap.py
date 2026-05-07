@@ -415,6 +415,12 @@ async def _run_bootstrap(engine: AsyncEngine, schema: Optional[str]) -> None:
             text(f"ALTER TABLE {ml_models_rel} ADD COLUMN IF NOT EXISTS display_name VARCHAR(120)"),
         )
 
+    predictions_rel = f'"{schema}".predictions' if schema else "predictions"
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(f"ALTER TABLE {predictions_rel} ADD COLUMN IF NOT EXISTS horizon_step INTEGER"),
+        )
+
     hypertable_names = (
         "market_data",
         "technical_indicators",
@@ -1077,7 +1083,7 @@ def _harvest_daily_klines_across_deep_history_sync(pair_symbol: str, lookback_da
     chronological_accumulator: list[list] = []
     rolling_window_start_ms = coarse_start_epoch_ms
 
-    maximum_http_round_trips = max(lookback_days // 900 + 6, 12)
+    maximum_http_round_trips = max(lookback_days // 700 + 15, 24)
     http_round_trips_completed = 0
 
     while rolling_window_start_ms <= coarse_end_epoch_ms and http_round_trips_completed < maximum_http_round_trips:

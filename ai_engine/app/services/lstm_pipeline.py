@@ -5,7 +5,7 @@ Architecture:
       └─> LSTM (num_layers=2, hidden_size=128, dropout=0.2)
       └─> last hidden state  [batch, 128]
       └─> Linear(128 → 64) + ReLU + Dropout(0.2)
-      └─> Linear(64 → 1)   [batch, 1]   # predicted one-day log return
+      └─> Linear(64 → 1)   [batch, 1]   # predicted next-day USD close (PriceUSD at t+1)
 
 Serialization:
     torch.save is used because sklearn joblib cannot handle PyTorch state dicts.
@@ -77,7 +77,7 @@ def _require_torch() -> None:
 
 
 class _LstmRegressionModel(nn.Module if _TORCH_AVAILABLE else object):
-    """Two-layer LSTM followed by a two-stage MLP head for log-return regression."""
+    """Two-layer LSTM followed by a two-stage MLP head for next-close USD regression."""
 
     def __init__(
         self,
@@ -102,7 +102,7 @@ class _LstmRegressionModel(nn.Module if _TORCH_AVAILABLE else object):
         )
 
     def forward(self, sequence_tensor: Any) -> Any:
-        """Return shape [batch, 1] log-return prediction from [batch, T, features] input."""
+        """Return shape [batch, 1] next-close USD prediction from [batch, T, features] input."""
         lstm_out, _ = self.lstm(sequence_tensor)
         last_hidden = lstm_out[:, -1, :]
         return self.head(last_hidden)
@@ -150,6 +150,8 @@ class LstmTrainResult:
     training_rows: int
     final_fold_mae: float
     final_fold_residual_sigma: float
+    target_scaler_mean: float
+    target_scaler_std: float
     epoch_val_mae_history: list[float] = field(default_factory=list)
 
 
@@ -201,8 +203,16 @@ def train_lstm_for_asset(
     train_features_scaled = (train_features_raw - scaler_min) / scaler_scale
     val_features_scaled = (val_features_raw - scaler_min) / scaler_scale
 
-    train_sequences, train_targets_seq = _build_sequences(train_features_scaled, train_targets_raw, lookback_window)
-    val_sequences, val_targets_seq = _build_sequences(val_features_scaled, val_targets_raw, lookback_window)
+    target_mean_exclusive = float(np.mean(train_targets_raw))
+    target_std_exclusive = float(np.std(train_targets_raw))
+    if target_std_exclusive < 1e-12:
+        target_std_exclusive = 1.0
+
+    train_targets_normalized = (train_targets_raw - target_mean_exclusive) / target_std_exclusive
+    val_targets_normalized = (val_targets_raw - target_mean_exclusive) / target_std_exclusive
+
+    train_sequences, train_targets_seq = _build_sequences(train_features_scaled, train_targets_normalized, lookback_window)
+    val_sequences, val_targets_seq = _build_sequences(val_features_scaled, val_targets_normalized, lookback_window)
 
     device = torch.device("cpu")
     model = _LstmRegressionModel(
@@ -242,8 +252,10 @@ def train_lstm_for_asset(
 
         model.eval()
         with torch.no_grad():
-            val_predictions_tensor = model(val_x).squeeze(1).cpu().numpy()
-        val_mae = float(np.mean(np.abs(val_y_numpy - val_predictions_tensor)))
+            val_predictions_normalized = model(val_x).squeeze(1).cpu().numpy()
+        val_predictions_usd = val_predictions_normalized * target_std_exclusive + target_mean_exclusive
+        val_targets_usd = val_targets_seq * target_std_exclusive + target_mean_exclusive
+        val_mae = float(np.mean(np.abs(val_targets_usd - val_predictions_usd)))
         epoch_val_mae_history.append(val_mae)
 
         if val_mae < best_val_mae:
@@ -258,9 +270,11 @@ def train_lstm_for_asset(
     model.load_state_dict(best_state_dict)
     model.eval()
     with torch.no_grad():
-        final_val_preds = model(val_x).squeeze(1).cpu().numpy()
-    final_residuals = val_y_numpy - final_val_preds
-    final_residual_sigma = float(np.sqrt(np.maximum(np.mean(np.square(final_residuals)), 1e-12)))
+        final_val_preds_normalized = model(val_x).squeeze(1).cpu().numpy()
+    final_val_preds_usd = final_val_preds_normalized * target_std_exclusive + target_mean_exclusive
+    val_targets_usd_for_sigma = val_targets_seq * target_std_exclusive + target_mean_exclusive
+    final_residuals_usd = val_targets_usd_for_sigma - final_val_preds_usd
+    final_residual_sigma = float(np.sqrt(np.maximum(np.mean(np.square(final_residuals_usd)), 1e-12)))
 
     serializable_state_dict = {k: v.cpu() for k, v in best_state_dict.items()}
 
@@ -275,6 +289,8 @@ def train_lstm_for_asset(
         training_rows=len(train_sequences),
         final_fold_mae=best_val_mae,
         final_fold_residual_sigma=final_residual_sigma,
+        target_scaler_mean=target_mean_exclusive,
+        target_scaler_std=target_std_exclusive,
         epoch_val_mae_history=epoch_val_mae_history,
     )
 
@@ -290,6 +306,10 @@ def lstm_artifact_dictionary_from_train_result(train_outcome: LstmTrainResult) -
         "hidden_size": train_outcome.hidden_size,
         "num_layers": train_outcome.num_layers,
         "is_torch_artifact": True,
+        "model_target_space": "next_close_usd",
+        "residual_sigma": float(train_outcome.final_fold_residual_sigma),
+        "target_scaler_mean": float(train_outcome.target_scaler_mean),
+        "target_scaler_std": float(train_outcome.target_scaler_std),
     }
 
 
@@ -318,7 +338,7 @@ def predict_lstm(
 
     ``feature_history_frame`` must contain at least ``lookback_window`` rows ordered
     chronologically and must include all columns in ``artifact['feature_column_order']``.
-    Returns the predicted one-day log return as a Python float.
+    Returns the predicted next calendar day's ``PriceUSD`` close as a Python float.
     """
     _require_torch()
 
@@ -356,6 +376,11 @@ def predict_lstm(
 
     input_tensor = torch.tensor(window_scaled[np.newaxis, :, :], dtype=torch.float32)
     with torch.no_grad():
-        prediction_tensor = model(input_tensor)
+        prediction_normalized = float(model(input_tensor).squeeze().item())
 
-    return float(prediction_tensor.squeeze().item())
+    target_scaler_mean_exclusive = float(artifact.get("target_scaler_mean", 0.0))
+    target_scaler_std_exclusive = float(artifact.get("target_scaler_std", 1.0))
+    if target_scaler_std_exclusive < 1e-12:
+        target_scaler_std_exclusive = 1.0
+
+    return prediction_normalized * target_scaler_std_exclusive + target_scaler_mean_exclusive

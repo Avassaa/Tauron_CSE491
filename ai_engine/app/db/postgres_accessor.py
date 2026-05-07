@@ -91,6 +91,55 @@ def fetch_ml_model_registration(
             return dict(zip(column_names, row))
 
 
+def load_market_data_daily_frame(
+    *,
+    connection: psycopg.Connection,
+    schema_name: str,
+    asset_id: UUID,
+    resolution: str = "1d",
+) -> pd.DataFrame:
+    """Return OHLCV bars from ``market_data`` as a wide daily frame indexed by UTC calendar day.
+
+    One row per calendar day; if multiple bars share a day the latest timestamp wins.
+    Returns an empty ``DataFrame`` when no data exists for the asset/resolution pair or if
+    the table is unavailable.  Resolution filtering is applied in Python after loading so the
+    query uses a single bind parameter and avoids any cursor-state issues on shared connections.
+    """
+    table_qual = _qualified_table(schema_name, "market_data")
+    query_sql = """
+        SELECT time AT TIME ZONE 'UTC' AS time_utc,
+               resolution,
+               open::double precision,
+               high::double precision,
+               low::double precision,
+               close::double precision,
+               volume::double precision
+        FROM {table_qual}
+        WHERE asset_id = %(asset_id)s
+        ORDER BY time ASC
+        """.format(
+        table_qual=table_qual,
+    )
+    frame = pd.read_sql_query(
+        query_sql,
+        connection,
+        params={"asset_id": str(asset_id)},
+    )
+    if frame.empty:
+        return pd.DataFrame()
+    frame = frame[frame["resolution"] == resolution].copy()
+    if frame.empty:
+        return pd.DataFrame()
+    frame["time_utc"] = pd.to_datetime(frame["time_utc"], utc=True)
+    frame["day"] = frame["time_utc"].dt.floor("D")
+    daily = (
+        frame.sort_values("time_utc")
+        .groupby("day", as_index=False)
+        .last()[["day", "open", "high", "low", "close", "volume"]]
+    )
+    return daily.set_index("day").sort_index()
+
+
 def load_on_chain_long_frame(
     *,
     connection: psycopg.Connection,

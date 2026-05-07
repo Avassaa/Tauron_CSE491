@@ -19,6 +19,7 @@ from app.services.lstm_pipeline import (
     _DEFAULT_PATIENCE,
     torch_package_import_succeeded_exclusive,
 )
+from app.services.ensemble_pipeline import xgboost_package_import_succeeded_exclusive
 from app.services.training_pipeline import (
     _SUPPORTED_SKLEARN_SLUGS,
     _TIME_SERIES_CV_FOLDS,
@@ -336,5 +337,6 @@ def build_trainer_hyperparameter_schema_envelope_exclusive(
         "runtime_capability_flags": {
             "lightgbm_import_available": lightgbm_package_import_succeeded_exclusive(),
             "torch_import_available": torch_package_import_succeeded_exclusive(),
+            "xgboost_import_available": xgboost_package_import_succeeded_exclusive(),
         },
     }

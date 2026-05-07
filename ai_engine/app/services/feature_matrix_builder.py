@@ -1,8 +1,9 @@
-"""Build supervised learning frames from ``on_chain_metrics`` only.
+"""Build supervised learning frames from ``on_chain_metrics`` and ``market_data``.
 
-The regression label is derived from Coin Metrics ``PriceUSD`` (daily) as forward log-return,
-while Phase 0 still shifts native price-derived OCM columns one day inside the **feature**
-matrix so settlement-day spot levels do not leak when ranking candidate columns prior to masking.
+The regression label is the next calendar day's Coin Metrics ``PriceUSD`` close (USD level).
+Price-derived OCM columns are shifted one day inside the feature matrix to prevent data leakage,
+but ``market_data`` OHLCV features are included same-day (day T predicting day T+1) because
+exchange close prices are published the same calendar day they occur.
 
 Temporal augmentation applies lag and rolling z-score windows that only consume past days.
 """
@@ -16,7 +17,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from app.db.postgres_accessor import load_on_chain_long_frame
+from app.db.postgres_accessor import load_market_data_daily_frame, load_on_chain_long_frame
 
 _PRICE_DERIVED_PATTERN = re.compile(
     r"^ocm_(PriceUSD|PriceBTC|ReferenceRate|ReferenceRateUSD|ReferenceRateBTC|"
@@ -251,18 +252,71 @@ def wide_on_chain_from_long(long_frame: pd.DataFrame, *, column_cap: int) -> tup
     return _finalize_shifted_augmented_capped_wide_matrix(wide_raw_exclusive, column_cap)
 
 
+def build_market_data_feature_block(
+    market_data_daily: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Derive a rich OHLCV feature matrix from daily ``market_data`` bars.
+
+    All columns use the ``md_`` prefix so they never collide with on-chain metric names.
+    No forward-looking data is introduced: every column at day T is computed exclusively from
+    day T and prior bars, which is correct because we predict day T+1 price.
+
+    Columns produced
+    ----------------
+    md_close            Exchange close price on day T (current-day anchor).
+    md_log_return_1d    log(close_T / close_{T-1}) — directional momentum.
+    md_range_ratio      (high - low) / close — intra-day realised volatility.
+    md_volume_log       log1p(volume) — compressed trading activity.
+    md_close_ma7_ratio  close / 7-day simple MA — short-term trend deviation.
+    md_close_ma30_ratio close / 30-day simple MA — medium-term trend deviation.
+    md_vol_14d          14-day rolling std of 1-day log returns — annualised vol proxy.
+    md_vol_30d          30-day rolling std of 1-day log returns.
+    """
+    if market_data_daily.empty:
+        return pd.DataFrame()
+
+    result_frame = pd.DataFrame(index=market_data_daily.index)
+    close_series = market_data_daily["close"].clip(lower=1e-12)
+
+    result_frame["md_close"] = close_series
+    result_frame["md_log_return_1d"] = np.log(close_series / close_series.shift(1))
+    result_frame["md_range_ratio"] = (
+        (market_data_daily["high"] - market_data_daily["low"]) / close_series
+    ).clip(lower=0.0)
+    result_frame["md_volume_log"] = np.log1p(
+        market_data_daily["volume"].clip(lower=0.0)
+    )
+
+    moving_average_7_exclusive = close_series.rolling(7, min_periods=4).mean().clip(lower=1e-12)
+    moving_average_30_exclusive = close_series.rolling(30, min_periods=15).mean().clip(lower=1e-12)
+    result_frame["md_close_ma7_ratio"] = close_series / moving_average_7_exclusive
+    result_frame["md_close_ma30_ratio"] = close_series / moving_average_30_exclusive
+
+    log_return_series_exclusive = result_frame["md_log_return_1d"]
+    result_frame["md_vol_14d"] = log_return_series_exclusive.rolling(14, min_periods=7).std()
+    result_frame["md_vol_30d"] = log_return_series_exclusive.rolling(30, min_periods=15).std()
+
+    return result_frame
+
+
 def build_training_frame_for_asset(
     *,
     connection,
     schema_name: str,
     asset_id,
     column_cap: int,
+    external_market_feature_block: pd.DataFrame | None = None,
 ) -> TrainingFrameBuildResult | None:
     """
     Align capped on-chain pivots with daily ``PriceUSD`` reference levels from the same table.
 
-    The regression target is ``log(price[t+1]) - log(price[t])`` where ``price`` is the raw
-    (unshifted) ``PriceUSD`` series from the pivot prior to feature leakage handling.
+    The regression target is ``price[t+1]`` in USD where ``price`` is the raw (unshifted)
+    ``PriceUSD`` series from the pivot prior to feature leakage handling.
+
+    ``external_market_feature_block`` may be passed by the caller (pre-loaded on a separate
+    connection) to attach OHLCV-derived market-data features.  Pass an empty DataFrame or
+    ``None`` to train on on-chain features only.
     """
 
     on_chain_long = load_on_chain_long_frame(
@@ -291,27 +345,43 @@ def build_training_frame_for_asset(
     if trimmed_daily_wide_exclusive.empty or not selected_columns_exclusive:
         return None
 
-    price_frame_exclusive = reference_price_series_exclusive.rename("close").to_frame()
-    price_frame_exclusive["log_close"] = np.log(price_frame_exclusive["close"].astype(float).clip(lower=1e-12))
-    price_frame_exclusive["_target_next_close_log_forward_return"] = (
-        price_frame_exclusive["log_close"].shift(-1) - price_frame_exclusive["log_close"]
+    market_feature_block_exclusive: pd.DataFrame = (
+        external_market_feature_block
+        if external_market_feature_block is not None and not external_market_feature_block.empty
+        else pd.DataFrame()
     )
 
+    price_frame_exclusive = reference_price_series_exclusive.rename("close").to_frame()
+    price_frame_exclusive["_target_next_close_usd_forward_price"] = price_frame_exclusive["close"].shift(-1)
+
     merged_daily_panel_exclusive = trimmed_daily_wide_exclusive.join(
-        price_frame_exclusive[["close", "_target_next_close_log_forward_return"]],
+        price_frame_exclusive[["close", "_target_next_close_usd_forward_price"]],
         how="inner",
     )
+    if not market_feature_block_exclusive.empty:
+        merged_daily_panel_exclusive = merged_daily_panel_exclusive.join(
+            market_feature_block_exclusive,
+            how="left",
+        )
+
     merged_daily_panel_exclusive = merged_daily_panel_exclusive.replace([np.inf, -np.inf], np.nan)
     merged_daily_panel_exclusive = merged_daily_panel_exclusive.dropna(
-        subset=["_target_next_close_log_forward_return"],
+        subset=["_target_next_close_usd_forward_price"],
     )
+
+    active_market_cols_exclusive = (
+        [c for c in market_feature_block_exclusive.columns if c in merged_daily_panel_exclusive.columns]
+        if not market_feature_block_exclusive.empty
+        else []
+    )
+    all_feature_columns_exclusive = selected_columns_exclusive + active_market_cols_exclusive
 
     feature_candidate_block_exclusive = merged_daily_panel_exclusive[selected_columns_exclusive]
     row_has_any_feature_observation_exclusive = ~feature_candidate_block_exclusive.isna().all(axis=1)
 
     usable_frame_exclusive = merged_daily_panel_exclusive.loc[row_has_any_feature_observation_exclusive]
-    feature_only_exclusive = usable_frame_exclusive[selected_columns_exclusive]
-    targets_aligned_exclusive = usable_frame_exclusive["_target_next_close_log_forward_return"].astype(float)
+    feature_only_exclusive = usable_frame_exclusive[all_feature_columns_exclusive]
+    targets_aligned_exclusive = usable_frame_exclusive["_target_next_close_usd_forward_price"].astype(float)
     close_aligned_exclusive = usable_frame_exclusive["close"].astype(float)
 
     if feature_only_exclusive.empty or targets_aligned_exclusive.empty:
@@ -341,10 +411,12 @@ def build_latest_feature_row_for_inference(
     schema_name: str,
     asset_id,
     ordered_feature_columns: list[str],
+    external_market_feature_block: pd.DataFrame | None = None,
 ) -> pd.Series:
     """Align the freshest daily feature vector to columns stored with the persisted artifact.
 
     Applies the same leakage fix and augmentation as training so inference features are consistent.
+    ``external_market_feature_block`` may be passed pre-loaded on a separate connection.
     """
 
     long_frame = load_on_chain_long_frame(
@@ -363,8 +435,22 @@ def build_latest_feature_row_for_inference(
     base_cols_exclusive = list(wide_on_chain_exclusive.columns)
     wide_on_chain_exclusive = augment_with_temporal_features(wide_on_chain_exclusive, base_cols_exclusive)
 
-    latest_row_exclusive = wide_on_chain_exclusive.sort_index().iloc[-1].reindex(ordered_feature_columns)
-    latest_row_exclusive.name = wide_on_chain_exclusive.index.max()
+    market_feature_block_inference_exclusive: pd.DataFrame = (
+        external_market_feature_block
+        if external_market_feature_block is not None and not external_market_feature_block.empty
+        else pd.DataFrame()
+    )
+
+    if not market_feature_block_inference_exclusive.empty:
+        combined_wide_exclusive = wide_on_chain_exclusive.join(
+            market_feature_block_inference_exclusive,
+            how="left",
+        )
+    else:
+        combined_wide_exclusive = wide_on_chain_exclusive
+
+    latest_row_exclusive = combined_wide_exclusive.sort_index().iloc[-1].reindex(ordered_feature_columns)
+    latest_row_exclusive.name = combined_wide_exclusive.index.max()
     return latest_row_exclusive.astype(float)
 
 

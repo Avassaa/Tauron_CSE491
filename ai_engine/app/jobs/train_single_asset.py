@@ -6,7 +6,8 @@ via the training plan dictionary).
 
 Model dispatch:
     model_type_slug == "lstm_ocm"  -> lstm_pipeline.train_lstm_for_asset + torch.save artifact
-    all other slugs                -> training_pipeline.train_estimator_bundle + joblib artifact
+    model_type_slug == "ensemble_ocm" -> dedicated transformed-feature multi-step voting ensemble
+    all other slugs                    -> training_pipeline.train_estimator_bundle + joblib artifact
 
 Inclusive training-data cutoff (``maximum_training_feature_calendar_day_utc`` plan key):
 
@@ -34,15 +35,23 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import joblib
 import numpy as np
 import pandas as pd
 
-from app.db.postgres_accessor import PostgresAccessConfig, open_connection
+from app.db.postgres_accessor import PostgresAccessConfig, load_market_data_daily_frame, open_connection
 from app.services.backend_admin_client import persist_ml_registry_row, persist_prediction_batch_rows
-from app.services.feature_matrix_builder import TrainingFrameBuildResult, build_training_frame_for_asset
+from app.services.feature_matrix_builder import (
+    TrainingFrameBuildResult,
+    build_market_data_feature_block,
+    build_training_frame_for_asset,
+)
+from app.services.ensemble_pipeline import (
+    build_ensemble_feature_matrix_for_asset_exclusive,
+    train_multi_step_ensemble_for_cutoff_exclusive,
+)
 from app.services.training_pipeline import (
     bundle_to_joblib_dict,
     partition_trainer_hyperparameters_for_lstm_exclusive,
@@ -242,6 +251,20 @@ def _confidence_interval_levels_one_step_mid(
     return midpoint, upward, downward
 
 
+def _confidence_interval_levels_one_step_usd(
+    predicted_next_close_usd: float,
+    residual_sigma_usd: float,
+    confidence_interval_z_score_exclusive_float: float,
+) -> tuple[float, float, float]:
+    """Symmetric Gaussian tails in USD space around a direct next-close point forecast."""
+
+    half_width = residual_sigma_usd * confidence_interval_z_score_exclusive_float
+    midpoint = float(predicted_next_close_usd)
+    upward = float(midpoint + half_width)
+    downward = float(max(midpoint - half_width, 1e-9))
+    return midpoint, upward, downward
+
+
 def collect_retrospective_sklearn_daily_rows_without_model_foreign_key(
     fitted_pipeline_sklearn_bundle: Any,
     *,
@@ -252,7 +275,6 @@ def collect_retrospective_sklearn_daily_rows_without_model_foreign_key(
     calibrated_log_return_sigma_residual: float,
     confidence_interval_z_score_exclusive_float: float,
     asset_foreign_key_identity: UUID,
-    sorted_reference_closes_sorted: pd.Series,
 ) -> tuple[list[dict[str, Any]], float | None]:
     """
     Emit retrospective one-step level forecasts keyed by causal settlement timestamps.
@@ -267,18 +289,17 @@ def collect_retrospective_sklearn_daily_rows_without_model_foreign_key(
     for calendar_anchor_exclusive in retrospective_feature_calendar_anchor_index.sort_values():
         causal_feature_matrix_singleton = sorted_full_features_sorted.loc[[calendar_anchor_exclusive]]
 
-        realized_next_log_residual = float(sorted_targets_sorted.loc[calendar_anchor_exclusive])
+        realized_next_close_usd = float(sorted_targets_sorted.loc[calendar_anchor_exclusive])
 
-        modeled_next_log_residual = float(fitted_pipeline_sklearn_bundle.pipeline.predict(causal_feature_matrix_singleton)[0])
+        modeled_next_close_usd = float(
+            fitted_pipeline_sklearn_bundle.pipeline.predict(causal_feature_matrix_singleton)[0],
+        )
 
-        absolute_error_stack.append(abs(modeled_next_log_residual - realized_next_log_residual))
-
-        anchored_reference_quote = float(max(sorted_reference_closes_sorted.loc[calendar_anchor_exclusive], 1e-12))
+        absolute_error_stack.append(abs(modeled_next_close_usd - realized_next_close_usd))
 
         mid_level_exclusive, upward_fence_exclusive, downward_fence_exclusive = (
-            _confidence_interval_levels_one_step_mid(
-                anchored_reference_quote,
-                modeled_next_log_residual,
+            _confidence_interval_levels_one_step_usd(
+                modeled_next_close_usd,
                 calibrated_log_return_sigma_residual,
                 confidence_interval_z_score_exclusive_float,
             )
@@ -300,6 +321,7 @@ def collect_retrospective_sklearn_daily_rows_without_model_foreign_key(
                 "predicted_value": mid_level_exclusive,
                 "confidence_interval_high": upward_fence_exclusive,
                 "confidence_interval_low": downward_fence_exclusive,
+                "horizon_step": 1,
             }
         )
 
@@ -320,7 +342,6 @@ def collect_retrospective_lstm_daily_rows_without_model_foreign_key(
     calibrated_log_return_sigma_residual_exclusive: float,
     confidence_interval_z_score_exclusive_float: float,
     asset_foreign_key_identity_exclusive: UUID,
-    sorted_reference_closes_sorted_reference: pd.Series,
 ) -> tuple[list[dict[str, Any]], float | None]:
     """
     Emit retrospective causal-window LSTM one-step settlements mirroring sklearn temporal contracts.
@@ -340,11 +361,11 @@ def collect_retrospective_lstm_daily_rows_without_model_foreign_key(
         if len(causal_history_exclusive) < lookback_exclusive:
             continue
 
-        realized_next_residual_exclusive_float = float(
+        realized_next_close_usd_exclusive_float = float(
             sorted_targets_sorted_reference.loc[calendar_anchor_exclusive],
         )
 
-        modeled_next_residual_exclusive_float = float(
+        modeled_next_close_usd_exclusive_float = float(
             predict_torch_forward_log_return_exclusive(
                 lstm_payload_dictionary_exclusive,
                 causal_history_exclusive,
@@ -352,16 +373,11 @@ def collect_retrospective_lstm_daily_rows_without_model_foreign_key(
         )
 
         absolute_error_stack_exclusive.append(
-            abs(modeled_next_residual_exclusive_float - realized_next_residual_exclusive_float),
+            abs(modeled_next_close_usd_exclusive_float - realized_next_close_usd_exclusive_float),
         )
 
-        anchored_quote_exclusive_float = float(
-            max(sorted_reference_closes_sorted_reference.loc[calendar_anchor_exclusive], 1e-12),
-        )
-
-        mid_lv, hi_lv, low_lv = _confidence_interval_levels_one_step_mid(
-            anchored_quote_exclusive_float,
-            modeled_next_residual_exclusive_float,
+        mid_lv, hi_lv, low_lv = _confidence_interval_levels_one_step_usd(
+            modeled_next_close_usd_exclusive_float,
             calibrated_log_return_sigma_residual_exclusive,
             confidence_interval_z_score_exclusive_float,
         )
@@ -382,6 +398,7 @@ def collect_retrospective_lstm_daily_rows_without_model_foreign_key(
                 "predicted_value": mid_lv,
                 "confidence_interval_high": hi_lv,
                 "confidence_interval_low": low_lv,
+                "horizon_step": 1,
             }
         )
 
@@ -457,6 +474,9 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
     resolved_registry_display_label_exclusive = (
         str(plan_dictionary.get("registry_display_name") or "").strip() or None
     )
+    maximum_training_calendar_literal_exclusive = str(
+        plan_dictionary.get("maximum_training_feature_calendar_day_utc") or "",
+    ).strip()
 
     if not administrator_api_secret_plaintext.strip():
         return {
@@ -471,12 +491,43 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
         ssl_enabled=ssl_boolean_flag_enabled,
     )
 
+    if model_architecture_slug_identifier == "ensemble_ocm":
+        return _train_ensemble_path(
+            asset_text_exclusive=asset_text_value,
+            asset_uuid_exclusive=asset_uuid_value,
+            postgres_access_configuration_exclusive=postgres_access_exclusive_configuration_exclusive,
+            model_root_exclusive=model_filesystem_anchor_root_absolute,
+            backend_base_url_exclusive=backend_http_base_url_absolute,
+            admin_key_exclusive=administrator_api_secret_plaintext,
+            horizon_days_exclusive=forward_multi_step_horizon_exclusive,
+            forecast_log_sigma_floor_exclusive=forecast_volatility_residual_floor_exclusive,
+            forecast_ci_z_score_exclusive_float=forecast_confidence_interval_z_score_exclusive_float,
+            version_tag_exclusive=version_stamp_literal_exclusive,
+            activate_exclusive=registration_activate_boolean_flag_exclusive,
+            registry_display_name_exclusive=resolved_registry_display_label_exclusive,
+            inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive=maximum_training_calendar_literal_exclusive
+            or None,
+        )
+
+    preloaded_market_feature_block_exclusive = pd.DataFrame()
+    try:
+        with open_connection(postgres_access_exclusive_configuration_exclusive) as md_connection_exclusive:
+            market_data_raw_exclusive = load_market_data_daily_frame(
+                connection=md_connection_exclusive,
+                schema_name=schema_catalog_identifier_value,
+                asset_id=asset_uuid_value,
+            )
+        preloaded_market_feature_block_exclusive = build_market_data_feature_block(market_data_raw_exclusive)
+    except Exception:
+        pass
+
     with open_connection(postgres_access_exclusive_configuration_exclusive) as connection_active_exclusive:
         built_training_exclusive_frame_matrix_outcome_exclusive = build_training_frame_for_asset(
             connection=connection_active_exclusive,
             schema_name=schema_catalog_identifier_value,
             asset_id=asset_uuid_value,
             column_cap=maximum_metric_wide_column_budget_exclusive,
+            external_market_feature_block=preloaded_market_feature_block_exclusive,
         )
 
     if built_training_exclusive_frame_matrix_outcome_exclusive is None:
@@ -489,13 +540,12 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
             ),
         }
 
-    maximum_training_calendar_literal_exclusive = str(
-        plan_dictionary.get("maximum_training_feature_calendar_day_utc") or "",
-    ).strip()
-
     exclusive_training_cutoff_logged_iso_exclusive: str | None = None
 
+    full_bundle_before_cutoff_exclusive = built_training_exclusive_frame_matrix_outcome_exclusive
     working_bundle_exclusive = built_training_exclusive_frame_matrix_outcome_exclusive
+
+    cutoff_post_retrospective_index_exclusive: pd.Index | None = None
 
     if maximum_training_calendar_literal_exclusive:
         try:
@@ -527,6 +577,23 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
         working_bundle_exclusive = truncated_bundle_candidate_exclusive
         exclusive_training_cutoff_logged_iso_exclusive = maximum_training_calendar_literal_exclusive
         holdout_calendar_onset_for_split_exclusive_timestamp_resolution = None
+
+        full_sorted_frame_for_post_cutoff_exclusive = (
+            full_bundle_before_cutoff_exclusive.feature_frame.sort_index()
+        )
+        full_calendar_day_markers_exclusive = pd.Series(
+            _utc_naive_calendar_markers(full_sorted_frame_for_post_cutoff_exclusive.index),
+            index=full_sorted_frame_for_post_cutoff_exclusive.index,
+        )
+        cutoff_midnight_normalized_exclusive = inclusive_cutoff_timestamp_exclusive.normalize()
+        post_cutoff_row_mask_exclusive = (
+            full_calendar_day_markers_exclusive > cutoff_midnight_normalized_exclusive
+        )
+        post_cutoff_candidate_index_exclusive = full_sorted_frame_for_post_cutoff_exclusive.index[
+            post_cutoff_row_mask_exclusive
+        ]
+        if len(post_cutoff_candidate_index_exclusive) > 0:
+            cutoff_post_retrospective_index_exclusive = post_cutoff_candidate_index_exclusive
     else:
         holdout_calendar_onset_for_split_exclusive_timestamp_resolution = _parse_holdout_calendar_onset(
             holdout_evaluation_eval_start_calendar_literal_exclusive,
@@ -546,13 +613,34 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
         holdout_calendar_span_month_count=holdout_eval_month_span_exclusive,
     )
 
-    aligned_sorted_targets_exclusive_reference_exclusive = working_bundle_exclusive.target_series.reindex(
-        sorted_full_aligned_observation_sorted_feature_frame_exclusive.index,
-    ).astype(float)
+    if cutoff_post_retrospective_index_exclusive is not None:
+        full_sorted_exclusive = full_bundle_before_cutoff_exclusive.feature_frame.sort_index()
+        sorted_full_aligned_observation_sorted_feature_frame_exclusive = full_sorted_exclusive
+        aligned_sorted_targets_exclusive_reference_exclusive = (
+            full_bundle_before_cutoff_exclusive.target_series.reindex(full_sorted_exclusive.index).astype(float)
+        )
+        aligned_sorted_closes_reference_exclusive_reference = (
+            full_bundle_before_cutoff_exclusive.closes_aligned.reindex(full_sorted_exclusive.index).astype(float)
+        )
+        sorted_outcome_date_mapping_exclusive_reference_series_exclusive = _build_outcome_dates_series(
+            full_sorted_exclusive
+        )
+        retrospective_evaluation_feature_calendar_anchor_index_exclusive_bundle = (
+            cutoff_post_retrospective_index_exclusive
+        )
+        holdout_evaluation_mode_active_exclusive = True
+    else:
+        aligned_sorted_targets_exclusive_reference_exclusive = working_bundle_exclusive.target_series.reindex(
+            sorted_full_aligned_observation_sorted_feature_frame_exclusive.index,
+        ).astype(float)
 
-    aligned_sorted_closes_reference_exclusive_reference = working_bundle_exclusive.closes_aligned.reindex(
-        sorted_full_aligned_observation_sorted_feature_frame_exclusive.index,
-    ).astype(float)
+        aligned_sorted_closes_reference_exclusive_reference = working_bundle_exclusive.closes_aligned.reindex(
+            sorted_full_aligned_observation_sorted_feature_frame_exclusive.index,
+        ).astype(float)
+
+        holdout_evaluation_mode_active_exclusive = (
+            holdout_calendar_onset_for_split_exclusive_timestamp_resolution is not None
+        )
 
     strict_partition_row_count_exclusive = len(partitioned_training_exclusive_feature_frame_exclusive)
 
@@ -566,7 +654,8 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
             ),
         }
 
-    holdout_evaluation_mode_active_exclusive = holdout_calendar_onset_for_split_exclusive_timestamp_resolution is not None
+    training_anchor_features_exclusive = working_bundle_exclusive.feature_frame.sort_index()
+    training_anchor_closes_exclusive = working_bundle_exclusive.closes_aligned.sort_index()
 
     if model_architecture_slug_identifier == "lstm_ocm":
         return _train_lstm_path(
@@ -577,6 +666,8 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
             sorted_full_features_exclusive=sorted_full_aligned_observation_sorted_feature_frame_exclusive,
             sorted_full_targets_exclusive=aligned_sorted_targets_exclusive_reference_exclusive,
             sorted_full_closes_exclusive=aligned_sorted_closes_reference_exclusive_reference,
+            anchor_features_exclusive=training_anchor_features_exclusive,
+            anchor_closes_exclusive=training_anchor_closes_exclusive,
             outcome_dates_exclusive=sorted_outcome_date_mapping_exclusive_reference_series_exclusive,
             retrospective_calendar_index_exclusive=retrospective_evaluation_feature_calendar_anchor_index_exclusive_bundle,
             model_root_exclusive=model_filesystem_anchor_root_absolute,
@@ -604,6 +695,8 @@ def _train_single_asset_worker_impl(plan_dictionary: dict[str, Any]) -> dict[str
         sorted_full_features_exclusive=sorted_full_aligned_observation_sorted_feature_frame_exclusive,
         sorted_full_targets_exclusive=aligned_sorted_targets_exclusive_reference_exclusive,
         sorted_full_closes_exclusive=aligned_sorted_closes_reference_exclusive_reference,
+        anchor_features_exclusive=training_anchor_features_exclusive,
+        anchor_closes_exclusive=training_anchor_closes_exclusive,
         outcome_dates_exclusive=sorted_outcome_date_mapping_exclusive_reference_series_exclusive,
         retrospective_calendar_index_exclusive=retrospective_evaluation_feature_calendar_anchor_index_exclusive_bundle,
         model_root_exclusive=model_filesystem_anchor_root_absolute,
@@ -634,6 +727,8 @@ def _train_sklearn_path(
     sorted_full_features_exclusive: pd.DataFrame,
     sorted_full_targets_exclusive: pd.Series,
     sorted_full_closes_exclusive: pd.Series,
+    anchor_features_exclusive: pd.DataFrame,
+    anchor_closes_exclusive: pd.Series,
     outcome_dates_exclusive: pd.Series,
     retrospective_calendar_index_exclusive: pd.Index,
     model_root_exclusive: Path,
@@ -653,7 +748,13 @@ def _train_sklearn_path(
     persist_retrospective_holdout_predictions_exclusive: bool,
     inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive: str | None = None,
 ) -> dict[str, Any]:
-    """Fit supervised sklearn-compatible bundles under strict temporal segregation policies."""
+    """Fit supervised sklearn-compatible bundles under strict temporal segregation policies.
+
+    ``anchor_features_exclusive`` and ``anchor_closes_exclusive`` always point to the last row of
+    the **training-boundary** data (cutoff date in cutoff mode, latest available row otherwise).
+    ``sorted_full_features_exclusive`` may extend beyond the anchor (post-cutoff dates) and is only
+    used for retrospective evaluation — never for the terminal prediction or forward path anchor.
+    """
 
     estimator_override_payload_exclusive, time_series_cv_fold_count_exclusive = (
         partition_trainer_hyperparameters_for_sklearn_exclusive(
@@ -672,12 +773,13 @@ def _train_sklearn_path(
     fitted_bundle_exclusive_ready = replace(
         fitted_core_bundle_exclusive,
         anchor_metric_column_key="",
-        target_signal_slug="market_close_next_day_log_forward_return_onchain_feats",
+        target_signal_slug="market_close_next_day_usd_forward_price_onchain_feats",
+        model_target_space="next_close_usd",
     )
 
-    latest_singleton_feature_matrix_exclusive_bucket = sorted_full_features_exclusive.iloc[-1:]
+    latest_singleton_feature_matrix_exclusive_bucket = anchor_features_exclusive.iloc[-1:]
 
-    terminal_predicted_forward_log_exclusive_float = float(
+    terminal_predicted_next_close_usd_exclusive_float = float(
         fitted_bundle_exclusive_ready.pipeline.predict(latest_singleton_feature_matrix_exclusive_bucket)[0],
     )
 
@@ -688,10 +790,29 @@ def _train_sklearn_path(
 
     raw_validation_sigma_exclusive_float = float(fitted_bundle_exclusive_ready.residual_standard_error)
 
-    effective_sigma_exclusive_float = float(max(raw_validation_sigma_exclusive_float, forecast_log_sigma_floor_exclusive))
-
     scalar_terminal_reference_close_exclusive = float(
-        sorted_full_closes_exclusive.loc[sorted_full_features_exclusive.index[-1]],
+        anchor_closes_exclusive.iloc[-1],
+    )
+
+    effective_sigma_usd_exclusive_float = float(
+        max(
+            raw_validation_sigma_exclusive_float,
+            forecast_log_sigma_floor_exclusive * scalar_terminal_reference_close_exclusive,
+        )
+    )
+
+    terminal_predicted_forward_log_exclusive_float = float(
+        np.log(
+            max(terminal_predicted_next_close_usd_exclusive_float, 1e-12)
+            / max(scalar_terminal_reference_close_exclusive, 1e-12),
+        )
+    )
+
+    sigma_log_for_multi_step_compound_exclusive_float = float(
+        max(
+            raw_validation_sigma_exclusive_float / max(scalar_terminal_reference_close_exclusive, 1e-12),
+            forecast_log_sigma_floor_exclusive,
+        )
     )
 
     joblib_filename_fragment_exclusive = version_tag_exclusive.replace("/", "_") + ".joblib"
@@ -724,10 +845,9 @@ def _train_sklearn_path(
             sorted_targets_sorted=sorted_full_targets_exclusive,
             mapped_outcome_calendar_series_sorted=outcome_dates_exclusive,
             retrospective_feature_calendar_anchor_index=retrospective_calendar_index_exclusive,
-            calibrated_log_return_sigma_residual=effective_sigma_exclusive_float,
+            calibrated_log_return_sigma_residual=effective_sigma_usd_exclusive_float,
             confidence_interval_z_score_exclusive_float=forecast_ci_z_score_exclusive_float,
             asset_foreign_key_identity=asset_uuid_exclusive,
-            sorted_reference_closes_sorted=sorted_full_closes_exclusive,
         )
 
     hyper_document_exclusive_bundle_dictionary = {
@@ -737,17 +857,19 @@ def _train_sklearn_path(
         "forecast_horizon_days": horizon_days_exclusive,
         "feature_source": "on_chain_metrics_daily_wide_lag_augmented",
         "prediction_target": "on_chain_price_usd_next_day_level",
-        "model_target_space": "log_close_one_day_forward_return",
+        "model_target_space": "price_usd_next_calendar_close",
         "cv_strategy": f"TimeSeriesSplit_{time_series_cv_fold_count_exclusive}fold",
         "strict_holdout_precedes_eval_window_exclusive": holdout_enabled_exclusive,
         "multi_day_path_model": (
-            "compound_daily_log_returns: cum_mid_log equals h_times_mu_hat plus half_sigma_squared_times_h_ito; "
-            "ci_via_exp(cum_mid_log_plus_minus_sqrt_h_times_z_times_sigma_subject_to_optional_half_width_cap)."
+            "compound_daily_log_returns_from_implied_log_step: anchored_mu_log equals log(predicted_next_usd over reference_close); "
+            "sigma_log_proxy equals max(rmse_usd_over_reference_close, configured_log_floor); "
+            "mid_levels_via_exp cumulative logs with ito_bias and sqrt_h_times_z_log_band."
         ),
         "forecast_volatility_calibration": {
-            "log_return_sigma_validation": raw_validation_sigma_exclusive_float,
-            "log_return_sigma_effective_floor": forecast_log_sigma_floor_exclusive,
-            "log_return_sigma_used": effective_sigma_exclusive_float,
+            "next_close_residual_rmse_validation_usd": raw_validation_sigma_exclusive_float,
+            "next_close_sigma_effective_usd": effective_sigma_usd_exclusive_float,
+            "log_sigma_proxy_used_for_compounded_path": sigma_log_for_multi_step_compound_exclusive_float,
+            "log_volatility_effective_floor": forecast_log_sigma_floor_exclusive,
             "confidence_interval_gaussian_multiplier": forecast_ci_z_score_exclusive_float,
             "multi_day_log_band_half_width_cap": forecast_band_log_half_width_cap_exclusive_float,
         },
@@ -785,8 +907,8 @@ def _train_sklearn_path(
         }
 
     training_metrics_document_exclusive_dictionary_resolution = {
-        "validation_mae_log_close_forward_return": fitted_bundle_exclusive_ready.validation_absolute_error_mean,
-        "residual_sigma_log_close_forward_return": fitted_bundle_exclusive_ready.residual_standard_error,
+        "validation_mae_next_close_usd": fitted_bundle_exclusive_ready.validation_absolute_error_mean,
+        "residual_rmse_next_close_usd": fitted_bundle_exclusive_ready.residual_standard_error,
         "fitting_row_count_strict_pre_holdout_evaluation": fitted_bundle_exclusive_ready.training_observation_rows,
         "cv_fold_mae_values": fitted_bundle_exclusive_ready.cv_fold_mae_values or [],
         "cv_mean_mae": fitted_bundle_exclusive_ready.cv_mean_mae,
@@ -795,7 +917,7 @@ def _train_sklearn_path(
 
     if retrospective_log_mae_exclusive_bucket_float_resolution is not None:
         training_metrics_document_exclusive_dictionary_resolution[
-            "retrospective_holdout_mean_absolute_error_log_forward_return"
+            "retrospective_holdout_mean_absolute_error_next_close_usd"
         ] = retrospective_log_mae_exclusive_bucket_float_resolution
 
     persisted_model_uuid_identity_exclusive = persist_ml_registry_row(
@@ -817,10 +939,10 @@ def _train_sklearn_path(
     forward_exclusive_multi_step_rows_exclusive_bucket = build_compounded_horizon_prediction_rows_exclusive(
         asset_uuid_anchor_key_exclusive=asset_uuid_exclusive,
         registry_model_uuid_anchor_key_exclusive=persisted_model_uuid_identity_exclusive,
-        forecast_calendar_anchor_exclusive=sorted_full_features_exclusive.index[-1],
+        forecast_calendar_anchor_exclusive=anchor_features_exclusive.index[-1],
         horizon_days_exclusive_budget=horizon_days_exclusive,
         anchored_forward_log_exclusive_float=terminal_predicted_forward_log_exclusive_float,
-        sigma_residual_effective_exclusive_float=effective_sigma_exclusive_float,
+        sigma_residual_effective_exclusive_float=sigma_log_for_multi_step_compound_exclusive_float,
         reference_close_exclusive_float=scalar_terminal_reference_close_exclusive,
         confidence_interval_z_score_exclusive_float=forecast_ci_z_score_exclusive_float,
         band_log_half_width_cap_exclusive_float=forecast_band_log_half_width_cap_exclusive_float,
@@ -847,7 +969,7 @@ def _train_sklearn_path(
         "status": "trained",
         "model_id": str(persisted_model_uuid_identity_exclusive),
         "model_type_slug": model_type_slug_exclusive,
-        "validation_mae_log_close_forward_return": fitted_bundle_exclusive_ready.validation_absolute_error_mean,
+        "validation_mae_next_close_usd": fitted_bundle_exclusive_ready.validation_absolute_error_mean,
         "cv_mean_mae": fitted_bundle_exclusive_ready.cv_mean_mae,
         "cv_std_mae": fitted_bundle_exclusive_ready.cv_std_mae,
         "prediction_rows_written": len(merged_exclusive_chronological_rows_exclusive_bundle),
@@ -859,10 +981,170 @@ def _train_sklearn_path(
 
     if retrospective_log_mae_exclusive_bucket_float_resolution is not None:
         response_summary_dictionary_exclusive[
-            "retrospective_holdout_mean_absolute_error_log_forward_return"
+            "retrospective_holdout_mean_absolute_error_next_close_usd"
         ] = retrospective_log_mae_exclusive_bucket_float_resolution
 
     return response_summary_dictionary_exclusive
+
+
+def _train_ensemble_path(
+    *,
+    asset_text_exclusive: str,
+    asset_uuid_exclusive: UUID,
+    postgres_access_configuration_exclusive: PostgresAccessConfig,
+    model_root_exclusive: Path,
+    backend_base_url_exclusive: str,
+    admin_key_exclusive: str,
+    horizon_days_exclusive: int,
+    forecast_log_sigma_floor_exclusive: float,
+    forecast_ci_z_score_exclusive_float: float,
+    version_tag_exclusive: str,
+    activate_exclusive: bool,
+    registry_display_name_exclusive: str | None,
+    inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive: str | None = None,
+) -> dict[str, Any]:
+    """Fit and persist the dedicated transformed-feature ensemble model family."""
+
+    with open_connection(postgres_access_configuration_exclusive) as connection_exclusive:
+        feature_frame_exclusive, close_series_exclusive = build_ensemble_feature_matrix_for_asset_exclusive(
+            connection=connection_exclusive,
+            schema_name=postgres_access_configuration_exclusive.schema_name,
+            asset_id=asset_uuid_exclusive,
+        )
+
+    if feature_frame_exclusive.empty:
+        return {
+            "asset_id": asset_text_exclusive,
+            "status": "skipped",
+            "detail": "No transformed feature rows available for ensemble_ocm.",
+        }
+
+    resolved_cutoff_exclusive: pd.Timestamp
+    if inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive:
+        try:
+            resolved_cutoff_exclusive = _exclusive_calendar_cutoff_timestamp_from_literal_or_raise_exclusive(
+                inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive,
+            )
+        except (ValueError, TypeError):
+            return {
+                "asset_id": asset_text_exclusive,
+                "status": "failed",
+                "detail": "maximum_training_feature_calendar_day_utc must be yyyy-mm-dd in UTC.",
+            }
+    else:
+        inferred_last_feature_day_exclusive = pd.Timestamp(feature_frame_exclusive.index.max())
+        if inferred_last_feature_day_exclusive.tzinfo is None:
+            resolved_cutoff_exclusive = inferred_last_feature_day_exclusive.tz_localize("UTC").normalize()
+        else:
+            resolved_cutoff_exclusive = inferred_last_feature_day_exclusive.tz_convert("UTC").normalize()
+
+    temporary_registry_placeholder_exclusive = uuid4()
+    trained_outcome_exclusive = train_multi_step_ensemble_for_cutoff_exclusive(
+        transformed_feature_frame_exclusive=feature_frame_exclusive,
+        close_series_exclusive=close_series_exclusive,
+        asset_id=asset_uuid_exclusive,
+        model_id=temporary_registry_placeholder_exclusive,
+        inclusive_cutoff_day_utc_exclusive=resolved_cutoff_exclusive,
+        horizon_days_exclusive=horizon_days_exclusive,
+        confidence_interval_z_score_exclusive=forecast_ci_z_score_exclusive_float,
+        residual_sigma_floor_return_exclusive=max(forecast_log_sigma_floor_exclusive, 1e-6),
+    )
+
+    model_root_exclusive.mkdir(parents=True, exist_ok=True)
+    asset_directory_exclusive = model_root_exclusive / str(asset_uuid_exclusive)
+    asset_directory_exclusive.mkdir(parents=True, exist_ok=True)
+    joblib_filename_exclusive = version_tag_exclusive.replace("/", "_") + ".joblib"
+    absolute_artifact_path_exclusive = asset_directory_exclusive / joblib_filename_exclusive
+    joblib.dump(trained_outcome_exclusive.artifact_payload, absolute_artifact_path_exclusive)
+
+    per_horizon_mae_exclusive = list(trained_outcome_exclusive.mae_by_horizon.values())
+    per_horizon_sigma_exclusive = list(trained_outcome_exclusive.residual_sigma_by_horizon.values())
+    mean_horizon_mae_exclusive = float(np.mean(per_horizon_mae_exclusive)) if per_horizon_mae_exclusive else None
+    mean_horizon_sigma_exclusive = (
+        float(np.mean(per_horizon_sigma_exclusive)) if per_horizon_sigma_exclusive else None
+    )
+
+    hyperparameter_document_exclusive: dict[str, Any] = {
+        "framework": "sklearn_voting_ridge_xgboost",
+        "model_type_slug": "ensemble_ocm",
+        "feature_source": "stationary_transformed_onchain_and_market_signals",
+        "target_definition": "cumulative_percentage_return_from_cutoff_to_horizon_step",
+        "model_target_space": "cumulative_return_ratio",
+        "training_policy": "fit_on_all_rows_where_feature_day_lte_cutoff_without_train_test_split",
+        "ensemble_components": {
+            "linear_anchor": "Ridge(alpha=8.0)",
+            "non_linear_engine": "XGBRegressor(max_depth=3)",
+            "combiner": "VotingRegressor(weights=[0.45,0.55])",
+        },
+        "confidence_interval_method": "historical_residuals_scaled_by_sqrt_horizon",
+        "forecast_horizon_days": horizon_days_exclusive,
+        "forecast_ci_z_score": forecast_ci_z_score_exclusive_float,
+        "residual_sigma_floor_return": max(forecast_log_sigma_floor_exclusive, 1e-6),
+        "transformed_features": [
+            "net_exchange_flow",
+            "net_exchange_flow_ma7",
+            "mvrv_ratio",
+            "nvt_ratio",
+            "active_addresses_growth_14d",
+            "average_transaction_fee",
+            "daily_volatility_14d",
+            "distance_from_30d_ma",
+            "momentum_7d",
+            "momentum_30d",
+        ],
+        "training_rows_by_horizon": trained_outcome_exclusive.training_rows_by_horizon,
+    }
+    if inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive:
+        hyperparameter_document_exclusive["training_data_calendar_cutoff_utc_day_inclusive"] = (
+            inclusive_training_data_calendar_cutoff_utc_yyyy_mm_dd_logged_exclusive
+        )
+
+    training_metric_document_exclusive: dict[str, Any] = {
+        "mean_mae_cumulative_return": mean_horizon_mae_exclusive,
+        "mean_residual_sigma_cumulative_return": mean_horizon_sigma_exclusive,
+        "mae_by_horizon": trained_outcome_exclusive.mae_by_horizon,
+        "residual_sigma_by_horizon": trained_outcome_exclusive.residual_sigma_by_horizon,
+        "forecast_anchor_day_iso8601_utc": trained_outcome_exclusive.forecast_anchor_day.isoformat(),
+        "forecast_anchor_close_usd": trained_outcome_exclusive.forecast_anchor_close,
+    }
+
+    persisted_model_uuid_exclusive = persist_ml_registry_row(
+        backend_base_url=backend_base_url_exclusive,
+        admin_api_key=admin_key_exclusive,
+        version_tag=version_tag_exclusive[:50],
+        asset_id=asset_uuid_exclusive,
+        model_type_slug="ensemble_ocm",
+        hyperparameter_document=hyperparameter_document_exclusive,
+        training_metric_document=training_metric_document_exclusive,
+        artifact_relative_path_on_disk=str(absolute_artifact_path_exclusive),
+        activate_model=activate_exclusive,
+        display_name=registry_display_name_exclusive,
+    )
+
+    finalized_prediction_rows_exclusive = []
+    for row_payload_exclusive in trained_outcome_exclusive.prediction_rows:
+        copied_payload_exclusive = dict(row_payload_exclusive)
+        copied_payload_exclusive["model_id"] = persisted_model_uuid_exclusive
+        finalized_prediction_rows_exclusive.append(copied_payload_exclusive)
+
+    persist_prediction_batch_rows(
+        backend_base_url=backend_base_url_exclusive,
+        admin_api_key=admin_key_exclusive,
+        prediction_rows=finalized_prediction_rows_exclusive,
+    )
+
+    return {
+        "asset_id": asset_text_exclusive,
+        "status": "trained",
+        "model_id": str(persisted_model_uuid_exclusive),
+        "model_type_slug": "ensemble_ocm",
+        "prediction_rows_written": len(finalized_prediction_rows_exclusive),
+        "forward_prediction_rows_written": len(finalized_prediction_rows_exclusive),
+        "retrospective_prediction_rows_written": 0,
+        "forecast_horizon_days": horizon_days_exclusive,
+        "artifact_path": str(absolute_artifact_path_exclusive),
+        "mean_mae_cumulative_return": mean_horizon_mae_exclusive,
+    }
 
 
 def _train_lstm_path(
@@ -874,6 +1156,8 @@ def _train_lstm_path(
     sorted_full_features_exclusive: pd.DataFrame,
     sorted_full_targets_exclusive: pd.Series,
     sorted_full_closes_exclusive: pd.Series,
+    anchor_features_exclusive: pd.DataFrame,
+    anchor_closes_exclusive: pd.Series,
     outcome_dates_exclusive: pd.Series,
     retrospective_calendar_index_exclusive: pd.Index,
     model_root_exclusive: Path,
@@ -923,18 +1207,37 @@ def _train_lstm_path(
 
     raw_train_tail_sigma_exclusive = lstm_exclusive_train_finalize_outcome_exclusive.final_fold_residual_sigma
 
-    effective_exclusive_sigma_exclusive_float = float(max(raw_train_tail_sigma_exclusive, forecast_log_sigma_floor_exclusive))
+    scalar_reference_close_exclusive_float = float(
+        anchor_closes_exclusive.iloc[-1],
+    )
+
+    effective_exclusive_sigma_usd_exclusive_float = float(
+        max(
+            raw_train_tail_sigma_exclusive,
+            forecast_log_sigma_floor_exclusive * scalar_reference_close_exclusive_float,
+        )
+    )
 
     torch_inference_bundle_dictionary_exclusive = lstm_artifact_dictionary_from_train_result(
         lstm_exclusive_train_finalize_outcome_exclusive,
     )
 
-    terminal_forward_log_exclusive_float_prediction = float(
-        predict_lstm(torch_inference_bundle_dictionary_exclusive, sorted_full_features_exclusive.sort_index()),
+    terminal_predicted_next_close_usd_exclusive_float = float(
+        predict_lstm(torch_inference_bundle_dictionary_exclusive, anchor_features_exclusive.sort_index()),
     )
 
-    scalar_reference_close_exclusive_float = float(
-        sorted_full_closes_exclusive.loc[sorted_full_features_exclusive.index[-1]],
+    terminal_forward_log_exclusive_float_prediction = float(
+        np.log(
+            max(terminal_predicted_next_close_usd_exclusive_float, 1e-12)
+            / max(scalar_reference_close_exclusive_float, 1e-12),
+        )
+    )
+
+    sigma_log_for_multi_step_compound_lstm_exclusive_float = float(
+        max(
+            raw_train_tail_sigma_exclusive / max(scalar_reference_close_exclusive_float, 1e-12),
+            forecast_log_sigma_floor_exclusive,
+        )
     )
 
     hyper_document_exclusive_resolution_dictionary = {
@@ -946,17 +1249,18 @@ def _train_lstm_path(
         "forecast_horizon_days": horizon_days_exclusive,
         "feature_source": "on_chain_metrics_daily_wide_lag_augmented",
         "prediction_target": "on_chain_price_usd_next_day_level",
-        "model_target_space": "log_close_one_day_forward_return",
+        "model_target_space": "price_usd_next_calendar_close",
         "strict_holdout_precedes_eval_window_exclusive": holdout_enabled_exclusive,
         "max_onchain_metric_columns": metric_column_cap_exclusive,
         "multi_day_path_model": (
-            "compound_daily_log_returns: cum_mid_log equals h_times_mu_hat plus half_sigma_squared_times_h_ito; "
-            "ci_via_exp(cum_mid_log_plus_minus_sqrt_h_times_z_times_sigma_subject_to_optional_half_width_cap)."
+            "compound_daily_log_returns_from_implied_log_step: anchored_mu_log equals log(predicted_next_usd over reference_close); "
+            "sigma_log_proxy equals max(rmse_usd_over_reference_close, configured_log_floor)."
         ),
         "forecast_volatility_calibration": {
-            "log_return_sigma_validation": raw_train_tail_sigma_exclusive,
-            "log_return_sigma_effective_floor": forecast_log_sigma_floor_exclusive,
-            "log_return_sigma_used": effective_exclusive_sigma_exclusive_float,
+            "next_close_residual_rmse_validation_usd": raw_train_tail_sigma_exclusive,
+            "next_close_sigma_effective_usd": effective_exclusive_sigma_usd_exclusive_float,
+            "log_sigma_proxy_used_for_compounded_path": sigma_log_for_multi_step_compound_lstm_exclusive_float,
+            "log_volatility_effective_floor": forecast_log_sigma_floor_exclusive,
             "confidence_interval_gaussian_multiplier": forecast_ci_z_score_exclusive_float,
             "multi_day_log_band_half_width_cap": forecast_band_log_half_width_cap_exclusive_float,
         },
@@ -1007,15 +1311,14 @@ def _train_lstm_path(
             sorted_targets_sorted_reference=sorted_full_targets_exclusive,
             mapped_outcome_calendar_series_sorted_exclusive=outcome_dates_exclusive,
             retrospective_feature_calendar_anchor_index_exclusive=retrospective_calendar_index_exclusive,
-            calibrated_log_return_sigma_residual_exclusive=effective_exclusive_sigma_exclusive_float,
+            calibrated_log_return_sigma_residual_exclusive=effective_exclusive_sigma_usd_exclusive_float,
             confidence_interval_z_score_exclusive_float=forecast_ci_z_score_exclusive_float,
             asset_foreign_key_identity_exclusive=asset_uuid_exclusive,
-            sorted_reference_closes_sorted_reference=sorted_full_closes_exclusive,
         )
 
     training_metrics_exclusive_resolution_dictionary_exclusive = {
-        "validation_mae_log_close_forward_return": lstm_exclusive_train_finalize_outcome_exclusive.final_fold_mae,
-        "residual_sigma_log_close_forward_return": raw_train_tail_sigma_exclusive,
+        "validation_mae_next_close_usd": lstm_exclusive_train_finalize_outcome_exclusive.final_fold_mae,
+        "residual_rmse_next_close_usd": raw_train_tail_sigma_exclusive,
         "fitting_row_count_strict_pre_holdout_evaluation": lstm_exclusive_train_finalize_outcome_exclusive.training_rows,
         "best_val_mae": lstm_exclusive_train_finalize_outcome_exclusive.final_fold_mae,
         "total_epochs_run": len(lstm_exclusive_train_finalize_outcome_exclusive.epoch_val_mae_history),
@@ -1023,7 +1326,7 @@ def _train_lstm_path(
 
     if retrospective_log_mae_resolution_float_exclusive is not None:
         training_metrics_exclusive_resolution_dictionary_exclusive[
-            "retrospective_holdout_mean_absolute_error_log_forward_return"
+            "retrospective_holdout_mean_absolute_error_next_close_usd"
         ] = retrospective_log_mae_resolution_float_exclusive
 
     persisted_uuid_resolution_exclusive_identity = persist_ml_registry_row(
@@ -1045,10 +1348,10 @@ def _train_lstm_path(
     forward_multi_step_rows_exclusive_bucket_resolution = build_compounded_horizon_prediction_rows_exclusive(
         asset_uuid_anchor_key_exclusive=asset_uuid_exclusive,
         registry_model_uuid_anchor_key_exclusive=persisted_uuid_resolution_exclusive_identity,
-        forecast_calendar_anchor_exclusive=sorted_full_features_exclusive.index[-1],
+        forecast_calendar_anchor_exclusive=anchor_features_exclusive.index[-1],
         horizon_days_exclusive_budget=horizon_days_exclusive,
         anchored_forward_log_exclusive_float=terminal_forward_log_exclusive_float_prediction,
-        sigma_residual_effective_exclusive_float=effective_exclusive_sigma_exclusive_float,
+        sigma_residual_effective_exclusive_float=sigma_log_for_multi_step_compound_lstm_exclusive_float,
         reference_close_exclusive_float=scalar_reference_close_exclusive_float,
         confidence_interval_z_score_exclusive_float=forecast_ci_z_score_exclusive_float,
         band_log_half_width_cap_exclusive_float=forecast_band_log_half_width_cap_exclusive_float,
@@ -1073,7 +1376,7 @@ def _train_lstm_path(
         "status": "trained",
         "model_id": str(persisted_uuid_resolution_exclusive_identity),
         "model_type_slug": "lstm_ocm",
-        "validation_mae_log_close_forward_return": lstm_exclusive_train_finalize_outcome_exclusive.final_fold_mae,
+        "validation_mae_next_close_usd": lstm_exclusive_train_finalize_outcome_exclusive.final_fold_mae,
         "prediction_rows_written": len(fused_chronological_bundle_exclusive),
         "forward_prediction_rows_written": lstm_forward_row_count_exclusive,
         "retrospective_prediction_rows_written": lstm_retrospective_row_count_exclusive,
@@ -1083,7 +1386,7 @@ def _train_lstm_path(
 
     if retrospective_log_mae_resolution_float_exclusive is not None:
         summary_return_dictionary_exclusive_resolution[
-            "retrospective_holdout_mean_absolute_error_log_forward_return"
+            "retrospective_holdout_mean_absolute_error_next_close_usd"
         ] = retrospective_log_mae_resolution_float_exclusive
 
     return summary_return_dictionary_exclusive_resolution
@@ -1167,6 +1470,7 @@ def build_compounded_horizon_prediction_rows_exclusive(
                 "predicted_value": predicted_level_exclusive_float,
                 "confidence_interval_high": high_fence_exclusive_float,
                 "confidence_interval_low": low_fence_exclusive_float,
+                "horizon_step": step_index_exclusive,
             }
         )
 

@@ -51,6 +51,8 @@ services:
       API_PORT: "8000"
       AI_ENGINE_BASE_URL: http://ai_engine:8001
       AI_ENGINE_ML_SERVICE_KEY: docker-compose-ai-engine-internal-key-change-me
+    volumes:
+      - ./backend/app:/app/app:ro
     expose:
       - "8000"
     depends_on:
@@ -90,6 +92,7 @@ services:
       - "8001"
     volumes:
       - tauron_ai_models:/models
+      - ./ai_engine:/app-src:ro
     depends_on:
       db:
         condition: service_healthy

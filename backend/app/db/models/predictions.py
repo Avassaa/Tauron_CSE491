@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, Uuid
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -28,3 +28,12 @@ class Prediction(Base):
     predicted_value: Mapped[float] = mapped_column(Numeric(24, 8), nullable=False)
     confidence_interval_high: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
     confidence_interval_low: Mapped[float | None] = mapped_column(Numeric(24, 8), nullable=True)
+    horizon_step: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        doc=(
+            "1 = retrospective one-step (causal next-day prediction, valid for evaluation). "
+            "2..N = compounded forward path step h. "
+            "NULL = legacy rows written before this column was introduced."
+        ),
+    )

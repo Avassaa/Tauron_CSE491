@@ -173,6 +173,7 @@ class ModelEvaluationPointResponse(BaseModel):
     actual_close: float
     absolute_error: float
     signed_error: float
+    horizon_step: Optional[int] = None
 
 
 class ModelEvaluationSummaryResponse(BaseModel):

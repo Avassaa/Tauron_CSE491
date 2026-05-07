@@ -154,7 +154,12 @@ class PredictionRepository:
         market_resolution_exclusive: str = "1d",
         row_hard_cap_exclusive: int = 5000,
     ) -> list[dict[str, Any]]:
-        """Prediction timestamps aligned with same-calendar-day ``PriceUSD`` snapshots for evaluation."""
+        """All stored prediction rows for the model aligned with same-day PriceUSD snapshots.
+
+        One row per prediction timestamp — covers both retrospective one-step rows (horizon_step=1)
+        and forward compounded path rows (horizon_step>1).  The caller receives the horizon_step
+        value on each row so the UI can distinguish forecast-path evaluation from holdout replay.
+        """
 
         from app.config import settings
 
@@ -168,7 +173,8 @@ class PredictionRepository:
             SELECT
                 p.time AS outcome_time,
                 p.predicted_value::double precision AS predicted_value,
-                o.value_snapshot::double precision AS actual_close
+                o.value_snapshot::double precision AS actual_close,
+                p.horizon_step
             FROM "{schema_placeholder}".predictions p
             INNER JOIN (
                 SELECT DISTINCT ON (

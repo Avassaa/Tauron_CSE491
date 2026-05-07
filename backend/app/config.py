@@ -239,10 +239,14 @@ class Settings(BaseSettings):
         description="Upper bound on how many active assets receive Binance candles per empty-DB populate.",
     )
     AUTO_POPULATE_MARKET_DATA_LOOKBACK_DAYS: int = Field(
-        default=730,
+        default=10_000,
         ge=30,
-        le=3660,
-        description="Historical depth (UTC calendar days, daily interval) seeded from Binance per asset.",
+        le=20_000,
+        description=(
+            "Historical depth (UTC calendar days, daily interval) seeded from Binance per asset "
+            "when market_data is empty. Paging uses 1000-candle requests; very large values slow "
+            "first boot and may hit Binance history limits for some pairs."
+        ),
     )
     AUTO_POPULATE_MARKET_DATA_QUOTE_ASSET: str = Field(
         default="USDT",
