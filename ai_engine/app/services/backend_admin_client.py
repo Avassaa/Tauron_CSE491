@@ -83,6 +83,8 @@ def persist_prediction_batch_rows(
             serialized["confidence_interval_high"] = float(row["confidence_interval_high"])
         if row.get("confidence_interval_low") is not None:
             serialized["confidence_interval_low"] = float(row["confidence_interval_low"])
+        if row.get("horizon_step") is not None:
+            serialized["horizon_step"] = int(row["horizon_step"])
         serializable_rows.append(serialized)
 
     request_body = {"rows": serializable_rows}

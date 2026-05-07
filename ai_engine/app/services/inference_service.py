@@ -9,10 +9,16 @@ from uuid import UUID
 import joblib
 import numpy as np
 
-from app.db.postgres_accessor import PostgresAccessConfig, fetch_ml_model_registration, open_connection
+from app.db.postgres_accessor import (
+    PostgresAccessConfig,
+    fetch_ml_model_registration,
+    load_market_data_daily_frame,
+    open_connection,
+)
 from app.core.config import settings
 from app.services.feature_matrix_builder import (
     build_latest_feature_row_for_inference,
+    build_market_data_feature_block,
     resolve_reference_close_on_anchor_day_for_inference,
 )
 from app.services.training_pipeline import revive_bundle_from_disk
@@ -20,6 +26,27 @@ from app.services.training_pipeline import revive_bundle_from_disk
 def _is_torch_artifact_path(filesystem_path: Path) -> bool:
     """Return True when the artifact file extension signals a PyTorch save file."""
     return filesystem_path.suffix.lower() == ".pt"
+
+
+def _load_market_block_safe(
+    *,
+    access_configuration: Any,
+    schema_fragment: str,
+    asset_uuid_literal: UUID,
+) -> "pd.DataFrame":
+    """Load market-data OHLCV features on a fresh connection; return empty DataFrame on any failure."""
+    import pandas as pd
+
+    try:
+        with open_connection(access_configuration) as md_conn_exclusive:
+            raw_md_exclusive = load_market_data_daily_frame(
+                connection=md_conn_exclusive,
+                schema_name=schema_fragment,
+                asset_id=asset_uuid_literal,
+            )
+        return build_market_data_feature_block(raw_md_exclusive)
+    except Exception:
+        return pd.DataFrame()
 
 
 def predict_for_registered_model_blocking(
@@ -93,20 +120,24 @@ def _predict_sklearn_path(
     hydrated_blob = joblib.load(artifact_absolute_path)
     restored_bundle = revive_bundle_from_disk(hydrated_blob)
 
+    inference_market_block_exclusive = _load_market_block_safe(
+        access_configuration=access_configuration,
+        schema_fragment=schema_fragment,
+        asset_uuid_literal=asset_uuid_literal,
+    )
+
     latest_aligned_row = build_latest_feature_row_for_inference(
         connection=connection,
         schema_name=schema_fragment,
         asset_id=asset_uuid_literal,
         ordered_feature_columns=restored_bundle.feature_column_order,
+        external_market_feature_block=inference_market_block_exclusive,
     )
 
     reshaped_inference_matrix = latest_aligned_row.to_frame().T.astype(float)
 
-    predicted_log_forward_return_one_day = float(restored_bundle.pipeline.predict(reshaped_inference_matrix)[0])
-    sigma_log_return_component = restored_bundle.residual_standard_error * float(settings.TRAIN_FORECAST_CI_Z_SCORE)
-
-    log_high_forward = predicted_log_forward_return_one_day + sigma_log_return_component
-    log_low_forward = predicted_log_forward_return_one_day - sigma_log_return_component
+    raw_model_output_scalar = float(restored_bundle.pipeline.predict(reshaped_inference_matrix)[0])
+    model_target_space_literal = str(getattr(restored_bundle, "model_target_space", "log_return"))
 
     anchor_day_marker = latest_aligned_row.name
     if hasattr(anchor_day_marker, "strftime"):
@@ -121,11 +152,31 @@ def _predict_sklearn_path(
         feature_anchor_day_marker=anchor_day_marker,
     )
 
-    predicted_next_close_mid = float(
-        reference_close_before_extension * np.exp(predicted_log_forward_return_one_day)
-    )
-    predicted_next_close_high_ci = float(reference_close_before_extension * np.exp(log_high_forward))
-    predicted_next_close_low_ci = float(reference_close_before_extension * np.exp(log_low_forward))
+    residual_sigma_raw = float(restored_bundle.residual_standard_error)
+    confidence_z = float(settings.TRAIN_FORECAST_CI_Z_SCORE)
+
+    if model_target_space_literal == "next_close_usd":
+        predicted_next_close_mid = raw_model_output_scalar
+        sigma_usd_band_half_width = residual_sigma_raw * confidence_z
+        predicted_next_close_high_ci = float(predicted_next_close_mid + sigma_usd_band_half_width)
+        predicted_next_close_low_ci = float(max(predicted_next_close_mid - sigma_usd_band_half_width, 1e-9))
+        predicted_log_forward_return_one_day = float(
+            np.log(predicted_next_close_mid / max(reference_close_before_extension, 1e-12)),
+        )
+        reference_close_positive = max(reference_close_before_extension, 1e-12)
+        sigma_log_return_component = float(
+            sigma_usd_band_half_width / reference_close_positive,
+        )
+    else:
+        predicted_log_forward_return_one_day = raw_model_output_scalar
+        sigma_log_return_component = residual_sigma_raw * confidence_z
+        log_high_forward = predicted_log_forward_return_one_day + sigma_log_return_component
+        log_low_forward = predicted_log_forward_return_one_day - sigma_log_return_component
+        predicted_next_close_mid = float(
+            reference_close_before_extension * np.exp(predicted_log_forward_return_one_day)
+        )
+        predicted_next_close_high_ci = float(reference_close_before_extension * np.exp(log_high_forward))
+        predicted_next_close_low_ci = float(reference_close_before_extension * np.exp(log_low_forward))
 
     confidence_proxy = float(
         np.clip(
@@ -186,6 +237,14 @@ def _predict_lstm_path(
     base_cols = list(wide_on_chain.columns)
     wide_on_chain = augment_with_temporal_features(wide_on_chain, base_cols)
 
+    lstm_market_block_exclusive = _load_market_block_safe(
+        access_configuration=access_configuration,
+        schema_fragment=schema_fragment,
+        asset_uuid_literal=asset_uuid_literal,
+    )
+    if not lstm_market_block_exclusive.empty:
+        wide_on_chain = wide_on_chain.join(lstm_market_block_exclusive, how="left")
+
     feature_history_frame = wide_on_chain.reindex(columns=feature_column_order).sort_index()
 
     if len(feature_history_frame) < lookback_window:
@@ -194,7 +253,9 @@ def _predict_lstm_path(
             f"only {len(feature_history_frame)} available."
         )
 
-    predicted_log_forward_return_one_day = predict_lstm(artifact_dict, feature_history_frame)
+    predicted_raw_output_float = predict_lstm(artifact_dict, feature_history_frame)
+
+    model_target_space_literal = str(artifact_dict.get("model_target_space", "log_return"))
 
     anchor_day_marker = feature_history_frame.index.max()
     if hasattr(anchor_day_marker, "strftime"):
@@ -210,16 +271,28 @@ def _predict_lstm_path(
     )
 
     sigma_residual = float(artifact_dict.get("residual_sigma", 0.02))
-    sigma_log_return_component = sigma_residual * float(settings.TRAIN_FORECAST_CI_Z_SCORE)
+    confidence_z = float(settings.TRAIN_FORECAST_CI_Z_SCORE)
 
-    log_high_forward = predicted_log_forward_return_one_day + sigma_log_return_component
-    log_low_forward = predicted_log_forward_return_one_day - sigma_log_return_component
-
-    predicted_next_close_mid = float(
-        reference_close_before_extension * np.exp(predicted_log_forward_return_one_day)
-    )
-    predicted_next_close_high_ci = float(reference_close_before_extension * np.exp(log_high_forward))
-    predicted_next_close_low_ci = float(reference_close_before_extension * np.exp(log_low_forward))
+    if model_target_space_literal == "next_close_usd":
+        predicted_next_close_mid = float(predicted_raw_output_float)
+        sigma_usd_band_half_width = sigma_residual * confidence_z
+        predicted_next_close_high_ci = float(predicted_next_close_mid + sigma_usd_band_half_width)
+        predicted_next_close_low_ci = float(max(predicted_next_close_mid - sigma_usd_band_half_width, 1e-9))
+        predicted_log_forward_return_one_day = float(
+            np.log(predicted_next_close_mid / max(reference_close_before_extension, 1e-12)),
+        )
+        reference_close_positive = max(reference_close_before_extension, 1e-12)
+        sigma_log_return_component = float(sigma_usd_band_half_width / reference_close_positive)
+    else:
+        predicted_log_forward_return_one_day = float(predicted_raw_output_float)
+        sigma_log_return_component = sigma_residual * confidence_z
+        log_high_forward = predicted_log_forward_return_one_day + sigma_log_return_component
+        log_low_forward = predicted_log_forward_return_one_day - sigma_log_return_component
+        predicted_next_close_mid = float(
+            reference_close_before_extension * np.exp(predicted_log_forward_return_one_day)
+        )
+        predicted_next_close_high_ci = float(reference_close_before_extension * np.exp(log_high_forward))
+        predicted_next_close_low_ci = float(reference_close_before_extension * np.exp(log_low_forward))
 
     confidence_proxy = float(
         np.clip(

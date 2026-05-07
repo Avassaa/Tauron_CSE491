@@ -392,6 +392,59 @@ def time_series_cross_validate(
     )
 
 
+def time_series_out_of_fold_predicted_targets(
+    feature_frame: pd.DataFrame,
+    target_series: pd.Series,
+    *,
+    model_type_slug: str,
+    n_splits: int = _TIME_SERIES_CV_FOLDS,
+    estimator_param_overrides_exclusive: Mapping[str, Any] | None = None,
+) -> pd.Series:
+    """
+    Return one-step predictions only on ``TimeSeriesSplit`` validation rows (NaN elsewhere).
+
+    Uses the same fold construction and minimum split sizes as ``time_series_cross_validate`` so
+    plotted series exclude training-only rows where the fitted model has already observed the target.
+    """
+
+    merged_index = feature_frame.index.intersection(target_series.index)
+    feature_sorted = feature_frame.loc[merged_index].sort_index()
+    target_sorted = target_series.loc[merged_index].sort_index()
+
+    total_rows = len(feature_sorted)
+    if total_rows < n_splits * 2 + 10:
+        raise ValueError(
+            f"Insufficient rows ({total_rows}) for {n_splits}-fold TimeSeriesSplit. "
+            f"Need at least {n_splits * 2 + 10}."
+        )
+
+    feature_numpy = feature_sorted.values
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    out_of_fold_predictions = np.full(total_rows, np.nan, dtype=float)
+
+    for train_idx, val_idx in tscv.split(feature_numpy):
+        if len(train_idx) < 10 or len(val_idx) < 3:
+            continue
+
+        train_features_fold = feature_sorted.iloc[train_idx]
+        val_features_fold = feature_sorted.iloc[val_idx]
+        train_targets_fold = target_sorted.iloc[train_idx]
+
+        pipeline_fold = build_supervised_pipeline(
+            list(feature_sorted.columns),
+            model_type_slug=model_type_slug,
+            estimator_param_overrides_exclusive=estimator_param_overrides_exclusive,
+        )
+        pipeline_fold.fit(train_features_fold, train_targets_fold.to_numpy(dtype=float))
+        out_of_fold_predictions[val_idx] = pipeline_fold.predict(val_features_fold).astype(float)
+
+    return pd.Series(
+        out_of_fold_predictions,
+        index=feature_sorted.index,
+        name="oof_predicted_next_close_usd",
+    )
+
+
 @dataclass(frozen=True)
 class FittedEstimatorBundle:
     """Everything required to replay predictions outside the trainer process."""
@@ -403,6 +456,7 @@ class FittedEstimatorBundle:
     residual_standard_error: float
     anchor_metric_column_key: str = ""
     target_signal_slug: str = ""
+    model_target_space: str = "log_return"
     model_type_slug: str = "hgb_ocm"
     cv_fold_mae_values: list[float] | None = None
     cv_mean_mae: float | None = None
@@ -485,6 +539,7 @@ def bundle_to_joblib_dict(bundle: FittedEstimatorBundle) -> dict[str, Any]:
         "residual_standard_error": bundle.residual_standard_error,
         "anchor_metric_column_key": bundle.anchor_metric_column_key,
         "target_signal_slug": bundle.target_signal_slug,
+        "model_target_space": bundle.model_target_space,
         "model_type_slug": bundle.model_type_slug,
         "cv_fold_mae_values": bundle.cv_fold_mae_values,
         "cv_mean_mae": bundle.cv_mean_mae,
@@ -502,6 +557,7 @@ def revive_bundle_from_disk(payload: dict[str, Any]) -> FittedEstimatorBundle:
         residual_standard_error=float(payload["residual_standard_error"]),
         anchor_metric_column_key=str(payload.get("anchor_metric_column_key", "")),
         target_signal_slug=str(payload.get("target_signal_slug", "")),
+        model_target_space=str(payload.get("model_target_space", "log_return")),
         model_type_slug=str(payload.get("model_type_slug", "hgb_ocm")),
         cv_fold_mae_values=payload.get("cv_fold_mae_values"),
         cv_mean_mae=payload.get("cv_mean_mae"),

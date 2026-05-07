@@ -226,7 +226,7 @@ async def evaluate_model_predictions_versus_daily_observed_closes(
             points=[],
         )
 
-    ordered_triplets_exclusive: list[tuple[datetime, float, float]] = []
+    ordered_quad_rows_exclusive: list[tuple[datetime, float, float, Optional[int]]] = []
     for row_mapping_exclusive in raw_overlap_rows_exclusive:
         settlement_instant_exclusive = row_mapping_exclusive["outcome_time"]
         if not isinstance(settlement_instant_exclusive, datetime):
@@ -237,17 +237,28 @@ async def evaluate_model_predictions_versus_daily_observed_closes(
         normalized_settlement_exclusive = _as_utc_zoned(settlement_instant_exclusive)
         predicted_scalar_exclusive = float(row_mapping_exclusive["predicted_value"])
         actual_scalar_exclusive = float(row_mapping_exclusive["actual_close"])
-        ordered_triplets_exclusive.append(
-            (normalized_settlement_exclusive, predicted_scalar_exclusive, actual_scalar_exclusive),
+        horizon_step_value_exclusive: Optional[int] = row_mapping_exclusive.get("horizon_step")
+        ordered_quad_rows_exclusive.append(
+            (
+                normalized_settlement_exclusive,
+                predicted_scalar_exclusive,
+                actual_scalar_exclusive,
+                horizon_step_value_exclusive,
+            ),
         )
-    ordered_triplets_exclusive.sort(key=lambda entry_exclusive: entry_exclusive[0])
+    ordered_quad_rows_exclusive.sort(key=lambda entry_exclusive: entry_exclusive[0])
 
     absolute_residual_stack_exclusive: list[float] = []
     squared_residual_stack_exclusive: list[float] = []
     percentage_residual_stack_exclusive: list[float] = []
     modeled_point_payload_exclusive: list[ModelEvaluationPointResponse] = []
 
-    for settlement_clock_exclusive, predicted_mid_exclusive, observed_close_exclusive in ordered_triplets_exclusive:
+    for (
+        settlement_clock_exclusive,
+        predicted_mid_exclusive,
+        observed_close_exclusive,
+        horizon_step_point_exclusive,
+    ) in ordered_quad_rows_exclusive:
         residual_signed_exclusive = predicted_mid_exclusive - observed_close_exclusive
         absolute_residual_stack_exclusive.append(abs(residual_signed_exclusive))
         squared_residual_stack_exclusive.append(residual_signed_exclusive**2)
@@ -262,6 +273,7 @@ async def evaluate_model_predictions_versus_daily_observed_closes(
                 actual_close=observed_close_exclusive,
                 absolute_error=abs(residual_signed_exclusive),
                 signed_error=residual_signed_exclusive,
+                horizon_step=horizon_step_point_exclusive,
             ),
         )
 
@@ -278,11 +290,11 @@ async def evaluate_model_predictions_versus_daily_observed_closes(
     directional_denominator_exclusive = 0
     directional_agreement_exclusive = 0
     iterator_index_exclusive = 1
-    tuple_length_exclusive = len(ordered_triplets_exclusive)
+    tuple_length_exclusive = len(ordered_quad_rows_exclusive)
     while iterator_index_exclusive < tuple_length_exclusive:
-        trailing_observed_exclusive = ordered_triplets_exclusive[iterator_index_exclusive - 1][2]
-        forward_predicted_exclusive = ordered_triplets_exclusive[iterator_index_exclusive][1]
-        forward_observed_exclusive = ordered_triplets_exclusive[iterator_index_exclusive][2]
+        trailing_observed_exclusive = ordered_quad_rows_exclusive[iterator_index_exclusive - 1][2]
+        forward_predicted_exclusive = ordered_quad_rows_exclusive[iterator_index_exclusive][1]
+        forward_observed_exclusive = ordered_quad_rows_exclusive[iterator_index_exclusive][2]
         iterator_index_exclusive += 1
         if trailing_observed_exclusive <= 1e-9:
             continue

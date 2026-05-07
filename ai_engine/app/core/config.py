@@ -1,15 +1,23 @@
 """Central settings for ai_engine (environment variables)."""
 
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_AI_ENGINE_DIRECTORY = Path(__file__).resolve().parents[2]
+_AI_ENGINE_ENV_FILE = _AI_ENGINE_DIRECTORY / ".env"
+
 
 class Settings(BaseSettings):
     """Application configuration sourced from ``.env`` and the runtime environment."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=_AI_ENGINE_ENV_FILE,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     PROJECT_NAME: str = "Tauron AI Engine"
     API_V1_STR: str = "/api/v1"
@@ -35,7 +43,7 @@ class Settings(BaseSettings):
     )
 
     POSTGRES_HOST: str = "localhost"
-    POSTGRES_PORT: int = 5432
+    POSTGRES_PORT: int = 5433
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "tauron"
