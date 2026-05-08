@@ -108,7 +108,7 @@ function QuickLinkCard({
 function DashboardPageClient() {
   const [searchParams] = useSearchParams()
   const selectedAssetId = searchParams.get("asset")
-  const { coins, btcKlines, loading } = useDashboardData()
+  const { coins, btcKlines, ethKlines, solKlines, bnbKlines, xrpKlines, dogeKlines, loading } = useDashboardData()
 
   const btcCoin = coins.find((c) => c.symbol === "BTC")
   const ethCoin = coins.find((c) => c.symbol === "ETH")
@@ -240,7 +240,7 @@ function DashboardPageClient() {
                     <ChartBarDefault coins={coins} />
                     <ChartLineDefault btcKlines={btcKlines} coins={coins} />
                     <ChartPieSimple coins={coins} />
-                    <ChartRadarLinesOnly coins={coins} />
+                    <ChartRadarLinesOnly coins={coins} btcKlines={btcKlines} ethKlines={ethKlines} solKlines={solKlines} bnbKlines={bnbKlines} xrpKlines={xrpKlines} dogeKlines={dogeKlines} />
                   </div>
 
                   {/* Price alerts (replaces 30D multi-line comparison) */}

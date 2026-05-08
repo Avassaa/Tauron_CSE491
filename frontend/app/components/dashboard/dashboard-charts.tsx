@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { TrendingDown, TrendingUp } from "lucide-react"
 import {
   Area,
@@ -28,6 +29,7 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card"
+import { cn } from "~/lib/utils"
 import {
   ChartContainer,
   ChartLegend,
@@ -363,120 +365,169 @@ export function ChartPieSimple({ coins }: ChartPieSimpleProps) {
   )
 }
 
-// ─── Sector Performance Radar (BTC vs ETH vs SOL) ────────────────────────────
+// ─── Sector Performance Radar ─────────────────────────────────────────────────
+
+type RadarPeriod = "1d" | "3d" | "7d" | "30d"
+
+const RADAR_PERIOD_LABELS: Record<RadarPeriod, string> = {
+  "1d": "1D",
+  "3d": "3D",
+  "7d": "7D",
+  "30d": "30D",
+}
+
+const RADAR_COINS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]
 
 const radarConfig = {
-  btc: { label: "BTC", color: BTC_COLOR },
-  eth: { label: "ETH", color: ETH_COLOR },
-  sol: { label: "SOL", color: SOL_COLOR },
+  value: { label: "Performance", color: "#8b5cf6" },
 } satisfies ChartConfig
 
 interface ChartRadarLinesOnlyProps {
   coins?: DashboardCoin[]
+  btcKlines?: KlinePoint[]
+  ethKlines?: KlinePoint[]
+  solKlines?: KlinePoint[]
+  bnbKlines?: KlinePoint[]
+  xrpKlines?: KlinePoint[]
+  dogeKlines?: KlinePoint[]
 }
 
-export function ChartRadarLinesOnly({ coins }: ChartRadarLinesOnlyProps) {
-  const btc = coins?.find((c) => c.symbol === "BTC")
-  const eth = coins?.find((c) => c.symbol === "ETH")
-  const sol = coins?.find((c) => c.symbol === "SOL")
+function computeKlineChange(klines: KlinePoint[], days: number): number | null {
+  if (klines.length < days + 1) return null
+  const recent = klines[klines.length - 1].price
+  const old = klines[klines.length - 1 - days].price
+  if (!old || old <= 0) return null
+  return ((recent - old) / old) * 100
+}
 
-  const offset = 10
+export function ChartRadarLinesOnly({ coins, btcKlines, ethKlines, solKlines, bnbKlines, xrpKlines, dogeKlines }: ChartRadarLinesOnlyProps) {
+  const [period, setPeriod] = React.useState<RadarPeriod>("7d")
+
+  const klinesBySymbol: Record<string, KlinePoint[]> = {
+    BTC: btcKlines ?? [],
+    ETH: ethKlines ?? [],
+    SOL: solKlines ?? [],
+    BNB: bnbKlines ?? [],
+    XRP: xrpKlines ?? [],
+    DOGE: dogeKlines ?? [],
+  }
+
+  function getChange(symbol: string, p: RadarPeriod): number | null {
+    const klines = klinesBySymbol[symbol]
+    if (!klines || klines.length === 0) {
+      // Fallback to API field for 24h
+      const coin = coins?.find((c) => c.symbol === symbol)
+      return p === "1d" ? (coin?.price_change_24h ?? null) : null
+    }
+    if (p === "1d") return computeKlineChange(klines, 1)
+    if (p === "3d") return computeKlineChange(klines, 3)
+    if (p === "7d") return computeKlineChange(klines, 7)
+    if (p === "30d") return computeKlineChange(klines, 29)
+    return null
+  }
+
+  const offset = 15
   const cap = (v: number | null) =>
-    Math.round(Math.max(0, Math.min(25, offset + (v ?? 0))) * 100) / 100
+    v == null ? offset : Math.round(Math.max(0, Math.min(30, offset + v)) * 100) / 100
 
-  const data = [
-    {
-      period: "1h",
-      btc: cap(btc?.price_change_1h ?? null),
-      eth: cap(eth?.price_change_1h ?? null),
-      sol: cap(sol?.price_change_1h ?? null),
-    },
-    {
-      period: "24h",
-      btc: cap(btc?.price_change_24h ?? null),
-      eth: cap(eth?.price_change_24h ?? null),
-      sol: cap(sol?.price_change_24h ?? null),
-    },
-    {
-      period: "7d",
-      btc: cap(btc?.price_change_7d ?? null),
-      eth: cap(eth?.price_change_7d ?? null),
-      sol: cap(sol?.price_change_7d ?? null),
-    },
-    {
-      period: "30d",
-      btc: cap(btc?.price_change_30d ?? null),
-      eth: cap(eth?.price_change_30d ?? null),
-      sol: cap(sol?.price_change_30d ?? null),
-    },
-  ]
+  const activeCoinSymbols = RADAR_COINS.filter((sym) =>
+    coins?.some((c) => c.symbol === sym)
+  )
 
-  const fmtChange = (v: number | null) => {
+  const data = activeCoinSymbols.map((sym) => {
+    const raw = getChange(sym, period)
+    return { coin: sym, value: cap(raw), raw }
+  })
+
+  const fmtChange = (v: number | null | undefined) => {
     if (v == null) return "—"
     return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`
   }
 
+  const sorted = [...data].filter((d) => d.raw != null).sort((a, b) => (b.raw ?? 0) - (a.raw ?? 0))
+  const best = sorted[0]
+  const worst = sorted[sorted.length - 1]
+
+  const PERIODS: RadarPeriod[] = ["1d", "3d", "7d", "30d"]
+
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <CardTitleWithTooltip tooltip="Compares BTC, ETH, and SOL performance across 1h, 24h, 7d, and 30d timeframes. Values are offset by +10 so the neutral point sits at the midpoint of each axis.">
-          Performance Radar
-        </CardTitleWithTooltip>
-        <CardDescription>BTC · ETH · SOL across time horizons</CardDescription>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitleWithTooltip tooltip="Compares top crypto assets for the selected time period. Each axis represents one coin — values further from center = stronger performance. Offset by 15 so the neutral point sits at the midpoint.">
+            Performance Radar
+          </CardTitleWithTooltip>
+          <div className="flex gap-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className={cn(
+                  "rounded px-2 py-0.5 text-[11px] font-bold transition-colors outline-none focus:outline-none",
+                  period === p
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                {RADAR_PERIOD_LABELS[p]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <CardDescription>
+          Top coins · {period} performance
+        </CardDescription>
       </CardHeader>
       <CardContent className="pb-0">
         <ChartContainer
           config={radarConfig}
-          className="mx-auto aspect-square h-[220px] min-h-[220px] w-full max-w-[220px]"
+          className="mx-auto aspect-square h-[220px] min-h-[220px] w-full max-w-[240px] [&_*]:outline-none [&_*:focus]:outline-none"
         >
-          <RadarChart data={data}>
+          <RadarChart data={data} style={{ outline: "none" }}>
             <ChartTooltip
               cursor={false}
               content={
                 <ChartTooltipContent
                   indicator="line"
                   formatter={(value, name) => [
-                    `${(Number(value) - offset) >= 0 ? "+" : ""}${(Number(value) - offset).toFixed(2)}%`,
-                    String(name).toUpperCase(),
+                    fmtChange(Number(value) - offset),
+                    String(name),
                   ]}
+                  labelFormatter={(label) => String(label)}
                 />
               }
             />
             <PolarAngleAxis
-              dataKey="period"
-              tick={{ fontSize: 11, fontWeight: 700 }}
+              dataKey="coin"
+              tick={{ fontSize: 10, fontWeight: 700 }}
             />
             <PolarGrid radialLines={false} />
             <Radar
-              dataKey="btc"
-              fill={BTC_COLOR}
-              fillOpacity={0.18}
-              stroke={BTC_COLOR}
+              dataKey="value"
+              fill="#8b5cf6"
+              fillOpacity={0.22}
+              stroke="#8b5cf6"
               strokeWidth={2}
             />
-            <Radar
-              dataKey="eth"
-              fill={ETH_COLOR}
-              fillOpacity={0.15}
-              stroke={ETH_COLOR}
-              strokeWidth={2}
-            />
-            <Radar
-              dataKey="sol"
-              fill={SOL_COLOR}
-              fillOpacity={0.15}
-              stroke={SOL_COLOR}
-              strokeWidth={2}
-            />
-            <ChartLegend content={<ChartLegendContent />} />
           </RadarChart>
         </ChartContainer>
       </CardContent>
       <CardFooter className="flex-col gap-1 text-sm pt-2">
         <div className="flex gap-4 leading-none text-xs font-bold">
-          <span style={{ color: BTC_COLOR }}>BTC 24h {fmtChange(btc?.price_change_24h ?? null)}</span>
-          <span style={{ color: ETH_COLOR }}>ETH 24h {fmtChange(eth?.price_change_24h ?? null)}</span>
-          <span style={{ color: SOL_COLOR }}>SOL 24h {fmtChange(sol?.price_change_24h ?? null)}</span>
+          {best && (
+            <span className="text-emerald-500">
+              Best: {best.coin} {fmtChange(best.raw)}
+            </span>
+          )}
+          {worst && worst.coin !== best?.coin && (
+            <span className="text-rose-500">
+              Worst: {worst.coin} {fmtChange(worst.raw)}
+            </span>
+          )}
+        </div>
+        <div className="leading-none text-muted-foreground text-xs">
+          Binance daily klines · {period} window
         </div>
       </CardFooter>
     </Card>

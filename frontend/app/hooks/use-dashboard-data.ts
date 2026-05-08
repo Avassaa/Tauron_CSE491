@@ -61,6 +61,9 @@ export function useDashboardData() {
   const [btcKlines, setBtcKlines] = React.useState<KlinePoint[]>([])
   const [ethKlines, setEthKlines] = React.useState<KlinePoint[]>([])
   const [solKlines, setSolKlines] = React.useState<KlinePoint[]>([])
+  const [bnbKlines, setBnbKlines] = React.useState<KlinePoint[]>([])
+  const [xrpKlines, setXrpKlines] = React.useState<KlinePoint[]>([])
+  const [dogeKlines, setDogeKlines] = React.useState<KlinePoint[]>([])
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
@@ -69,12 +72,16 @@ export function useDashboardData() {
     const load = async () => {
       setLoading(true)
       try {
-        const [marketResult, btcResult, ethResult, solResult] = await Promise.allSettled([
-          fetchMarket(50),
-          fetchBinanceKlines("BTCUSDT", "1d", 30),
-          fetchBinanceKlines("ETHUSDT", "1d", 30),
-          fetchBinanceKlines("SOLUSDT", "1d", 30),
-        ])
+        const [marketResult, btcResult, ethResult, solResult, bnbResult, xrpResult, dogeResult] =
+          await Promise.allSettled([
+            fetchMarket(50),
+            fetchBinanceKlines("BTCUSDT", "1d", 30),
+            fetchBinanceKlines("ETHUSDT", "1d", 30),
+            fetchBinanceKlines("SOLUSDT", "1d", 30),
+            fetchBinanceKlines("BNBUSDT", "1d", 30),
+            fetchBinanceKlines("XRPUSDT", "1d", 30),
+            fetchBinanceKlines("DOGEUSDT", "1d", 30),
+          ])
 
         if (cancelled) return
 
@@ -105,6 +112,9 @@ export function useDashboardData() {
         if (btcResult.status === "fulfilled") setBtcKlines(parseKlines(btcResult.value))
         if (ethResult.status === "fulfilled") setEthKlines(parseKlines(ethResult.value))
         if (solResult.status === "fulfilled") setSolKlines(parseKlines(solResult.value))
+        if (bnbResult.status === "fulfilled") setBnbKlines(parseKlines(bnbResult.value))
+        if (xrpResult.status === "fulfilled") setXrpKlines(parseKlines(xrpResult.value))
+        if (dogeResult.status === "fulfilled") setDogeKlines(parseKlines(dogeResult.value))
       } catch (err) {
         console.error("[DashboardData] fetch failed:", err)
       } finally {
@@ -116,5 +126,5 @@ export function useDashboardData() {
     return () => { cancelled = true }
   }, [])
 
-  return { coins, btcKlines, ethKlines, solKlines, loading }
+  return { coins, btcKlines, ethKlines, solKlines, bnbKlines, xrpKlines, dogeKlines, loading }
 }
