@@ -86,16 +86,30 @@ export default function HeatmapPage() {
       filteredMarket = filteredMarket.filter(i => DEFI_COINS.includes(i.symbol.toUpperCase()) || i.name?.toLowerCase().includes("defi"))
     }
 
-    return filteredMarket.map(item => {
+    const sortedForTreemap = [...filteredMarket].sort((a, b) => {
+      const ra = typeof a.rank === "number" && Number.isFinite(a.rank) ? a.rank : 999999
+      const rb = typeof b.rank === "number" && Number.isFinite(b.rank) ? b.rank : 999999
+      return ra - rb
+    })
+    const n = sortedForTreemap.length
+
+    const rows = sortedForTreemap.map((item, idx) => {
       const symbol = item.symbol.toUpperCase()
       const meta = assetMap.get(symbol)
+      const cap = item.market_cap
+      const hasRealCap = typeof cap === "number" && cap > 0
+      const usingCapProxy = sizeBy === "market_cap" && !hasRealCap
 
       let value = 0
       if (sizeBy === "market_cap") {
-        const rankWeight = Math.pow(Math.max(251 - (item.rank || 250), 1), 1.5)
-        value = item.market_cap || (rankWeight * 1000000)
+        if (hasRealCap) {
+          value = cap
+        } else {
+          const rung = Math.max(n - idx, 1)
+          value = Math.pow(rung, 2.35) * 1e6
+        }
       } else {
-        value = Math.pow(item.volume || 1, 0.85)
+        value = Math.pow(Math.max(item.volume ?? 0, 1), 0.85)
       }
 
       let change = 0
@@ -112,8 +126,15 @@ export default function HeatmapPage() {
         symbol: item.symbol,
         value: Math.max(value, 1),
         change: change,
+        volume24h: item.volume ?? null,
+        marketCap: hasRealCap ? cap : null,
+        exchangeRank: typeof item.rank === "number" && Number.isFinite(item.rank) ? item.rank : null,
+        usingCapProxy,
       }
-    }).filter(i => i.value > 0)
+    })
+
+    return rows
+      .filter(i => i.value > 0)
       .sort((a, b) => b.value - a.value)
   }, [rawMarket, rawAssets, sizeBy, perfRange, filterSource])
 
@@ -329,7 +350,7 @@ export default function HeatmapPage() {
                 </div>
               ) : (
                 <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full w-full">
-                  <MarketHeatmap data={processedData} />
+                  <MarketHeatmap data={processedData} sizeBy={sizeBy} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -383,7 +404,7 @@ export default function HeatmapPage() {
                           <BarChart3 className="size-3" /> Market Dominance
                         </h4>
                         <p className="text-[11px] text-muted-foreground leading-relaxed pl-5 border-l border-primary/30">
-                          In <span className="text-foreground italic">Market Cap</span> mode, the size of a square represents the asset's overall share of the market. It shows you the <span className="text-foreground font-semibold underline underline-offset-4 decoration-primary/50">heavyweights</span> that anchor the ecosystem.
+                          In <span className="text-foreground italic">Market Cap</span> mode, tile size uses real market cap when the feed provides it; otherwise sizes follow global Binance 24h volume rank so larger names still read as heavier. The tooltip states when a rank proxy is used.
                         </p>
                       </div>
                       <div className="group/item">

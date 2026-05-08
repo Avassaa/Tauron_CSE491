@@ -4,6 +4,14 @@ import * as React from "react"
 import { Treemap, ResponsiveContainer, Tooltip } from "recharts"
 import { AssetIcon } from "~/components/asset-icon"
 import { cn } from "~/lib/utils"
+import { formatCompactCurrency } from "~/lib/currency"
+
+function formatVolumeNotional(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return "—"
+  return `${formatCompactCurrency(amount, "USD")} (USDT)`
+}
+
+export type HeatmapSizeBy = "market_cap" | "volume"
 
 interface HeatmapData {
   name: string
@@ -11,11 +19,16 @@ interface HeatmapData {
   value?: number
   change?: number
   children?: HeatmapData[]
+  volume24h?: number | null
+  marketCap?: number | null
+  exchangeRank?: number | null
+  usingCapProxy?: boolean
   [key: string]: any
 }
 
 interface MarketHeatmapProps {
   data: HeatmapData[]
+  sizeBy: HeatmapSizeBy
   onAssetClick?: (symbol: string) => void
 }
 
@@ -153,45 +166,82 @@ const CustomizedContent = React.memo((props: any) => {
   )
 })
 
-const HeatmapTooltip = React.memo(({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload
-    if (!data.symbol) return null
-    const isPositive = (data.change ?? 0) >= 0
-    const isNeutral = Math.abs(data.change ?? 0) < 0.01
+function HeatmapTooltipBody({ active, payload, sizeBy }: { active?: boolean; payload?: any[]; sizeBy: HeatmapSizeBy }) {
+  if (!active || !payload?.length) return null
+  const data = payload[0].payload as HeatmapData
+  if (!data.symbol) return null
+  const isPositive = (data.change ?? 0) >= 0
+  const isNeutral = Math.abs(data.change ?? 0) < 0.01
 
-    return (
-      <div className="rounded-2xl border border-border bg-popover/90 p-4 backdrop-blur-xl shadow-2xl ring-1 ring-white/10">
-        <div className="flex items-center gap-3 mb-3 border-b border-border pb-3">
-          <div className="size-8 overflow-hidden rounded-xl bg-muted p-1.5 border border-border">
-            <AssetIcon symbol={data.symbol} className="size-full" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-black text-sm text-foreground tracking-tight leading-none">{data.name}</span>
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-1">{data.symbol}</span>
-          </div>
+  const rankText =
+    data.exchangeRank != null && Number.isFinite(data.exchangeRank) ? `#${Math.round(data.exchangeRank)}` : "—"
+
+  return (
+    <div className="rounded-2xl border border-border bg-popover/90 p-4 backdrop-blur-xl shadow-2xl ring-1 ring-white/10">
+      <div className="flex items-center gap-3 mb-3 border-b border-border pb-3">
+        <div className="size-8 overflow-hidden rounded-xl bg-muted p-1.5 border border-border">
+          <AssetIcon symbol={data.symbol} className="size-full" />
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-12">
-            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Performance</span>
-            <span className={cn("text-xs font-black tabular-nums", isNeutral ? "text-muted-foreground" : isPositive ? "text-emerald-500" : "text-rose-500")}>
-              {isNeutral ? "± 0.00%" : (isPositive ? "▲ +" : "▼ ") + (data.change ?? 0).toFixed(2) + "%"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-12">
-            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Market Value</span>
-            <span className="text-xs font-black text-foreground tabular-nums">
-              ${new Intl.NumberFormat("en-US", { notation: "compact" }).format(data.value ?? 0)}
-            </span>
-          </div>
+        <div className="flex flex-col">
+          <span className="font-black text-sm text-foreground tracking-tight leading-none">{data.name}</span>
+          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mt-1">{data.symbol}</span>
         </div>
       </div>
-    )
-  }
-  return null
-})
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-12">
+          <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Performance</span>
+          <span className={cn("text-xs font-black tabular-nums", isNeutral ? "text-muted-foreground" : isPositive ? "text-emerald-500" : "text-rose-500")}>
+            {isNeutral ? "± 0.00%" : (isPositive ? "▲ +" : "▼ ") + (data.change ?? 0).toFixed(2) + "%"}
+          </span>
+        </div>
 
-export function MarketHeatmap({ data, onAssetClick }: MarketHeatmapProps) {
+        {sizeBy === "volume" ? (
+          <>
+            <div className="flex items-center justify-between gap-12">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">24h volume</span>
+              <span className="text-xs font-black text-foreground tabular-nums text-right max-w-[min(200px,55vw)] leading-tight">
+                {formatVolumeNotional(data.volume24h)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-12">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Volume rank</span>
+              <span className="text-xs font-black text-foreground tabular-nums">{rankText}</span>
+            </div>
+          </>
+        ) : data.usingCapProxy ? (
+          <>
+            <div className="flex items-center justify-between gap-12">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">24h volume</span>
+              <span className="text-xs font-black text-foreground tabular-nums text-right max-w-[min(200px,55vw)] leading-tight">
+                {formatVolumeNotional(data.volume24h)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-12">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Volume rank</span>
+              <span className="text-xs font-black text-foreground tabular-nums">{rankText}</span>
+            </div>
+            <p className="text-[9px] text-muted-foreground leading-snug pt-0.5 border-t border-border/60 mt-2">
+              Market cap is not available from this feed. Tile size uses the same Binance 24h volume ranking as above.
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center justify-between gap-12">
+            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Market cap</span>
+            <span className="text-xs font-black text-foreground tabular-nums">
+              {(() => {
+                const cap = data.marketCap
+                if (cap == null || !Number.isFinite(cap)) return "—"
+                return formatCompactCurrency(cap, "USD")
+              })()}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function MarketHeatmap({ data, sizeBy, onAssetClick }: MarketHeatmapProps) {
   const chartData = React.useMemo(() => data || [], [data])
   if (chartData.length === 0) return null
 
@@ -207,7 +257,10 @@ export function MarketHeatmap({ data, onAssetClick }: MarketHeatmapProps) {
             content={<CustomizedContent />}
             onClick={(node: any) => node?.symbol && onAssetClick?.(node.symbol)}
           >
-            <Tooltip content={<HeatmapTooltip />} cursor={{ strokeOpacity: 0 }} />
+            <Tooltip
+              content={(props) => <HeatmapTooltipBody {...props} sizeBy={sizeBy} />}
+              cursor={{ strokeOpacity: 0 }}
+            />
           </Treemap>
         </ResponsiveContainer>
       </div>
